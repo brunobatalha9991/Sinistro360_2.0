@@ -23,6 +23,18 @@ export function AtendimentoStepsEditor({ atendTemplateCfg, saveConfig }) {
       return { steps: curSteps.filter((s) => s.id !== stepId) };
     });
   }
+  function moverEtapa(stepId, dir) {
+    saveConfig("corp_atendimento_template", (current) => {
+      const curSteps = getAtendTemplate(current).steps || [];
+      const idx = curSteps.findIndex((s) => s.id === stepId);
+      const novoIdx = idx + dir;
+      if (idx < 0 || novoIdx < 0 || novoIdx >= curSteps.length) return { steps: curSteps };
+      const copia = curSteps.slice();
+      const [item] = copia.splice(idx, 1);
+      copia.splice(novoIdx, 0, item);
+      return { steps: copia };
+    });
+  }
   function setTitulo(stepId, title) { patchStep(stepId, (s) => ({ ...s, title })); }
   function setStatusOptions(stepId, opts) { patchStep(stepId, (s) => ({ ...s, statusOptions: opts })); }
   function adicionarEtapa() {
@@ -39,9 +51,13 @@ export function AtendimentoStepsEditor({ atendTemplateCfg, saveConfig }) {
     <div className="card">
       <h3 style={{ marginTop: 0 }}>Etapas de Atendimento</h3>
       <p className="muted">Usadas na Jornada do cliente sempre que o tipo do processo for "Atendimento" — não dependem do ramo. Adicione, edite ou remova como quiser.</p>
-      {steps.map((step) => (
+      {steps.map((step, idx) => (
         <div key={step.id} style={{ background: "var(--surface-2)", border: "1px solid var(--border)", borderRadius: 8, padding: 10, marginBottom: 8 }}>
           <div style={{ display: "flex", gap: 8, alignItems: "center", marginBottom: 8 }}>
+            <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
+              <button className="btn sec xs" title="Mover para cima" disabled={idx === 0} onClick={() => moverEtapa(step.id, -1)}>▲</button>
+              <button className="btn sec xs" title="Mover para baixo" disabled={idx === steps.length - 1} onClick={() => moverEtapa(step.id, 1)}>▼</button>
+            </div>
             <input className="inline" defaultValue={step.title} style={{ fontWeight: 600, minWidth: 220 }} onBlur={(e) => setTitulo(step.id, e.target.value)} />
             <button className="btn danger xs" onClick={() => excluirEtapa(step.id)}>Excluir etapa</button>
           </div>
