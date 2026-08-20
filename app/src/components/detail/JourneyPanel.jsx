@@ -14,8 +14,12 @@ export function JourneyPanel({ c, overrides, config, actions, canEdit, isAdminUs
     actions.saveUserJourney(c.id, nextUj);
   }
   function setCaminho(v) { persist({ ...uj, caminho: v, steps }); }
-  function setStepField(stepId, field, value) {
+  // Grava o título da etapa junto com o status — situacaoEfetiva() usa isso
+  // pra reconhecer etapas como "Encerramento" e "Status da assistência" em
+  // processos de Atendimento sem precisar carregar o template inteiro.
+  function setStepField(stepId, field, value, title) {
     const sd = { ...(steps[stepId] || { status: "", date: "", note: "" }), [field]: value };
+    if (title) sd.title = title;
     persist({ ...uj, steps: { ...steps, [stepId]: sd } });
   }
 
@@ -96,7 +100,7 @@ export function JourneyPanel({ c, overrides, config, actions, canEdit, isAdminUs
                 <div className="jrow">
                   <div className="field">
                     <label>Status</label>
-                    <select className="inline" style={{ minWidth: 170 }} value={sd.status || ""} onChange={(e) => setStepField(step.id, "status", e.target.value)}>
+                    <select className="inline" style={{ minWidth: 170 }} value={sd.status || ""} onChange={(e) => setStepField(step.id, "status", e.target.value, step.title)}>
                       <option value="">— Status —</option>
                       {opts.map((op) => <option key={op} value={op}>{op}</option>)}
                     </select>

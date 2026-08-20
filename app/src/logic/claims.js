@@ -124,9 +124,31 @@ function conclusaoStatus(uj) {
   const steps = (uj && uj.steps) || {};
   return String((steps["conclusao"] || {}).status || "");
 }
+// Acha o status de uma etapa pelo TÍTULO (não pelo id) — usado pra Atendimento,
+// onde a etapa pode estar em qualquer lugar da jornada (etapas fixas ou dentro
+// da trilha de um "caminho por tipo"). Depende do título ter sido gravado
+// junto do status (setStepField em JourneyPanel.jsx).
+function findStepStatusByTitle(uj, title) {
+  const steps = (uj && uj.steps) || {};
+  for (const k in steps) {
+    const s = steps[k] || {};
+    if (s.title === title && s.status) return String(s.status);
+  }
+  return "";
+}
 export function situacaoEfetiva(overrides, c) {
   const uj = getUserJourney(overrides, c.id) || {};
   if (!journeyTouched(uj)) return mapSituacao(c.situacao);
+  if (isAtendimento(c)) {
+    const encerramento = findStepStatusByTitle(uj, "Encerramento").toLowerCase();
+    if (encerramento.indexOf("sem indeniz") >= 0) return { label: "Encerrado sem Indenização", cls: "gray" };
+    if (encerramento.indexOf("indeniz") >= 0) return { label: "Indenizado", cls: "green" };
+    const statusAssist = findStepStatusByTitle(uj, "Status da assistência").toLowerCase();
+    if (statusAssist.indexOf("cancel") >= 0) return { label: "Encerrado sem Indenização", cls: "gray" };
+    if (statusAssist.indexOf("conclu") >= 0) return { label: "Indenizado", cls: "green" };
+    if (statusAssist.indexOf("andamento") >= 0) return { label: "Em andamento", cls: "amber" };
+    return { label: "Pendente", cls: "amber" };
+  }
   if (!uj.caminho) return { label: "Pendente", cls: "amber" };
   const cs = conclusaoStatus(uj).toLowerCase();
   if (cs.indexOf("sem indeniz") >= 0) return { label: "Encerrado sem Indenização", cls: "gray" };
