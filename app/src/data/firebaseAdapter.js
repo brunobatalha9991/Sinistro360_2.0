@@ -4,14 +4,15 @@
 //     writeBatch (nunca reenvia o conjunto inteiro), onSnapshot por coleção.
 //
 // NÃO é usado por padrão (ver DataProvider.jsx) e NÃO tem nenhuma credencial
-// embutida — só conecta se VITE_DATA_SOURCE=firebase e as variáveis
-// VITE_FIREBASE_* estiverem definidas em app/.env.local, apontando para um
-// projeto Firebase próprio de desenvolvimento (nunca o de produção).
+// embutida no código — só conecta se VITE_DATA_SOURCE=firebase e as
+// variáveis VITE_FIREBASE_* estiverem definidas (app/.env.local para
+// rodar localmente, ou Secrets do GitHub Actions para o site publicado).
 import { initializeApp } from "firebase/app";
 import {
   getFirestore, doc, getDoc, setDoc, onSnapshot, serverTimestamp,
   collection, writeBatch,
 } from "firebase/firestore";
+import { getAuth, signInAnonymously } from "firebase/auth";
 import { CONFIG_COLLECTION, CONFIG_KEYS, RECORD_SPECS } from "./schema";
 
 export function firebaseEnvConfigured() {
@@ -34,6 +35,21 @@ function readFirebaseConfigFromEnv() {
 export function createFirebaseAdapter() {
   const app = initializeApp(readFirebaseConfigFromEnv());
   const db = getFirestore(app);
+
+  // Login anônimo do Firebase — NÃO é o login do sistema (a tela de
+  // e-mail/senha continua sendo a mesma, própria do app). É só uma
+  // credencial técnica que as regras de segurança do Firestore passam a
+  // exigir (request.auth != null), pra bloquear acesso direto de fora do
+  // site. Não trava o carregamento dos dados abaixo: os listeners começam
+  // de qualquer forma, então enquanto o método "Anônimo" não estiver
+  // habilitado no Console (Authentication > Sign-in method), o app
+  // continua funcionando exatamente como antes desta mudança.
+  signInAnonymously(getAuth(app)).catch((e) => {
+    console.warn(
+      "[firebaseAdapter] login anônimo falhou — habilite 'Anônimo' em Authentication > Sign-in method no Console do Firebase.",
+      e && e.message
+    );
+  });
 
   // Espelha localStorage[key] em memória, pra poder expor getAllRecords()
   // de forma síncrona (mesma UX do adapter offline) e pra servir de base
