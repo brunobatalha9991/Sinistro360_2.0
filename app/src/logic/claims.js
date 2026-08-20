@@ -9,6 +9,7 @@ const CONCLUSAO_STATUS = ["Aguardando", "Indenizado", "Sem Indenização"];
 
 export function defaultRamoTemplate() {
   return {
+    comuns: [{ id: "vistoria", title: "Vistoria", statusOptions: [...STATUS_DEFAULT] }],
     parcial: [
       { id: "rep_autorizados", title: "Reparos autorizados", statusOptions: [...STATUS_DEFAULT] },
       { id: "pecas", title: "Peças", statusOptions: [...STATUS_DEFAULT] },
@@ -36,17 +37,27 @@ export function defaultAtendTemplate() {
 export function getRamoTemplate(templates, ramo) {
   return (templates && templates[ramo]) || defaultRamoTemplate();
 }
+// As etapas "comuns" (antes da definição do caminho Perda Parcial/Integral —
+// inclui a Vistoria, mas ela não é mais fixa: pode ser reordenada, e outras
+// etapas podem ser criadas antes ou depois dela) ficam em tpl.comuns, uma
+// lista comum como parcial/integral. Ramos salvos antes dessa mudança só
+// tinham tpl.vistoriaStatus (status da Vistoria fixa em 1º lugar) — esta
+// função lê os dois formatos, sem precisar migrar nada gravado no Firestore.
+export function getComunsSteps(tpl) {
+  if (tpl && Array.isArray(tpl.comuns)) return tpl.comuns;
+  return [{ id: "vistoria", title: "Vistoria", statusOptions: (tpl && tpl.vistoriaStatus) || [...STATUS_DEFAULT] }];
+}
 // Porte 1:1 de ensureRamoTemplate() do HTML original, mas puro: devolve um
-// NOVO objeto de templates com o ramo garantido (template padrão + status
-// da Vistoria), ou o MESMO objeto (por referência) se já não faltava nada —
+// NOVO objeto de templates com o ramo garantido (template padrão + etapas
+// comuns), ou o MESMO objeto (por referência) se já não faltava nada —
 // assim quem chama sabe se precisa salvar ou não.
 export function ensureRamoTemplateInto(templates, ramo) {
   if (!ramo) return templates;
   const t = templates || {};
-  if (t[ramo] && t[ramo].vistoriaStatus) return t;
+  if (t[ramo] && Array.isArray(t[ramo].comuns)) return t;
   const existing = t[ramo] || defaultRamoTemplate();
-  const withVistoria = { ...existing, vistoriaStatus: existing.vistoriaStatus || [...STATUS_DEFAULT] };
-  return { ...t, [ramo]: withVistoria };
+  const withComuns = { ...existing, comuns: getComunsSteps(existing) };
+  return { ...t, [ramo]: withComuns };
 }
 export function getAtendTemplate(atendTemplateCfg) {
   return atendTemplateCfg && atendTemplateCfg.steps && atendTemplateCfg.steps.length
@@ -170,7 +181,10 @@ export function allJourneyStages(templates, atendTemplateCfg) {
   const seen = {};
   const out = [];
   function add(name) { if (name && !seen[name]) { seen[name] = true; out.push(name); } }
-  add("Vistoria");
+  Object.keys(templates || {}).forEach((ramo) => {
+    const t = templates[ramo] || {};
+    getComunsSteps(t).forEach((s) => add(s.title));
+  });
   add("Definir caminho");
   Object.keys(templates || {}).forEach((ramo) => {
     const t = templates[ramo] || {};
@@ -204,10 +218,13 @@ export function currentStage(overrides, templates, atendTemplateCfg, c) {
     return listaCam.length ? listaCam[listaCam.length - 1].title : "Definir caminho";
   }
 
-  const v = steps["vistoria"] || {};
-  if (!(String(v.status || "").toLowerCase().indexOf("conclu") >= 0)) return "Vistoria";
-  if (!uj.caminho) return "Definir caminho";
   const tpl = getRamoTemplate(templates, c.ramo);
+  const comuns = getComunsSteps(tpl);
+  for (let m = 0; m < comuns.length; m++) {
+    const sdC = steps[comuns[m].id] || {};
+    if (!(String(sdC.status || "").toLowerCase().indexOf("conclu") >= 0)) return comuns[m].title;
+  }
+  if (!uj.caminho) return "Definir caminho";
   const lista = uj.caminho === "parcial" ? (tpl.parcial || []) : uj.caminho === "integral" ? (tpl.integral || []) : [];
   for (let i = 0; i < lista.length; i++) {
     const sd = steps[lista[i].id] || {};

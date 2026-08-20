@@ -1,4 +1,4 @@
-import { getAtendTemplate, getRamoTemplate, getUserJourney, isAtendimento, STATUS_DEFAULT, getJourneyNotes } from "../../logic/claims";
+import { getAtendTemplate, getRamoTemplate, getComunsSteps, getUserJourney, isAtendimento, STATUS_DEFAULT, getJourneyNotes } from "../../logic/claims";
 
 // Porte 1:1 de journeyPanel() do HTML original.
 export function JourneyPanel({ c, overrides, config, actions, canEdit, isAdminUser, navigate }) {
@@ -27,10 +27,8 @@ export function JourneyPanel({ c, overrides, config, actions, canEdit, isAdminUs
     if (uj.caminho === "parcial") lista = lista.concat(tplRamoAt.parcial);
     else if (uj.caminho === "integral") lista = lista.concat(tplRamoAt.integral);
   } else {
-    lista = [
-      { id: "vistoria", title: "Vistoria", type: "status" },
-      { id: "caminho", title: "Definir caminho (Perda Parcial / Perda Integral)", type: "caminho" },
-    ];
+    lista = getComunsSteps(tpl).map((s) => ({ ...s, type: "status" }));
+    lista.push({ id: "caminho", title: "Definir caminho (Perda Parcial / Perda Integral)", type: "caminho" });
     if (uj.caminho === "parcial") lista = lista.concat(tpl.parcial);
     else if (uj.caminho === "integral") lista = lista.concat(tpl.integral);
   }
@@ -68,7 +66,7 @@ export function JourneyPanel({ c, overrides, config, actions, canEdit, isAdminUs
               </div>
             );
           }
-          const opts = !atend && step.id === "vistoria" ? tpl.vistoriaStatus || STATUS_DEFAULT : step.statusOptions || STATUS_DEFAULT;
+          const opts = step.statusOptions || STATUS_DEFAULT;
           const sd = steps[step.id] || { status: "", date: "", note: "" };
           const done = (sd.status || "").toLowerCase().indexOf("conclu") >= 0;
           return (
