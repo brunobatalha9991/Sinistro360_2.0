@@ -52,7 +52,17 @@ export const MOCK_OVERRIDES = {
     sitAtend: "Aguard. Oficina",
     temperatura: "Moderado",
     responsavelUser: { id: "usr_marina", nome: "Marina Costa" },
-    nextAction: { text: "Cobrar orçamento da oficina", date: "2026-08-22" },
+    nextAction: { title: "Cobrar orçamento da oficina", date: "2026-08-22" },
+  },
+  clm_002_T_9010: {
+    sitAtend: "Aguard. Seguradora",
+    temperatura: "Em atenção",
+    responsavelUser: { id: "usr_joao", nome: "João Pereira" },
+    nextAction: { title: "Cobrar retorno da seguradora", date: "2026-08-10" },
+  },
+  clm_003_A_9020: {
+    sitAtend: "Aguard. Cliente",
+    temperatura: "Tranquilo",
   },
 };
 

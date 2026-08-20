@@ -3,8 +3,10 @@
 import { Clientes } from "./Clientes.jsx";
 import { Seguradoras, Oficinas } from "./AggPage.jsx";
 import { Relatorios } from "./Relatorios.jsx";
+import { Dashboard } from "./Dashboard.jsx";
 
 export const PAGES = {
+  dashboard: Dashboard,
   clientes: Clientes,
   seguradoras: Seguradoras,
   oficinas: Oficinas,
