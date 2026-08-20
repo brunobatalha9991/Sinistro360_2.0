@@ -21,11 +21,30 @@ export function JourneyPanel({ c, overrides, config, actions, canEdit, isAdminUs
 
   let lista;
   if (atend) {
-    lista = (tpl.steps || []).slice();
-    lista.push({ id: "caminho", title: "Definir caminho (Perda Parcial / Perda Integral)", type: "caminho" });
-    const tplRamoAt = getRamoTemplate(templates, c.ramo);
-    if (uj.caminho === "parcial") lista = lista.concat(tplRamoAt.parcial);
-    else if (uj.caminho === "integral") lista = lista.concat(tplRamoAt.integral);
+    // Se alguma etapa vira "caminho por tipo" (ex.: Tipo de Assistência), a
+    // trilha do tipo escolhido substitui o resto do fluxo — não vai mais
+    // para Definir caminho/Perda Parcial/Integral. Sem etapa desse tipo,
+    // continua igual a antes.
+    lista = [];
+    let temBranch = false;
+    for (const step of tpl.steps || []) {
+      lista.push({ ...step, type: "status" });
+      if (step.branch) {
+        temBranch = true;
+        const escolhido = (steps[step.id] || {}).status || "";
+        if (escolhido) {
+          const trilha = (step.branches && step.branches[escolhido]) || [];
+          lista = lista.concat(trilha.map((s) => ({ ...s, type: "status" })));
+        }
+        break;
+      }
+    }
+    if (!temBranch) {
+      lista.push({ id: "caminho", title: "Definir caminho (Perda Parcial / Perda Integral)", type: "caminho" });
+      const tplRamoAt = getRamoTemplate(templates, c.ramo);
+      if (uj.caminho === "parcial") lista = lista.concat(tplRamoAt.parcial);
+      else if (uj.caminho === "integral") lista = lista.concat(tplRamoAt.integral);
+    }
   } else {
     lista = getComunsSteps(tpl).map((s) => ({ ...s, type: "status" }));
     lista.push({ id: "caminho", title: "Definir caminho (Perda Parcial / Perda Integral)", type: "caminho" });

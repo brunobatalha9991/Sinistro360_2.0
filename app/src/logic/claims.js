@@ -191,7 +191,10 @@ export function allJourneyStages(templates, atendTemplateCfg) {
     (t.parcial || []).forEach((s) => add(s.title));
     (t.integral || []).forEach((s) => add(s.title));
   });
-  (getAtendTemplate(atendTemplateCfg).steps || []).forEach((s) => add(s.title));
+  (getAtendTemplate(atendTemplateCfg).steps || []).forEach((s) => {
+    add(s.title);
+    if (s.branch) Object.values(s.branches || {}).forEach((trilha) => (trilha || []).forEach((t) => add(t.title)));
+  });
   return out;
 }
 
@@ -204,9 +207,20 @@ export function currentStage(overrides, templates, atendTemplateCfg, c) {
   if (isAtendimento(c)) {
     const listaAt = getAtendTemplate(atendTemplateCfg).steps || [];
     for (let j = 0; j < listaAt.length; j++) {
-      const sdAt = steps[listaAt[j].id] || {};
+      const stepAt = listaAt[j];
+      const sdAt = steps[stepAt.id] || {};
+      if (stepAt.branch) {
+        const tipo = sdAt.status || "";
+        if (!tipo) return stepAt.title;
+        const trilha = (stepAt.branches && stepAt.branches[tipo]) || [];
+        for (let n = 0; n < trilha.length; n++) {
+          const sdT = steps[trilha[n].id] || {};
+          if (!(String(sdT.status || "").toLowerCase().indexOf("conclu") >= 0)) return trilha[n].title;
+        }
+        return trilha.length ? trilha[trilha.length - 1].title : stepAt.title;
+      }
       const doneAt = String(sdAt.status || "").toLowerCase().indexOf("conclu") >= 0;
-      if (!doneAt) return listaAt[j].title;
+      if (!doneAt) return stepAt.title;
     }
     if (!uj.caminho) return "Definir caminho";
     const tplAt = getRamoTemplate(templates, c.ramo);
