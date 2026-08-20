@@ -4,7 +4,7 @@
 import { mapSituacao } from "./situacao";
 import { diasEntre, mediaArr } from "./format";
 
-const STATUS_DEFAULT = ["Aguardando", "Em andamento", "Concluído"];
+export const STATUS_DEFAULT = ["Aguardando", "Em andamento", "Concluído"];
 const CONCLUSAO_STATUS = ["Aguardando", "Indenizado", "Sem Indenização"];
 
 export function defaultRamoTemplate() {
@@ -61,6 +61,23 @@ export function getSitAtend(overrides, claimId) { return getOvr(overrides, claim
 export function getTemp(overrides, claimId) { return getOvr(overrides, claimId).temperatura || ""; }
 export function loadComms(overrides, claimId) { return getOvr(overrides, claimId).comms || []; }
 export function getManualLinks(overrides, claimId) { return getOvr(overrides, claimId).links || []; }
+export function getFinance(overrides, claimId) { return getOvr(overrides, claimId).finance || {}; }
+export function loadAudit(overrides, claimId) { return getOvr(overrides, claimId).audit || []; }
+export function getJourneyNotes(overrides, claimId) { return getOvr(overrides, claimId).journeyNotes || ""; }
+export function campoFoiEditado(overrides, c, campo) {
+  const ov = getOvr(overrides, c.id).campos || {};
+  return !!(ov[campo] != null && String(ov[campo]).trim() !== "");
+}
+
+// Porte 1:1 de tempColor() do HTML original.
+export function tempColor(t) {
+  t = String(t || "").toLowerCase();
+  if (t.indexOf("grave") >= 0) return "red";
+  if (t.indexOf("moder") >= 0) return "orange";
+  if (t.indexOf("aten") >= 0) return "amber";
+  if (t.indexOf("tranq") >= 0) return "green";
+  return "gray";
+}
 
 function journeyTouched(uj) {
   if (!uj) return false;

@@ -31,11 +31,21 @@ export function DataProvider({ children }) {
     });
   }, [adapter]);
 
-  function saveRecord(key, value) {
+  // Aceita um valor OU uma função updater(current) => next — igual ao
+  // setState do React. Isso importa porque `records`/`config` no contexto
+  // só atualizam no próximo render; se uma ação salvar duas vezes seguida
+  // (ex.: vincular dois processos, que grava os dois lados do vínculo),
+  // usar a função updater garante que a segunda gravação parte do dado que
+  // a primeira acabou de salvar, e não de um retrato desatualizado.
+  function saveRecord(key, valueOrUpdater) {
+    const current = adapter.getAllRecords()[key];
+    const value = typeof valueOrUpdater === "function" ? valueOrUpdater(current) : valueOrUpdater;
     adapter.saveRecord(key, value);
     setRecords(adapter.getAllRecords());
   }
-  function saveConfig(key, value) {
+  function saveConfig(key, valueOrUpdater) {
+    const current = adapter.getAllConfig()[key];
+    const value = typeof valueOrUpdater === "function" ? valueOrUpdater(current) : valueOrUpdater;
     adapter.saveConfig(key, value);
     setConfig(adapter.getAllConfig());
   }

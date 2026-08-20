@@ -5,10 +5,12 @@ import { Seguradoras, Oficinas } from "./AggPage.jsx";
 import { Relatorios } from "./Relatorios.jsx";
 import { Dashboard } from "./Dashboard.jsx";
 import { Sinistros } from "./Sinistros.jsx";
+import { Sinistro } from "./Sinistro.jsx";
 
 export const PAGES = {
   dashboard: Dashboard,
   sinistros: Sinistros,
+  sinistro: Sinistro,
   clientes: Clientes,
   seguradoras: Seguradoras,
   oficinas: Oficinas,
