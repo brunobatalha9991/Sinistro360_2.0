@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { useData } from "../data/DataProvider.jsx";
 import { useAuth } from "../hooks/useAuth";
 import { useHashRoute } from "../hooks/useHashRoute";
@@ -164,7 +165,7 @@ export function TaskModal() {
     closeTaskModal();
   }
 
-  return (
+  return createPortal(
     <div
       style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,.5)", zIndex: 100, display: "flex", alignItems: "flex-start", justifyContent: "center", padding: 30, overflow: "auto" }}
       onClick={(e) => { if (e.target === e.currentTarget) closeTaskModal(); }}
@@ -232,6 +233,7 @@ export function TaskModal() {
 
         {editing && <Chat task={editing} currentUser={currentUser} actions={actions} users={users} />}
       </div>
-    </div>
+    </div>,
+    document.body
   );
 }
