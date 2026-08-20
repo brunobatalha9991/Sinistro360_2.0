@@ -103,6 +103,21 @@ export function syncAll(cfg, allClaimsRaw, templates, saveTemplatesConfig, saveC
         if (isoIni && m.datoco && m.datoco < isoIni) return;
         if (isoFim && m.datoco && m.datoco > isoFim) return;
         ensureTpl(m.ramo);
+        // Mais de um processo pode compartilhar o mesmo codfil+tipo+nosnum
+        // (ex.: dois Terceiros, ou dois Atendimentos, no mesmo "nosnum") —
+        // sem isso, o id calculado colidia e o segundo sobrescrevia o
+        // primeiro silenciosamente. Só tratamos como o MESMO processo (e
+        // sobrescrevemos) quando o "codigo"/"item" da API bate; quando os
+        // dois lados têm um valor e ele é diferente, é um processo à parte
+        // e ganha um id próprio — sem afetar o id dos demais processos.
+        const existing = byId[m.id];
+        if (existing) {
+          const chaveExistente = String(existing.codigo || existing.item || "");
+          const chaveNova = String(m.codigo || m.item || "");
+          if (chaveExistente && chaveNova && chaveExistente !== chaveNova) {
+            m.id = m.id + "_" + chaveNova;
+          }
+        }
         if (byId[m.id]) atualizados++; else novos++;
         byId[m.id] = m;
       });
