@@ -39,13 +39,14 @@ export function Demandas() {
   const users = records.corp_users || [];
   let demandas = [...(records.corp_demandas || [])].sort((a, b) => String(b.recebidoEm).localeCompare(String(a.recebidoEm)));
 
-  function saveDemandasList(list) { saveRecord("corp_demandas", list); }
-
+  // A busca nos formulários pode levar segundos (rede). Nesse intervalo,
+  // outra sincronização (sua ou de outro admin) pode ter mudado a lista de
+  // demandas — por isso o merge final acontece dentro do updater do
+  // saveRecord, lendo o estado mais recente na hora de gravar, e não um
+  // retrato de antes da espera pela rede.
   function syncDemandas() {
     setStatus({ cls: "info", spinning: true, msg: "Buscando respostas..." });
-    const byId = {};
-    (records.corp_demandas || []).forEach((d) => { byId[d.id] = d; });
-    let novos = 0;
+    const newItems = {};
     let chain = Promise.resolve();
     for (let n = 1; n <= FORM_SLOTS; n++) {
       const url = cfg["url" + n];
@@ -55,15 +56,20 @@ export function Demandas() {
       chain = chain.then(() => fetchFormResponses(url).then((arr) => {
         (arr || []).forEach((raw) => {
           const id = respId(formKey, raw);
-          if (byId[id]) return;
-          byId[id] = { id, formKey, formNome: nome, campos: respCampos(raw), recebidoEm: new Date().toISOString(), lida: false, timestamp: raw.timestamp || raw.data || "" };
-          novos++;
+          newItems[id] = { id, formKey, formNome: nome, campos: respCampos(raw), recebidoEm: new Date().toISOString(), lida: false, timestamp: raw.timestamp || raw.data || "" };
         });
       }).catch(() => { /* se um form falhar, os outros continuam */ }));
     }
     chain.then(() => {
-      const lista = Object.values(byId);
-      saveDemandasList(lista);
+      let novos = 0, total = 0;
+      saveRecord("corp_demandas", (current) => {
+        const byId = {};
+        (current || []).forEach((d) => { byId[d.id] = d; });
+        Object.keys(newItems).forEach((id) => { if (!byId[id]) { byId[id] = newItems[id]; novos++; } });
+        const lista = Object.values(byId);
+        total = lista.length;
+        return lista;
+      });
       if (novos > 0) {
         const todos = users.map((u) => u.id);
         saveRecord("corp_notifs", (current) => {
@@ -72,16 +78,16 @@ export function Demandas() {
           return arr;
         });
       }
-      setStatus({ cls: "ok", msg: `✔ ${novos} nova(s) demanda(s). Total: ${lista.length}.` });
+      setStatus({ cls: "ok", msg: `✔ ${novos} nova(s) demanda(s). Total: ${total}.` });
     }).catch((e) => setStatus({ cls: "err", msg: "✗ " + e.message }));
   }
 
   function marcarLida(id, lida) {
-    saveDemandasList((records.corp_demandas || []).map((x) => (x.id === id ? { ...x, lida } : x)));
+    saveRecord("corp_demandas", (current) => (current || []).map((x) => (x.id === id ? { ...x, lida } : x)));
   }
   function remover(id) {
     if (!confirm("Remover esta demanda?")) return;
-    saveDemandasList((records.corp_demandas || []).filter((x) => x.id !== id));
+    saveRecord("corp_demandas", (current) => (current || []).filter((x) => x.id !== id));
   }
   function criarTarefa(d) {
     marcarLida(d.id, true);
@@ -102,12 +108,14 @@ export function Demandas() {
   });
 
   function salvarVinculos() {
-    const novoCfg = { ...cfg };
-    for (let n = 1; n <= FORM_SLOTS; n++) {
-      novoCfg["url" + n] = (formInputs["url" + n] || "").trim();
-      novoCfg["nome" + n] = (formInputs["nome" + n] || "").trim() || `Formulário ${n}`;
-    }
-    saveConfig("corp_form_endpoints", novoCfg);
+    saveConfig("corp_form_endpoints", (current) => {
+      const novoCfg = { ...(current || {}) };
+      for (let n = 1; n <= FORM_SLOTS; n++) {
+        novoCfg["url" + n] = (formInputs["url" + n] || "").trim();
+        novoCfg["nome" + n] = (formInputs["nome" + n] || "").trim() || `Formulário ${n}`;
+      }
+      return novoCfg;
+    });
     setStatus({ cls: "ok", msg: "Vínculos salvos." });
   }
 

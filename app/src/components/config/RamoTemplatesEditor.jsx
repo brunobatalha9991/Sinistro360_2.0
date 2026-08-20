@@ -58,30 +58,38 @@ export function RamoTemplatesEditor({ templates, saveConfig }) {
   );
 }
 
+// Cada ação lê o template mais recente dentro do próprio updater do
+// saveConfig (via patch(), que já recebe o `cur` fresco) e identifica a
+// etapa por id, não por posição — evita perder uma edição concorrente de
+// outro usuário no mesmo ramo.
 function CaminhoEditor({ ramo, caminho, steps, patch }) {
   const [novaEtapa, setNovaEtapa] = useState("");
 
-  function setSteps(next) { patch(ramo, (t) => ({ ...t, [caminho]: next })); }
-  function excluirEtapa(i) { setSteps(steps.filter((_, idx) => idx !== i)); }
-  function setTitulo(i, title) { const next = [...steps]; next[i] = { ...next[i], title }; setSteps(next); }
-  function setStatusOptions(i, opts) { const next = [...steps]; next[i] = { ...next[i], statusOptions: opts }; setSteps(next); }
+  function patchStep(stepId, patchFn) {
+    patch(ramo, (t) => ({ ...t, [caminho]: (t[caminho] || []).map((s) => (s.id === stepId ? patchFn(s) : s)) }));
+  }
+  function excluirEtapa(stepId) {
+    patch(ramo, (t) => ({ ...t, [caminho]: (t[caminho] || []).filter((s) => s.id !== stepId) }));
+  }
+  function setTitulo(stepId, title) { patchStep(stepId, (s) => ({ ...s, title })); }
+  function setStatusOptions(stepId, opts) { patchStep(stepId, (s) => ({ ...s, statusOptions: opts })); }
   function adicionarEtapa() {
     const v = novaEtapa.trim();
     if (!v) return;
-    setSteps([...steps, { id: uid("st"), title: v, statusOptions: [...STATUS_DEFAULT] }]);
+    patch(ramo, (t) => ({ ...t, [caminho]: [...(t[caminho] || []), { id: uid("st"), title: v, statusOptions: [...STATUS_DEFAULT] }] }));
     setNovaEtapa("");
   }
 
   return (
     <div>
       <div style={{ fontWeight: 600, margin: "8px 0", color: "var(--brand)" }}>{caminho === "parcial" ? "➤ Perda Parcial" : "➤ Perda Integral"}</div>
-      {steps.map((step, i) => (
+      {steps.map((step) => (
         <div key={step.id} style={{ background: "var(--surface-2)", border: "1px solid var(--border)", borderRadius: 8, padding: 10, marginBottom: 8 }}>
           <div style={{ display: "flex", gap: 8, alignItems: "center", marginBottom: 8 }}>
-            <input className="inline" defaultValue={step.title} style={{ fontWeight: 600, minWidth: 220 }} onBlur={(e) => setTitulo(i, e.target.value)} />
-            <button className="btn danger xs" onClick={() => excluirEtapa(i)}>Excluir etapa</button>
+            <input className="inline" defaultValue={step.title} style={{ fontWeight: 600, minWidth: 220 }} onBlur={(e) => setTitulo(step.id, e.target.value)} />
+            <button className="btn danger xs" onClick={() => excluirEtapa(step.id)}>Excluir etapa</button>
           </div>
-          <StatusChipsEditor options={step.statusOptions || STATUS_DEFAULT} onChange={(opts) => setStatusOptions(i, opts)} />
+          <StatusChipsEditor options={step.statusOptions || STATUS_DEFAULT} onChange={(opts) => setStatusOptions(step.id, opts)} />
         </div>
       ))}
       <div style={{ display: "flex", gap: 6, alignItems: "center", margin: "4px 0 12px" }}>

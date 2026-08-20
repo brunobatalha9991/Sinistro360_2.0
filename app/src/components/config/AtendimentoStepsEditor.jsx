@@ -3,20 +3,35 @@ import { StatusChipsEditor } from "./StatusChipsEditor.jsx";
 import { getAtendTemplate, STATUS_DEFAULT } from "../../logic/claims";
 import { uid } from "../../logic/format";
 
-// Porte 1:1 do editor "Etapas de Atendimento" das Configurações do HTML original.
+// Porte 1:1 do editor "Etapas de Atendimento" das Configurações do HTML
+// original. Cada ação lê o template mais recente dentro do próprio updater
+// do saveConfig (não um retrato de antes) e identifica a etapa por id, não
+// por posição — evita perder uma edição concorrente de outro usuário.
 export function AtendimentoStepsEditor({ atendTemplateCfg, saveConfig }) {
   const [novaEtapa, setNovaEtapa] = useState("");
-  const tpl = getAtendTemplate(atendTemplateCfg);
-  const steps = tpl.steps || [];
+  const steps = getAtendTemplate(atendTemplateCfg).steps || [];
 
-  function setSteps(next) { saveConfig("corp_atendimento_template", { steps: next }); }
-  function excluirEtapa(i) { setSteps(steps.filter((_, idx) => idx !== i)); }
-  function setTitulo(i, title) { const next = [...steps]; next[i] = { ...next[i], title }; setSteps(next); }
-  function setStatusOptions(i, opts) { const next = [...steps]; next[i] = { ...next[i], statusOptions: opts }; setSteps(next); }
+  function patchStep(stepId, patchFn) {
+    saveConfig("corp_atendimento_template", (current) => {
+      const curSteps = getAtendTemplate(current).steps || [];
+      return { steps: curSteps.map((s) => (s.id === stepId ? patchFn(s) : s)) };
+    });
+  }
+  function excluirEtapa(stepId) {
+    saveConfig("corp_atendimento_template", (current) => {
+      const curSteps = getAtendTemplate(current).steps || [];
+      return { steps: curSteps.filter((s) => s.id !== stepId) };
+    });
+  }
+  function setTitulo(stepId, title) { patchStep(stepId, (s) => ({ ...s, title })); }
+  function setStatusOptions(stepId, opts) { patchStep(stepId, (s) => ({ ...s, statusOptions: opts })); }
   function adicionarEtapa() {
     const v = novaEtapa.trim();
     if (!v) return;
-    setSteps([...steps, { id: uid("at"), title: v, statusOptions: [...STATUS_DEFAULT] }]);
+    saveConfig("corp_atendimento_template", (current) => {
+      const curSteps = getAtendTemplate(current).steps || [];
+      return { steps: [...curSteps, { id: uid("at"), title: v, statusOptions: [...STATUS_DEFAULT] }] };
+    });
     setNovaEtapa("");
   }
 
@@ -24,13 +39,13 @@ export function AtendimentoStepsEditor({ atendTemplateCfg, saveConfig }) {
     <div className="card">
       <h3 style={{ marginTop: 0 }}>Etapas de Atendimento</h3>
       <p className="muted">Usadas na Jornada do cliente sempre que o tipo do processo for "Atendimento" — não dependem do ramo. Adicione, edite ou remova como quiser.</p>
-      {steps.map((step, i) => (
+      {steps.map((step) => (
         <div key={step.id} style={{ background: "var(--surface-2)", border: "1px solid var(--border)", borderRadius: 8, padding: 10, marginBottom: 8 }}>
           <div style={{ display: "flex", gap: 8, alignItems: "center", marginBottom: 8 }}>
-            <input className="inline" defaultValue={step.title} style={{ fontWeight: 600, minWidth: 220 }} onBlur={(e) => setTitulo(i, e.target.value)} />
-            <button className="btn danger xs" onClick={() => excluirEtapa(i)}>Excluir etapa</button>
+            <input className="inline" defaultValue={step.title} style={{ fontWeight: 600, minWidth: 220 }} onBlur={(e) => setTitulo(step.id, e.target.value)} />
+            <button className="btn danger xs" onClick={() => excluirEtapa(step.id)}>Excluir etapa</button>
           </div>
-          <StatusChipsEditor options={step.statusOptions || STATUS_DEFAULT} onChange={(opts) => setStatusOptions(i, opts)} />
+          <StatusChipsEditor options={step.statusOptions || STATUS_DEFAULT} onChange={(opts) => setStatusOptions(step.id, opts)} />
         </div>
       ))}
       <div style={{ display: "flex", gap: 6, alignItems: "center", margin: "4px 0 4px" }}>

@@ -75,8 +75,11 @@ export function mapCorp(c) {
 export function syncAll(cfg, allClaimsRaw, templates, saveTemplatesConfig, saveClaimsRecord, opts) {
   opts = opts || {};
   let novos = 0, atualizados = 0;
+  // byId acumula só os registros vindos da API nesta sincronização. Os
+  // manuais são lidos de novo (frescos) só no fechamento — o fetch pode
+  // levar vários segundos, tempo em que outro usuário pode ter criado um
+  // processo manual (Abertura) que não pode ser perdido pela gravação final.
   const byId = {};
-  allClaimsRaw.forEach((c) => { if (isManualClaim(c)) byId[c.id] = c; });
   const apiAntes = allClaimsRaw.filter((c) => !isManualClaim(c)).length;
   const isoIni = opts.data_inicial ? isoFromBR(opts.data_inicial) : "";
   const isoFim = opts.data_final ? isoFromBR(opts.data_final) : "";
@@ -109,11 +112,18 @@ export function syncAll(cfg, allClaimsRaw, templates, saveTemplatesConfig, saveC
   }
   function tipoLoop(ti) {
     if (ti >= TIPOS.length) {
-      const finalClaims = Object.values(byId);
-      saveClaimsRecord(finalClaims);
       if (templatesDraft !== templates) saveTemplatesConfig(templatesDraft);
-      const descartados = Math.max(0, apiAntes - atualizados);
-      return Promise.resolve({ total: finalClaims.length, novos, atualizados, descartados });
+      let result;
+      saveClaimsRecord((currentClaims) => {
+        const merged = {};
+        (currentClaims || []).forEach((c) => { if (isManualClaim(c)) merged[c.id] = c; });
+        Object.assign(merged, byId);
+        const finalClaims = Object.values(merged);
+        const descartados = Math.max(0, apiAntes - atualizados);
+        result = { total: finalClaims.length, novos, atualizados, descartados };
+        return finalClaims;
+      });
+      return Promise.resolve(result);
     }
     return pagina(ti, 1);
   }

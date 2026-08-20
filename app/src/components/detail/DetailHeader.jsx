@@ -86,9 +86,9 @@ export function DetailHeader({ c, sit, rel, claims, allClaimsRaw, overrides, use
             </select>
             {isAdminUser && (
               <span style={{ display: "inline-flex", gap: 4, marginLeft: 4 }}>
-                <button className="btn sec xs" title="Adicionar opção" onClick={() => { const v = prompt("Nova temperatura:"); if (v) saveConfig("corp_temp_options", [...tempOpts, v.trim()]); }}>+</button>
-                <button className="btn sec xs" title="Editar opção atual" onClick={() => { if (!temp) { alert("Selecione uma temperatura para editar."); return; } const nv = prompt("Editar temperatura:", temp); if (nv) { saveConfig("corp_temp_options", tempOpts.map((x) => (x === temp ? nv.trim() : x))); changeTemp(nv.trim()); } }}>✎</button>
-                <button className="btn sec xs" title="Remover opção atual" onClick={() => { if (!temp) { alert("Selecione uma temperatura para remover."); return; } if (confirm(`Remover a opção "${temp}" da lista?`)) { saveConfig("corp_temp_options", tempOpts.filter((x) => x !== temp)); changeTemp(""); } }}>✕</button>
+                <button className="btn sec xs" title="Adicionar opção" onClick={() => { const v = prompt("Nova temperatura:"); if (v) saveConfig("corp_temp_options", (cur) => [...(cur && cur.length ? cur : DEFAULT_TEMP_OPTIONS), v.trim()]); }}>+</button>
+                <button className="btn sec xs" title="Editar opção atual" onClick={() => { if (!temp) { alert("Selecione uma temperatura para editar."); return; } const nv = prompt("Editar temperatura:", temp); if (nv) { saveConfig("corp_temp_options", (cur) => (cur && cur.length ? cur : DEFAULT_TEMP_OPTIONS).map((x) => (x === temp ? nv.trim() : x))); changeTemp(nv.trim()); } }}>✎</button>
+                <button className="btn sec xs" title="Remover opção atual" onClick={() => { if (!temp) { alert("Selecione uma temperatura para remover."); return; } if (confirm(`Remover a opção "${temp}" da lista?`)) { saveConfig("corp_temp_options", (cur) => (cur && cur.length ? cur : DEFAULT_TEMP_OPTIONS).filter((x) => x !== temp)); changeTemp(""); } }}>✕</button>
               </span>
             )}
           </span>
@@ -102,9 +102,9 @@ export function DetailHeader({ c, sit, rel, claims, allClaimsRaw, overrides, use
             </select>
             {isAdminUser && (
               <span style={{ display: "inline-flex", gap: 4, marginLeft: 4 }}>
-                <button className="btn sec xs" title="Adicionar" onClick={() => { const v = prompt("Nova situação:"); if (v) saveConfig("corp_sit_options", [...sitOpts, v.trim()]); }}>+</button>
-                <button className="btn sec xs" title="Editar atual" onClick={() => { if (!sitAt) { alert("Selecione uma situação para editar."); return; } const nv = prompt("Editar situação:", sitAt); if (nv) { saveConfig("corp_sit_options", sitOpts.map((x) => (x === sitAt ? nv.trim() : x))); changeSit(nv.trim()); } }}>✎</button>
-                <button className="btn sec xs" title="Remover atual" onClick={() => { if (!sitAt) { alert("Selecione uma situação para remover."); return; } if (confirm(`Remover "${sitAt}" da lista?`)) { saveConfig("corp_sit_options", sitOpts.filter((x) => x !== sitAt)); changeSit(""); } }}>✕</button>
+                <button className="btn sec xs" title="Adicionar" onClick={() => { const v = prompt("Nova situação:"); if (v) saveConfig("corp_sit_options", (cur) => [...(cur && cur.length ? cur : DEFAULT_SIT_OPTIONS), v.trim()]); }}>+</button>
+                <button className="btn sec xs" title="Editar atual" onClick={() => { if (!sitAt) { alert("Selecione uma situação para editar."); return; } const nv = prompt("Editar situação:", sitAt); if (nv) { saveConfig("corp_sit_options", (cur) => (cur && cur.length ? cur : DEFAULT_SIT_OPTIONS).map((x) => (x === sitAt ? nv.trim() : x))); changeSit(nv.trim()); } }}>✎</button>
+                <button className="btn sec xs" title="Remover atual" onClick={() => { if (!sitAt) { alert("Selecione uma situação para remover."); return; } if (confirm(`Remover "${sitAt}" da lista?`)) { saveConfig("corp_sit_options", (cur) => (cur && cur.length ? cur : DEFAULT_SIT_OPTIONS).filter((x) => x !== sitAt)); changeSit(""); } }}>✕</button>
               </span>
             )}
           </span>

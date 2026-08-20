@@ -139,15 +139,16 @@ export function Tarefas() {
 }
 
 function TaskTypeManager({ taskTypes, saveConfig }) {
+  function withDefault(cur) { return cur && cur.length ? cur : DEFAULT_TASK_TYPES; }
   function editar(tp) {
     const nv = prompt("Editar tipo:", tp);
-    if (nv) saveConfig("corp_task_types", taskTypes.map((x) => (x === tp ? nv.trim() : x)));
+    if (nv) saveConfig("corp_task_types", (cur) => withDefault(cur).map((x) => (x === tp ? nv.trim() : x)));
   }
   function remover(tp) {
-    if (confirm(`Remover tipo "${tp}"?`)) saveConfig("corp_task_types", taskTypes.filter((x) => x !== tp));
+    if (confirm(`Remover tipo "${tp}"?`)) saveConfig("corp_task_types", (cur) => withDefault(cur).filter((x) => x !== tp));
   }
   function adicionar(v) {
-    if (v.trim()) saveConfig("corp_task_types", [...taskTypes, v.trim()]);
+    if (v.trim()) saveConfig("corp_task_types", (cur) => [...withDefault(cur), v.trim()]);
   }
   let addInput;
   return (
