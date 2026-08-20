@@ -12,6 +12,7 @@ export function money(v) {
   return v.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
 }
 export function txt(v) { return v == null || v === "" ? "—" : String(v); }
+export function val(v) { return v == null || v === "" || v === "0" || v === 0 ? "—" : v; }
 
 export function diasEntre(a, b) {
   if (!a || !b) return null;

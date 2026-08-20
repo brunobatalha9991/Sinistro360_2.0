@@ -56,6 +56,7 @@ export function getUserJourney(overrides, claimId) {
   return ovr.journeyUser || { caminho: "", steps: {} };
 }
 export function getNextAction(overrides, claimId) { return getOvr(overrides, claimId).nextAction || null; }
+export function getResponsavel(overrides, claimId) { return getOvr(overrides, claimId).responsavelUser || null; }
 export function getSitAtend(overrides, claimId) { return getOvr(overrides, claimId).sitAtend || ""; }
 export function getTemp(overrides, claimId) { return getOvr(overrides, claimId).temperatura || ""; }
 export function loadComms(overrides, claimId) { return getOvr(overrides, claimId).comms || []; }
