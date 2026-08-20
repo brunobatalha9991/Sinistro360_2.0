@@ -197,7 +197,7 @@ h1,h2,h3,h4{font-family:var(--font-display);letter-spacing:-.01em;color:var(--in
 /* menu lateral recolhido */
 .sidebar.collapsed{width:66px}
 .sidebar.collapsed .brand span:last-child,
-.sidebar.collapsed nav a span:last-child,
+.sidebar.collapsed nav a .nav-label,
 .sidebar.collapsed .ver{display:none}
 .sidebar.collapsed nav a{justify-content:center;padding:11px}
 .sidebar.collapsed .nav-dot{position:absolute;top:6px;right:6px;margin-left:0}
