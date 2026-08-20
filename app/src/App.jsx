@@ -1,13 +1,15 @@
+import { useEffect } from "react";
 import { useAuth } from "./hooks/useAuth";
 import { useTheme } from "./hooks/useTheme";
 import { useHashRoute } from "./hooks/useHashRoute";
 import { LoginScreen } from "./components/LoginScreen.jsx";
 import { Shell, MENU } from "./components/Shell.jsx";
 import { useData } from "./data/DataProvider.jsx";
+import { PAGES } from "./pages/index.js";
+import { resolveAllowedRoute } from "./data/auth";
 
-// Etapa 2: casca visual completa (login, sidebar, topbar, tema) já ligada à
-// camada de dados offline. O conteúdo de cada tela (Dashboard, Sinistros...)
-// entra na Etapa 3, uma por vez.
+// Etapa 3: telas de negócio vão sendo ligadas aqui uma a uma (ver PAGES).
+// O que ainda não tem tela própria continua neste placeholder.
 function PagePlaceholder({ route, label }) {
   return (
     <div className="page-enter">
@@ -19,7 +21,7 @@ function PagePlaceholder({ route, label }) {
       </div>
       <div className="card">
         <div className="muted" style={{ padding: 30, textAlign: "center" }}>
-          Placeholder da Etapa 2 — só a casca (menu, topo, tema) está pronta aqui.
+          Placeholder — o conteúdo desta tela ainda não foi portado.
         </div>
       </div>
     </div>
@@ -32,12 +34,19 @@ function App() {
   const { theme, toggleTheme } = useTheme();
   const { route, navigate } = useHashRoute();
 
+  const allowedRoute = currentUser ? resolveAllowedRoute(route, currentUser, currentRole) : route;
+
+  useEffect(() => {
+    if (currentUser && allowedRoute !== route) navigate(allowedRoute);
+  }, [currentUser, allowedRoute, route, navigate]);
+
   if (!currentUser) {
     return <LoginScreen onLogin={login} />;
   }
 
-  const menuItem = MENU.find((m) => m[0] === route);
+  const menuItem = MENU.find((m) => m[0] === allowedRoute);
   const label = menuItem ? menuItem[1] : "Dashboard";
+  const PageComponent = PAGES[allowedRoute];
 
   return (
     <>
@@ -47,7 +56,7 @@ function App() {
         </div>
       )}
       <Shell
-        route={route}
+        route={allowedRoute}
         crumb={label}
         currentUser={currentUser}
         currentRole={currentRole}
@@ -56,7 +65,7 @@ function App() {
         theme={theme}
         onToggleTheme={toggleTheme}
       >
-        <PagePlaceholder route={route} label={label} />
+        {PageComponent ? <PageComponent /> : <PagePlaceholder route={allowedRoute} label={label} />}
       </Shell>
     </>
   );

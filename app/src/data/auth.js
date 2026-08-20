@@ -44,3 +44,22 @@ export function canEdit(user) {
   const r = user?.role;
   return r === "admin" || r === "analista" || r === "atendente";
 }
+
+// Porte 1:1 das guardas de rota do render() original: impede acessar por URL
+// uma tela fora do que o papel/usuário tem permissão de ver.
+export function resolveAllowedRoute(route, currentUser, currentRole) {
+  let r = route;
+  if (r === "config" && !isAdmin(currentUser)) r = "dashboard";
+  if (currentRole === "consulta" && r !== "sinistros" && r !== "sinistro" && r !== "tarefas") {
+    r = "sinistros";
+  }
+  if (currentUser && currentUser.role !== "admin") {
+    const perm = userModulos(currentUser);
+    const rotaMod = r === "sinistro" ? "sinistros" : r;
+    if (perm.indexOf(rotaMod) < 0) {
+      const primeiro = perm[0] || "sinistros";
+      r = primeiro === "sinistro" ? "sinistros" : primeiro;
+    }
+  }
+  return r;
+}
