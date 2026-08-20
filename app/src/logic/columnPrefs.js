@@ -5,7 +5,7 @@
 // exibição, não dado do negócio.
 export const COLS_KEY = "corp_cols_pref";
 export const DEFAULT_COLS = {
-  order: ["tipo", "origem", "numsin", "segurado", "placa", "cia", "ramo", "situacao", "vinculos", "acoes"],
+  order: ["tipo", "numsin", "segurado", "termometro", "cia", "situacao", "sitatend", "proxacao", "acoes"],
   widths: {},
 };
 
