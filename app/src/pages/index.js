@@ -7,12 +7,16 @@ import { Dashboard } from "./Dashboard.jsx";
 import { Sinistros } from "./Sinistros.jsx";
 import { Sinistro } from "./Sinistro.jsx";
 import { Abertura } from "./Abertura.jsx";
+import { Demandas } from "./Demandas.jsx";
+import { Tarefas } from "./Tarefas.jsx";
 
 export const PAGES = {
   dashboard: Dashboard,
   sinistros: Sinistros,
   sinistro: Sinistro,
   abertura: Abertura,
+  demandas: Demandas,
+  tarefas: Tarefas,
   clientes: Clientes,
   seguradoras: Seguradoras,
   oficinas: Oficinas,

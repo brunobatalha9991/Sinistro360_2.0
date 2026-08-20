@@ -68,12 +68,12 @@ export const MOCK_OVERRIDES = {
 
 export const MOCK_TASKS = [
   {
-    id: "tsk_001", tipo: "Comunicação", status: "Aberto",
+    id: "tsk_001", tipo: "Comunicação", status: "Pendente", urgencia: "Moderado",
     origem: "usr_admin", destinatarios: ["usr_marina"],
     titulo: "Verificar sinistro 2026.001.9001",
-    texto: "Cliente ligou cobrando retorno sobre a oficina.",
+    descricao: "Cliente ligou cobrando retorno sobre a oficina.",
     createdAt: "2026-08-19T13:00:00.000Z", updatedAt: "2026-08-19T13:00:00.000Z",
-    ciente: {}, log: [],
+    ciente: {}, log: [], comments: [],
   },
 ];
 

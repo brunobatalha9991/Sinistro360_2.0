@@ -1,6 +1,10 @@
 import { useState } from "react";
 import { Icon } from "./icons.jsx";
+import { NotifBell } from "./NotifBell.jsx";
 import { ROLE_LABELS, userModulos } from "../data/auth";
+import { useData } from "../data/DataProvider.jsx";
+import { visibleClaims, isAtrasado } from "../logic/claims";
+import { myUnreadCount, demandaUnreadCount } from "../logic/tasks";
 
 const SIDEBAR_KEY = "corp_sidebar_collapsed";
 
@@ -43,10 +47,16 @@ export function Shell({ route, crumb, currentUser, currentRole, onNavigate, onLo
     });
   }
 
+  const { records } = useData();
   const menu = visibleMenu(currentUser, currentRole);
   const nome = currentUser?.nome || "Usuário";
   const initials = nome.split(" ").map((w) => w[0]).slice(0, 2).join("");
   const isDark = theme === "dark";
+
+  const overrides = records.corp_overrides || {};
+  const atrasadosGlobal = visibleClaims(records.corp_claims).filter((c) => isAtrasado(overrides, c)).length;
+  const demandaUnread = demandaUnreadCount(records.corp_demandas);
+  const notifUnread = myUnreadCount(records.corp_notifs, currentUser);
 
   return (
     <div className="app">
@@ -56,17 +66,20 @@ export function Shell({ route, crumb, currentUser, currentRole, onNavigate, onLo
           <span>Sinistro360</span>
         </div>
         <nav>
-          {menu.map((m) => (
-            <a
-              key={m[0]}
-              className={route === m[0] ? "active" : ""}
-              title={m[1]}
-              onClick={() => onNavigate(m[0])}
-            >
-              <Icon name={m[2]} />
-              <span>{m[1]}</span>
-            </a>
-          ))}
+          {menu.map((m) => {
+            let cls = route === m[0] ? "active" : "";
+            if (m[0] === "demandas" && demandaUnread > 0) cls += " blink-demanda";
+            if (m[0] === "tarefas" && notifUnread > 0) cls += " blink-demanda";
+            return (
+              <a key={m[0]} className={cls} title={m[1]} onClick={() => onNavigate(m[0])}>
+                <Icon name={m[2]} />
+                <span>{m[1]}</span>
+                {m[0] === "sinistros" && atrasadosGlobal > 0 && (
+                  <span className="nav-dot" title={`${atrasadosGlobal} processo(s) atrasado(s)`} />
+                )}
+              </a>
+            );
+          })}
         </nav>
         <div className="ver">v3.0 • Integração CORP</div>
       </div>
@@ -90,11 +103,7 @@ export function Shell({ route, crumb, currentUser, currentRole, onNavigate, onLo
             </div>
           </div>
           <div className="user">
-            <button className="notif-btn" type="button" title="Notificações">
-              <svg viewBox="0 0 24 24" width="21" height="21" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9" /><path d="M13.7 21a2 2 0 0 1-3.4 0" />
-              </svg>
-            </button>
+            <NotifBell />
             <button
               className="theme-toggle" type="button" aria-label="Alternar tema"
               title={isDark ? "Ativar modo claro" : "Ativar modo escuro fosco"}
