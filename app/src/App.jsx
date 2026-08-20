@@ -1,85 +1,64 @@
-import { useEffect, useState } from "react";
-import { collection, getCountFromServer, doc, getDoc } from "firebase/firestore";
-import { db, CONFIG_COLLECTION, CONFIG_KEYS, RECORD_SPECS } from "./firebase";
-import "./App.css";
+import { useAuth } from "./hooks/useAuth";
+import { useTheme } from "./hooks/useTheme";
+import { useHashRoute } from "./hooks/useHashRoute";
+import { LoginScreen } from "./components/LoginScreen.jsx";
+import { Shell, MENU } from "./components/Shell.jsx";
+import { useData } from "./data/DataProvider.jsx";
 
-// Etapa 1: só prova que o app novo enxerga os MESMOS dados do sistema atual.
-// Leitura pura (getCountFromServer / getDoc) — nada é escrito no Firestore aqui.
+// Etapa 2: casca visual completa (login, sidebar, topbar, tema) já ligada à
+// camada de dados offline. O conteúdo de cada tela (Dashboard, Sinistros...)
+// entra na Etapa 3, uma por vez.
+function PagePlaceholder({ route, label }) {
+  return (
+    <div className="page-enter">
+      <div className="page-head">
+        <div>
+          <h1>{label}</h1>
+          <p>Esta tela ainda será portada na Etapa 3 (rota: {route}).</p>
+        </div>
+      </div>
+      <div className="card">
+        <div className="muted" style={{ padding: 30, textAlign: "center" }}>
+          Placeholder da Etapa 2 — só a casca (menu, topo, tema) está pronta aqui.
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function App() {
-  const [status, setStatus] = useState("Conectando ao Firestore...");
-  const [recordCounts, setRecordCounts] = useState(null);
-  const [configFound, setConfigFound] = useState(null);
-  const [error, setError] = useState(null);
+  const { mode } = useData();
+  const { currentUser, currentRole, login, logout } = useAuth();
+  const { theme, toggleTheme } = useTheme();
+  const { route, navigate } = useHashRoute();
 
-  useEffect(() => {
-    let cancelled = false;
+  if (!currentUser) {
+    return <LoginScreen onLogin={login} />;
+  }
 
-    async function checkConnection() {
-      try {
-        const recordEntries = Object.entries(RECORD_SPECS);
-        const counts = {};
-        for (const [key, spec] of recordEntries) {
-          const snap = await getCountFromServer(collection(db, spec.col));
-          counts[key] = snap.data().count;
-        }
-
-        const configPresent = {};
-        for (const key of CONFIG_KEYS) {
-          const snap = await getDoc(doc(db, CONFIG_COLLECTION, key));
-          configPresent[key] = snap.exists();
-        }
-
-        if (!cancelled) {
-          setRecordCounts(counts);
-          setConfigFound(configPresent);
-          setStatus("Conectado — leitura confirmada no mesmo projeto Firebase.");
-        }
-      } catch (e) {
-        if (!cancelled) {
-          setError(e.message || String(e));
-          setStatus("Falha ao conectar.");
-        }
-      }
-    }
-
-    checkConnection();
-    return () => {
-      cancelled = true;
-    };
-  }, []);
+  const menuItem = MENU.find((m) => m[0] === route);
+  const label = menuItem ? menuItem[1] : "Dashboard";
 
   return (
-    <div style={{ fontFamily: "sans-serif", padding: 24, maxWidth: 640 }}>
-      <h1>Sinistro360 — Etapa 1 (scaffold)</h1>
-      <p>{status}</p>
-      {error && <p style={{ color: "crimson" }}>Erro: {error}</p>}
-
-      {recordCounts && (
-        <>
-          <h2>Coleções por registro (s360_*)</h2>
-          <ul>
-            {Object.entries(recordCounts).map(([key, count]) => (
-              <li key={key}>
-                {key} → {RECORD_SPECS[key].col}: <strong>{count}</strong> documento(s)
-              </li>
-            ))}
-          </ul>
-        </>
+    <>
+      {mode === "offline" && (
+        <div style={{ background: "#fef3c7", color: "#92400e", fontSize: 12, textAlign: "center", padding: "4px 8px" }}>
+          Modo offline (dados fictícios) — nenhuma leitura/escrita no Firebase de produção.
+        </div>
       )}
-
-      {configFound && (
-        <>
-          <h2>Config (s360_config)</h2>
-          <ul>
-            {Object.entries(configFound).map(([key, exists]) => (
-              <li key={key}>
-                {key}: {exists ? "existe" : "ainda não existe"}
-              </li>
-            ))}
-          </ul>
-        </>
-      )}
-    </div>
+      <Shell
+        route={route}
+        crumb={label}
+        currentUser={currentUser}
+        currentRole={currentRole}
+        onNavigate={navigate}
+        onLogout={logout}
+        theme={theme}
+        onToggleTheme={toggleTheme}
+      >
+        <PagePlaceholder route={route} label={label} />
+      </Shell>
+    </>
   );
 }
 
