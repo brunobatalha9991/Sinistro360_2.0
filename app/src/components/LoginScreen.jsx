@@ -5,12 +5,15 @@ export function LoginScreen({ onLogin }) {
   const [email, setEmail] = useState("");
   const [senha, setSenha] = useState("");
   const [error, setError] = useState("");
+  const [loading, setLoading] = useState(false);
   const senhaRef = useRef(null);
 
-  function tentar() {
+  async function tentar() {
     const e = email.trim();
     if (!e || !senha) { setError("Informe e-mail e senha."); return; }
-    const res = onLogin(e, senha);
+    setLoading(true);
+    const res = await onLogin(e, senha);
+    setLoading(false);
     if (!res.ok) { setError(res.error); return; }
     setError("");
   }
@@ -53,8 +56,8 @@ export function LoginScreen({ onLogin }) {
           />
         </div>
         {error && <div className="status err">{error}</div>}
-        <button className="btn" style={{ width: "100%", marginTop: 8, padding: 11 }} onClick={tentar}>
-          Entrar
+        <button className="btn" style={{ width: "100%", marginTop: 8, padding: 11 }} onClick={tentar} disabled={loading}>
+          {loading ? "Entrando..." : "Entrar"}
         </button>
       </div>
     </div>
