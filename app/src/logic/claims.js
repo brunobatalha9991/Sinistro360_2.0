@@ -44,6 +44,14 @@ export function getAtendTemplate(atendTemplateCfg) {
 export function isAtendimento(c) { return !!(c && c.partyType === "Aviso"); }
 export function isManualClaim(c) { return !!(c && c.origem === "manual"); }
 
+// Porte 1:1 de partyTypeFromTipo() do HTML original.
+export function partyTypeFromTipo(tipo) {
+  const t = String(tipo || "").toUpperCase();
+  if (t.indexOf("TERCEIRO") >= 0) return "Terceiro";
+  if (t.indexOf("ATENDIMENTO") >= 0) return "Aviso";
+  return "Segurado";
+}
+
 export function getOvr(overrides, id) { return (overrides && overrides[id]) || {}; }
 export function campoEfetivo(overrides, c, campo) {
   if (!c) return "";
