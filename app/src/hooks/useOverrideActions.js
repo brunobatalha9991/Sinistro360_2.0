@@ -42,6 +42,16 @@ export function useOverrideActions() {
     },
     saveFinance: (claimId, f) => setOvr(claimId, { finance: f }),
     saveComms: (claimId, list) => setOvr(claimId, { comms: list }),
+    // Anexa 1 comentário lendo o array mais atual (não um retrato antigo) —
+    // usado pela importação em lote, que pode gravar várias linhas em
+    // sequência rápida.
+    appendComment(claimId, comment) {
+      saveRecord("corp_overrides", (current) => {
+        const cur = current || {};
+        const existing = cur[claimId] || {};
+        return { ...cur, [claimId]: { ...existing, comms: [...(existing.comms || []), comment] } };
+      });
+    },
     saveNextAction: (claimId, na) => setOvr(claimId, { nextAction: na }),
     saveResponsavel: (claimId, user) => setOvr(claimId, { responsavelUser: user ? { id: user.id, nome: user.nome } : null }),
     saveSitAtend: (claimId, v) => setOvr(claimId, { sitAtend: v }),

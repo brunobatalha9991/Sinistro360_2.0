@@ -9,6 +9,8 @@ import { Sinistro } from "./Sinistro.jsx";
 import { Abertura } from "./Abertura.jsx";
 import { Demandas } from "./Demandas.jsx";
 import { Tarefas } from "./Tarefas.jsx";
+import { Integracao } from "./Integracao.jsx";
+import { Configuracoes } from "./Configuracoes.jsx";
 
 export const PAGES = {
   dashboard: Dashboard,
@@ -21,4 +23,6 @@ export const PAGES = {
   seguradoras: Seguradoras,
   oficinas: Oficinas,
   relatorios: Relatorios,
+  integracao: Integracao,
+  config: Configuracoes,
 };

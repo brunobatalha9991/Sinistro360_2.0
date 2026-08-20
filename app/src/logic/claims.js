@@ -36,6 +36,18 @@ export function defaultAtendTemplate() {
 export function getRamoTemplate(templates, ramo) {
   return (templates && templates[ramo]) || defaultRamoTemplate();
 }
+// Porte 1:1 de ensureRamoTemplate() do HTML original, mas puro: devolve um
+// NOVO objeto de templates com o ramo garantido (template padrão + status
+// da Vistoria), ou o MESMO objeto (por referência) se já não faltava nada —
+// assim quem chama sabe se precisa salvar ou não.
+export function ensureRamoTemplateInto(templates, ramo) {
+  if (!ramo) return templates;
+  const t = templates || {};
+  if (t[ramo] && t[ramo].vistoriaStatus) return t;
+  const existing = t[ramo] || defaultRamoTemplate();
+  const withVistoria = { ...existing, vistoriaStatus: existing.vistoriaStatus || [...STATUS_DEFAULT] };
+  return { ...t, [ramo]: withVistoria };
+}
 export function getAtendTemplate(atendTemplateCfg) {
   return atendTemplateCfg && atendTemplateCfg.steps && atendTemplateCfg.steps.length
     ? atendTemplateCfg

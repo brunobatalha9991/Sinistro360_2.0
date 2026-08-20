@@ -2,6 +2,15 @@
 export const PALETTE = ["#2563eb", "#16a34a", "#f59e0b", "#dc2626", "#9333ea", "#0891b2", "#64748b", "#db2777", "#65a30d", "#ea580c", "#0ea5e9", "#a16207"];
 
 export function todayISO() { return new Date().toISOString().slice(0, 10); }
+export function uid(prefix) { return (prefix || "id") + "_" + Math.random().toString(36).slice(2, 9); }
+export function isoFromBR(v) {
+  if (!v) return "";
+  v = String(v).trim();
+  const m = v.match(/^(\d{2})\/(\d{2})\/(\d{4})/);
+  if (m) return `${m[3]}-${m[2]}-${m[1]}`;
+  const i = v.match(/^(\d{4})-(\d{2})-(\d{2})/);
+  return i ? `${i[1]}-${i[2]}-${i[3]}` : "";
+}
 export function fmtDateBR(iso) {
   if (!iso) return "—";
   const m = String(iso).match(/^(\d{4})-(\d{2})-(\d{2})/);
