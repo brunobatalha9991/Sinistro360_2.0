@@ -2,6 +2,7 @@ import { Suspense, useEffect } from "react";
 import { useAuth } from "./hooks/useAuth";
 import { useTheme } from "./hooks/useTheme";
 import { useHashRoute } from "./hooks/useHashRoute";
+import { useAutoSyncDemandas } from "./hooks/useAutoSyncDemandas";
 import { LoginScreen } from "./components/LoginScreen.jsx";
 import { Shell, MENU } from "./components/Shell.jsx";
 import { useData } from "./data/DataProvider.jsx";
@@ -36,6 +37,7 @@ function App() {
   const { currentUser, currentRole, login, logout } = useAuth();
   const { theme, toggleTheme } = useTheme();
   const { route, navigate } = useHashRoute();
+  useAutoSyncDemandas(currentUser);
 
   const allowedRoute = currentUser ? resolveAllowedRoute(route, currentUser, currentRole) : route;
 
