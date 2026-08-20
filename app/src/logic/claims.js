@@ -130,9 +130,10 @@ function conclusaoStatus(uj) {
 // junto do status (setStepField em JourneyPanel.jsx).
 function findStepStatusByTitle(uj, title) {
   const steps = (uj && uj.steps) || {};
+  const alvo = title.trim().toLowerCase();
   for (const k in steps) {
     const s = steps[k] || {};
-    if (s.title === title && s.status) return String(s.status);
+    if (s.title && String(s.title).trim().toLowerCase() === alvo && s.status) return String(s.status);
   }
   return "";
 }
