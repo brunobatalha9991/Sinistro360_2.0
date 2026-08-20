@@ -1,4 +1,4 @@
-import { useEffect } from "react";
+import { Suspense, useEffect } from "react";
 import { useAuth } from "./hooks/useAuth";
 import { useTheme } from "./hooks/useTheme";
 import { useHashRoute } from "./hooks/useHashRoute";
@@ -8,22 +8,25 @@ import { useData } from "./data/DataProvider.jsx";
 import { PAGES } from "./pages/index.js";
 import { resolveAllowedRoute } from "./data/auth";
 
-// Etapa 3: telas de negócio vão sendo ligadas aqui uma a uma (ver PAGES).
-// O que ainda não tem tela própria continua neste placeholder.
-function PagePlaceholder({ route, label }) {
+// Fallback defensivo — só aparece se a rota não corresponder a nenhuma
+// tela registrada em PAGES (não deveria acontecer via navegação normal).
+function PageNotFound({ route, label }) {
   return (
     <div className="page-enter">
       <div className="page-head">
         <div>
           <h1>{label}</h1>
-          <p>Esta tela ainda será portada na Etapa 3 (rota: {route}).</p>
+          <p>Rota desconhecida: {route}.</p>
         </div>
       </div>
-      <div className="card">
-        <div className="muted" style={{ padding: 30, textAlign: "center" }}>
-          Placeholder — o conteúdo desta tela ainda não foi portado.
-        </div>
-      </div>
+    </div>
+  );
+}
+
+function PageLoading() {
+  return (
+    <div className="page-enter" style={{ padding: 40, textAlign: "center", color: "var(--muted)" }}>
+      Carregando...
     </div>
   );
 }
@@ -65,7 +68,9 @@ function App() {
         theme={theme}
         onToggleTheme={toggleTheme}
       >
-        {PageComponent ? <PageComponent /> : <PagePlaceholder route={allowedRoute} label={label} />}
+        <Suspense fallback={<PageLoading />}>
+          {PageComponent ? <PageComponent /> : <PageNotFound route={allowedRoute} label={label} />}
+        </Suspense>
       </Shell>
     </>
   );
