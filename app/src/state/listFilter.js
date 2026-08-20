@@ -8,7 +8,7 @@ export const listFilter = {
   status: "todos", tipo: "todos", q: "", showFilters: false,
   etapa: "todos", ocoDe: "", ocoAte: "", aviDe: "", aviAte: "",
   pa: "", atrasado: false, semAtu: false, manual: false, aberto: false,
-  caminho: "todos", responsavel: "todos", sitatend: "todas",
+  caminho: "todos", responsavel: "todos", sitatend: "todas", termometro: "todas",
 };
 
 const listeners = new Set();
@@ -24,7 +24,7 @@ export function resetListFilter() {
     tipo: "todos", status: "todos", etapa: "todos",
     ocoDe: "", ocoAte: "", aviDe: "", aviAte: "",
     pa: "", atrasado: false, semAtu: false,
-    manual: false, aberto: false, sitatend: "todas", caminho: "todos",
+    manual: false, aberto: false, sitatend: "todas", caminho: "todos", termometro: "todas",
   });
 }
 

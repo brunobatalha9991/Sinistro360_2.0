@@ -13,9 +13,11 @@ import { loadCols, saveCols } from "../logic/columnPrefs";
 import { exportCSV } from "../logic/exportCsv";
 import {
   visibleClaims, campoEfetivo, situacaoEfetiva, getUserJourney, getNextAction,
-  getSitAtend, getResponsavel, isAtrasado, isSemAtualizacao, isManualClaim,
+  getSitAtend, getTemp, getResponsavel, isAtrasado, isSemAtualizacao, isManualClaim,
   allJourneyStages, currentStage,
 } from "../logic/claims";
+
+const DEFAULT_TEMP_OPTIONS = ["Tranquilo", "Moderado", "Grave", "Em atenção"];
 
 export function Sinistros() {
   const { records, config } = useData();
@@ -31,6 +33,7 @@ export function Sinistros() {
   const templates = config.corp_journey_templates || {};
   const atendTemplate = config.corp_atendimento_template;
   const sitOptions = config.corp_sit_options || ["Aguard. Cliente", "Aguard. Seguradora", "Aguard. Corretora", "Aguard. Oficina"];
+  const tempOptions = config.corp_temp_options && config.corp_temp_options.length ? config.corp_temp_options : DEFAULT_TEMP_OPTIONS;
 
   function updatePref(next) { setPref(next); saveCols(next); }
 
@@ -66,6 +69,11 @@ export function Sinistros() {
     }
     if (except !== "sitatend" && lf.sitatend && lf.sitatend !== "todas") {
       if (getSitAtend(overrides, c.id) !== lf.sitatend) return false;
+    }
+    if (except !== "termometro" && lf.termometro && lf.termometro !== "todas") {
+      const t = getTemp(overrides, c.id);
+      if (lf.termometro === "__sem__") { if (t) return false; }
+      else if (t !== lf.termometro) return false;
     }
     if (except !== "texto" && q) {
       const hay = [campoEfetivo(overrides, c, "segurado"), campoEfetivo(overrides, c, "placa"), campoEfetivo(overrides, c, "numsin"), campoEfetivo(overrides, c, "numapo"), campoEfetivo(overrides, c, "cia"), c.partyType, campoEfetivo(overrides, c, "oficina"), campoEfetivo(overrides, c, "ramo")].join(" ").toLowerCase();
@@ -139,6 +147,11 @@ export function Sinistros() {
     if (lf.sitatend && lf.sitatend !== "todas") {
       if (getSitAtend(overrides, c.id) !== lf.sitatend) return false;
     }
+    if (lf.termometro && lf.termometro !== "todas") {
+      const t = getTemp(overrides, c.id);
+      if (lf.termometro === "__sem__") { if (t) return false; }
+      else if (t !== lf.termometro) return false;
+    }
     if (!q) return true;
     return [campoEfetivo(overrides, c, "segurado"), campoEfetivo(overrides, c, "placa"), campoEfetivo(overrides, c, "numsin"), campoEfetivo(overrides, c, "numapo"), campoEfetivo(overrides, c, "cia"), c.partyType, campoEfetivo(overrides, c, "oficina"), campoEfetivo(overrides, c, "ramo")].join(" ").toLowerCase().indexOf(q) >= 0;
   });
@@ -188,52 +201,86 @@ export function Sinistros() {
           <button className="btn sec sm" onClick={resetListFilter}>Limpar todos os filtros</button>
         </div>
 
-        <div className={lf.showFilters ? "" : "hidden"} style={{ border: "1px solid var(--border)", borderRadius: 10, padding: 14, marginBottom: 14, background: "var(--surface-2)" }}>
-          <div className="chips">
-            {tipoChips.map(([k, label]) => (
-              <div key={k} className={"chip-btn" + (lf.tipo === k ? " active" : "")} onClick={() => patchListFilter({ tipo: k })}>{label} ({ct(k)})</div>
-            ))}
+        <div className={lf.showFilters ? "" : "hidden"} style={{ border: "1px solid var(--border)", borderRadius: 10, padding: "4px 14px", marginBottom: 14, background: "var(--surface-2)" }}>
+          <div className="filter-group">
+            <div className="filter-group-title">Tipo de parte</div>
+            <div className="chips">
+              {tipoChips.map(([k, label]) => (
+                <div key={k} className={"chip-btn" + (lf.tipo === k ? " active" : "")} onClick={() => patchListFilter({ tipo: k })}>{label} ({ct(k)})</div>
+              ))}
+            </div>
           </div>
-          {dtField("Dt. Ocorrência", "ocoDe", "ocoAte")}
-          {dtField("Dt. Aviso", "aviDe", "aviAte")}
-          <div className="chips">
-            {statusChips.map(([k, label]) => (
-              <div key={k} className={"chip-btn" + (lf.status === k ? " active" : "")} onClick={() => patchListFilter({ status: k })}>{label} ({cs(k)})</div>
-            ))}
+
+          <div className="filter-group">
+            <div className="filter-group-title">Datas</div>
+            {dtField("Dt. Ocorrência", "ocoDe", "ocoAte")}
+            {dtField("Dt. Aviso", "aviDe", "aviAte")}
           </div>
-          <div className="chips">
-            <span className="muted" style={{ fontSize: 12, marginRight: 4, alignSelf: "center" }}>Caminho:</span>
-            <div className={"chip-btn" + (lf.caminho === "todos" ? " active" : "")} onClick={() => patchListFilter({ caminho: "todos" })}>Todos</div>
-            <div className={"chip-btn" + (lf.caminho === "parcial" ? " active" : "")} onClick={() => patchListFilter({ caminho: "parcial" })}>Perda Parcial ({qtdParcial})</div>
-            <div className={"chip-btn" + (lf.caminho === "integral" ? " active" : "")} onClick={() => patchListFilter({ caminho: "integral" })}>Perda Integral ({qtdIntegral})</div>
+
+          <div className="filter-group">
+            <div className="filter-group-title">Situação do processo</div>
+            <div className="chips">
+              {statusChips.map(([k, label]) => (
+                <div key={k} className={"chip-btn" + (lf.status === k ? " active" : "")} onClick={() => patchListFilter({ status: k })}>{label} ({cs(k)})</div>
+              ))}
+            </div>
           </div>
-          <div className="chips">
-            {etapaChips.map(([k, label]) => (
-              <div key={k} className={"chip-btn" + (lf.etapa === k ? " active" : "")} onClick={() => patchListFilter({ etapa: k })}>{label}</div>
-            ))}
+
+          <div className="filter-group">
+            <div className="filter-group-title">Caminho e etapa da jornada</div>
+            <div className="chips">
+              <span className="muted" style={{ fontSize: 12, marginRight: 4, alignSelf: "center" }}>Caminho:</span>
+              <div className={"chip-btn" + (lf.caminho === "todos" ? " active" : "")} onClick={() => patchListFilter({ caminho: "todos" })}>Todos</div>
+              <div className={"chip-btn" + (lf.caminho === "parcial" ? " active" : "")} onClick={() => patchListFilter({ caminho: "parcial" })}>Perda Parcial ({qtdParcial})</div>
+              <div className={"chip-btn" + (lf.caminho === "integral" ? " active" : "")} onClick={() => patchListFilter({ caminho: "integral" })}>Perda Integral ({qtdIntegral})</div>
+            </div>
+            <div className="chips">
+              {etapaChips.map(([k, label]) => (
+                <div key={k} className={"chip-btn" + (lf.etapa === k ? " active" : "")} onClick={() => patchListFilter({ etapa: k })}>{label}</div>
+              ))}
+            </div>
           </div>
-          <div className="chips" style={{ alignItems: "center" }}>
-            <span className="muted" style={{ fontSize: 12, marginRight: 4 }}>Próxima ação até:</span>
-            <input type="date" className="inline" style={{ minWidth: 150 }} value={lf.pa || ""} onChange={(e) => patchListFilter({ pa: e.target.value })} />
-            {lf.pa && <button className="chip-btn" onClick={() => patchListFilter({ pa: "" })}>limpar data</button>}
-            <div className={"chip-btn" + (lf.atrasado ? " active" : "")} onClick={() => patchListFilter({ atrasado: !lf.atrasado })}>⏰ Atrasados ({qtdAtrasado})</div>
-            <div className={"chip-btn" + (lf.semAtu ? " active" : "")} onClick={() => patchListFilter({ semAtu: !lf.semAtu })}>🔕 Sem atualização ({qtdSemAtu})</div>
-            <div className={"chip-btn" + (lf.manual ? " active" : "")} onClick={() => patchListFilter({ manual: !lf.manual })}>✎ Criados manualmente ({qtdManual})</div>
-            <div className={"chip-btn" + (lf.aberto ? " active" : "")} onClick={() => patchListFilter({ aberto: !lf.aberto })}>📂 Em aberto (Pendente/Em andamento) ({qtdAberto})</div>
-            <span className="muted" style={{ fontSize: 12, marginLeft: 8, marginRight: 4 }}>Situação:</span>
-            <select className="inline" style={{ minWidth: 180 }} value={lf.sitatend} onChange={(e) => patchListFilter({ sitatend: e.target.value })}>
-              <option value="todas">Todas as situações</option>
-              {sitOptions.map((op) => <option key={op} value={op}>{op}</option>)}
-            </select>
+
+          <div className="filter-group">
+            <div className="filter-group-title">Prazos e alertas</div>
+            <div className="chips" style={{ alignItems: "center" }}>
+              <span className="muted" style={{ fontSize: 12, marginRight: 4 }}>Próxima ação até:</span>
+              <input type="date" className="inline" style={{ minWidth: 150 }} value={lf.pa || ""} onChange={(e) => patchListFilter({ pa: e.target.value })} />
+              {lf.pa && <button className="chip-btn" onClick={() => patchListFilter({ pa: "" })}>limpar data</button>}
+              <div className={"chip-btn" + (lf.atrasado ? " active" : "")} onClick={() => patchListFilter({ atrasado: !lf.atrasado })}>⏰ Atrasados ({qtdAtrasado})</div>
+              <div className={"chip-btn" + (lf.semAtu ? " active" : "")} onClick={() => patchListFilter({ semAtu: !lf.semAtu })}>🔕 Sem atualização ({qtdSemAtu})</div>
+              <div className={"chip-btn" + (lf.manual ? " active" : "")} onClick={() => patchListFilter({ manual: !lf.manual })}>✎ Criados manualmente ({qtdManual})</div>
+              <div className={"chip-btn" + (lf.aberto ? " active" : "")} onClick={() => patchListFilter({ aberto: !lf.aberto })}>📂 Em aberto (Pendente/Em andamento) ({qtdAberto})</div>
+            </div>
           </div>
-          <div className="chips" style={{ alignItems: "center" }}>
-            <span className="muted" style={{ fontSize: 12, marginRight: 4 }}>Responsável:</span>
-            <select className="inline" style={{ minWidth: 200 }} value={lf.responsavel} onChange={(e) => patchListFilter({ responsavel: e.target.value })}>
-              <option value="todos">Responsável: todos</option>
-              {(currentRole === "atendente" || isAdmin(currentUser)) && <option value="__sem__">⚠ Sem responsável (definir)</option>}
-              {users.map((u) => <option key={u.id} value={u.id}>{u.nome}</option>)}
-            </select>
-            <span className="muted" style={{ fontSize: 11 }}>(traz apenas Pendente / Em andamento)</span>
+
+          <div className="filter-group">
+            <div className="filter-group-title">Atendimento</div>
+            <div className="chips" style={{ alignItems: "center" }}>
+              <span className="muted" style={{ fontSize: 12, marginRight: 4 }}>Situação:</span>
+              <select className="inline" style={{ minWidth: 180 }} value={lf.sitatend} onChange={(e) => patchListFilter({ sitatend: e.target.value })}>
+                <option value="todas">Todas as situações</option>
+                {sitOptions.map((op) => <option key={op} value={op}>{op}</option>)}
+              </select>
+              <span className="muted" style={{ fontSize: 12, marginLeft: 8, marginRight: 4 }}>Termômetro:</span>
+              <select className="inline" style={{ minWidth: 180 }} value={lf.termometro} onChange={(e) => patchListFilter({ termometro: e.target.value })}>
+                <option value="todas">Todos os termômetros</option>
+                <option value="__sem__">⚠ Não definida</option>
+                {tempOptions.map((op) => <option key={op} value={op}>{op}</option>)}
+              </select>
+            </div>
+          </div>
+
+          <div className="filter-group">
+            <div className="filter-group-title">Responsável</div>
+            <div className="chips" style={{ alignItems: "center" }}>
+              <select className="inline" style={{ minWidth: 200 }} value={lf.responsavel} onChange={(e) => patchListFilter({ responsavel: e.target.value })}>
+                <option value="todos">Responsável: todos</option>
+                {(currentRole === "atendente" || isAdmin(currentUser)) && <option value="__sem__">⚠ Sem responsável (definir)</option>}
+                {users.map((u) => <option key={u.id} value={u.id}>{u.nome}</option>)}
+              </select>
+              <span className="muted" style={{ fontSize: 11 }}>(traz apenas Pendente / Em andamento)</span>
+            </div>
           </div>
         </div>
 
