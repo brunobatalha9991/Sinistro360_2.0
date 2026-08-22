@@ -60,7 +60,7 @@ Nenhum dos dois pontos de chamada existentes (`DetailHeader.jsx`, `Abertura.jsx`
 
 ## Interface
 
-- **Aba "Histórico de Responsabilidade"** na tela de detalhe do sinistro (`components/detail/ResponsabilidadePanel.jsx`) — tabela com responsável, início, fim, duração, origem (com selo visual diferenciando "estimado" de dados reais) e motivo.
+- **Embutido na aba "Auditoria Interna"** da tela de detalhe do sinistro — `components/detail/ResponsabilidadePanel.jsx` é renderizado dentro de `AuditPanel.jsx` (a pedido do usuário: as duas seções já existiam antes, então passaram a viver juntas na mesma aba em vez de abas separadas). Tabela com responsável, início, fim, duração, origem (com selo visual diferenciando "estimado" de dados reais) e motivo.
 - **Card de migração** em Configurações (`components/config/ResponsabilidadeBackfillCard.jsx`, só admin) — botão único, idempotente, com resumo do resultado.
 
 ## Risco aceito (decisão do usuário)

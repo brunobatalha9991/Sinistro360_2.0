@@ -29,15 +29,17 @@ function fmtDuracao(inicioISO, fimISO) {
 // Porte novo (Fase 2 — IA Sinistros): mostra os intervalos de vigência de
 // responsável do processo, sempre com origem/motivo visíveis — nunca
 // apresenta uma entrada "estimado_legado" como fato consolidado.
+// Renderizado embutido dentro do card "Auditoria Interna" (AuditPanel.jsx)
+// — sem card/wrapper próprio, por isso não tem <div className="card">.
 export function ResponsabilidadePanel({ c, records }) {
   const historico = getHistoricoDoProcesso(records.corp_responsabilidade_historico, c.id).slice().reverse();
   const users = records.corp_users || [];
   const userNome = (id) => (users.find((u) => u.id === id) || {}).nome || "—";
 
   return (
-    <div className="card">
+    <div>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 8 }}>
-        <h3 style={{ margin: 0 }}>Histórico de Responsabilidade</h3>
+        <h4 style={{ margin: 0 }}>Histórico de Responsabilidade</h4>
         <span className="muted" style={{ fontSize: 12 }}>{historico.length} intervalo(s) registrado(s)</span>
       </div>
       <p className="muted" style={{ marginTop: 6 }}>

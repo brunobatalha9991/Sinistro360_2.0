@@ -20,7 +20,7 @@ Cada resposta mostra, quando aplicável: um selo de confiança, as fontes consul
 
 ## Histórico de Responsabilidade (dentro de cada sinistro)
 
-Nova aba na tela de detalhe do sinistro. Mostra quem foi responsável, quando começou/terminou, e a origem (real ou estimada a partir de dados antigos). Se estiver vazia, um administrador pode gerar uma estimativa em Configurações.
+Aparece na aba "Auditoria Interna" da tela de detalhe do sinistro, logo abaixo do log de auditoria. Mostra quem foi responsável, quando começou/terminou, e a origem (real ou estimada a partir de dados antigos). Se estiver vazio, um administrador pode gerar uma estimativa em Configurações.
 
 ## Desempenho (menu lateral → "Desempenho", se seu usuário tiver acesso)
 

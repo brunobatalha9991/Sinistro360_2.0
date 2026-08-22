@@ -1,9 +1,13 @@
 import { EmptyState } from "../EmptyState.jsx";
 import { loadAudit } from "../../logic/claims";
 import { txt } from "../../logic/format";
+import { ResponsabilidadePanel } from "./ResponsabilidadePanel.jsx";
 
-// Porte 1:1 de auditPanel() do HTML original.
-export function AuditPanel({ c, overrides }) {
+// Porte 1:1 de auditPanel() do HTML original, com o Histórico de
+// Responsabilidade (Fase 2 — IA Sinistros) embutido no mesmo card, a
+// pedido do usuário — as duas seções já existiam, só passaram a viver
+// juntas na mesma aba "Auditoria Interna" em vez de abas separadas.
+export function AuditPanel({ c, overrides, records }) {
   const a = loadAudit(overrides, c.id).slice().reverse();
   return (
     <div className="card">
@@ -34,6 +38,9 @@ export function AuditPanel({ c, overrides }) {
           </table>
         </div>
       )}
+
+      <hr style={{ margin: "18px 0", border: "none", borderTop: "1px solid var(--border)" }} />
+      <ResponsabilidadePanel c={c} records={records} />
     </div>
   );
 }
