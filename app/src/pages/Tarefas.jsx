@@ -16,8 +16,8 @@ import { checklistProgresso } from "../logic/checklistMesaAtendimento";
 const STATUS_CHIPS = [["todas", "Todas"], ["Pendente", "Pendentes"], ["Em andamento", "Em andamento"], ["Concluído", "Concluídas"]];
 const URG_CHIPS = [["todas", "Toda urgência"], ["Urgente", "Urgente"], ["Moderado", "Moderado"], ["Leve", "Leve"]];
 const ATENDIMENTO_CHIPS = [
-  ["todas", "Atendimento: todos"], ["sinistro", "🚗 Sinistro"],
-  ["assistencia_24h", "🛟 Assistência 24h"], ["assistencia_vidros", "🪟 Vidros/pequenos reparos"],
+  ["todas", "Atendimento: todos"], ["sinistro", "Sinistro"],
+  ["assistencia_24h", "Assistência 24h"], ["assistencia_vidros", "Vidros/pequenos reparos"],
 ];
 const DEFAULT_TASK_TYPES = ["Comunicação", "Lembrete", "Tarefa", "Mesa de Atendimento"];
 
@@ -36,6 +36,18 @@ export function Tarefas() {
     actions.purgeOldTasks();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // "Mesa de Atendimento" só entra automaticamente em corp_task_types de
+  // instalações novas (mockData). Bancos já existentes (Firestore com
+  // corp_task_types já configurado antes desta funcionalidade) precisam
+  // ganhar o tipo novo uma vez — mesmo padrão de auto-completar já usado em
+  // Configuracoes.jsx (ensureRamoTemplateInto para os templates de jornada).
+  useEffect(() => {
+    if (config.corp_task_types && config.corp_task_types.length && config.corp_task_types.indexOf("Mesa de Atendimento") < 0) {
+      saveConfig("corp_task_types", (cur) => [...(cur || []), "Mesa de Atendimento"]);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [config.corp_task_types]);
   useEffect(() => {
     if (!param) return;
     if (param.indexOf("open-") === 0) {
@@ -122,14 +134,14 @@ export function Tarefas() {
                   <span className={"badge-mini urg-badge " + (t.urgencia || "").toLowerCase()}>{t.urgencia}</span>
                   <span className="badge gray">{t.tipo}</span>
                   <span className={"badge " + (t.status === "Concluído" ? "green" : t.status === "Em andamento" ? "amber" : "blue")}>{t.status}</span>
-                  {t.tipoAtendimento === "sinistro" && <span className="badge blue">🚗 Sinistro</span>}
-                  {t.tipoAtendimento === "assistencia_24h" && <span className="badge purple">🛟 Assistência 24h</span>}
-                  {t.tipoAtendimento === "assistencia_vidros" && <span className="badge purple">🪟 Vidros/pequenos reparos</span>}
+                  {t.tipoAtendimento === "sinistro" && <span className="badge blue">Sinistro</span>}
+                  {t.tipoAtendimento === "assistencia_24h" && <span className="badge purple">Assistência 24h</span>}
+                  {t.tipoAtendimento === "assistencia_vidros" && <span className="badge purple">Vidros/pequenos reparos</span>}
                   {t.tipo === "Mesa de Atendimento" && (() => {
                     const p = checklistProgresso(t.checklistMesa);
-                    return <span className={"badge " + (p.total && p.feitos === p.total ? "green" : "amber")}>✅ {p.feitos}/{p.total}</span>;
+                    return <span className={"badge " + (p.total && p.feitos === p.total ? "green" : "amber")}>Checklist {p.feitos}/{p.total}</span>;
                   })()}
-                  {t.tipo === "Mesa de Atendimento" && t.solicitacao && <span className="badge blue">📋 Solicitação preenchida</span>}
+                  {t.tipo === "Mesa de Atendimento" && t.solicitacao && <span className="badge blue">Solicitação preenchida</span>}
                   {stale && <span className="badge red">⚠ +2h sem interação</span>}
                 </div>
                 <div style={{ fontSize: 15, fontWeight: 600 }}>{t.titulo}</div>

@@ -74,7 +74,7 @@ export function AnexosPanel({ c, overrides, config, actions, canEdit, currentUse
           {anexos.map((a) => (
             <div key={a.id} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8, border: "1px solid var(--border)", borderRadius: 8, padding: "8px 12px" }}>
               <div>
-                <a href={a.url} target="_blank" rel="noreferrer">📎 {a.nome} ↗</a>
+                <a href={a.url} target="_blank" rel="noreferrer">{a.nome}</a>
                 {a.descricao && <span className="muted" style={{ marginLeft: 8, fontSize: 12 }}>{a.descricao}</span>}
                 <div className="muted" style={{ fontSize: 11, marginTop: 2 }}>{txt(a.enviadoPor)} • {fmtDataHora(a.enviadoEm)}</div>
               </div>

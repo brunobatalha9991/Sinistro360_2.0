@@ -13,9 +13,9 @@ import { FORMULARIOS_SOLICITACAO, formularioDisponivel, caminhoPastaSolicitacao 
 import { isDriveUploadConfigured, uploadArquivoDrive, CONTEXTO_MESA_ATENDIMENTO } from "../logic/driveUpload";
 
 const ATENDIMENTO_OPCOES = [
-  ["sinistro", "🚗 Sinistro"],
-  ["assistencia_24h", "🛟 Assistência 24h"],
-  ["assistencia_vidros", "🪟 Assistência de vidros e pequenos reparos"],
+  ["sinistro", "Sinistro"],
+  ["assistencia_24h", "Assistência 24h"],
+  ["assistencia_vidros", "Assistência de vidros e pequenos reparos"],
 ];
 
 function ProcSearch({ value, onChange, claims }) {
@@ -97,7 +97,7 @@ function CampoArquivo({ campo, valores, onChange, endpoint, uploadOk, pasta }) {
       {erro && <div style={{ color: "var(--danger)", fontSize: 11.5, marginTop: 4 }}>{erro}</div>}
       {arquivos.map((a, idx) => (
         <div key={idx} style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12, marginTop: 4 }}>
-          <a href={a.url} target="_blank" rel="noreferrer">📎 {a.nome} ↗</a>
+          <a href={a.url} target="_blank" rel="noreferrer">{a.nome}</a>
           <a style={{ color: "var(--danger)", cursor: "pointer" }} onClick={() => remover(idx)}>✕</a>
         </div>
       ))}
@@ -331,7 +331,7 @@ export function TaskModal() {
           {isMesaAtendimento && tipoAtendimento && (
             <div style={{ marginTop: 8, display: "flex", gap: 8, alignItems: "center" }}>
               <button type="button" className="btn sec sm" onClick={() => setSolicitacaoAberta((v) => !v)}>
-                📋 Solicitação {solicitacao ? "(preenchida)" : ""}
+                Solicitação {solicitacao ? "(preenchida)" : ""}
               </button>
               {!formularioDisponivel(tipoAtendimento) && <span className="muted" style={{ fontSize: 11.5 }}>Formulário deste atendimento ainda não configurado.</span>}
             </div>
