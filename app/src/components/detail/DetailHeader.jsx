@@ -1,5 +1,6 @@
 import { PartyBadge } from "../PartyBadge.jsx";
 import { useData } from "../../data/DataProvider.jsx";
+import { setDemandaPrefill } from "../../state/taskModal";
 import {
   getTemp, tempColor, getSitAtend, getUserJourney, isManualClaim, situacaoEfetiva,
   getNextAction, isAtrasado, loadComms, isSemAtualizacao, getResponsavel, campoEfetivo,
@@ -120,6 +121,16 @@ export function DetailHeader({ c, sit, rel, claims, allClaimsRaw, overrides, use
 
       <div style={{ width: 280, flexShrink: 0 }}>
         <ResponsavelBox c={c} users={users} overrides={overrides} actions={actions} canEdit={canEdit} />
+
+        <button
+          className="btn sec xs" style={{ marginTop: 8, width: "100%" }}
+          onClick={() => {
+            setDemandaPrefill({ titulo: `Processo ${numsinEf || "#" + c.nosnum} — ${txt(seguradoEf)}`, descricao: "", processoId: c.id });
+            navigate("tarefas", "newfromdemanda");
+          }}
+        >
+          + Criar tarefa vinculada a este processo
+        </button>
 
         {na && na.title && !atrasada && (
           <div style={{ background: "rgba(var(--brand-rgb),.08)", border: "1px solid rgba(var(--brand-rgb),.28)", borderRadius: 8, padding: "10px 12px", marginTop: 8 }}>

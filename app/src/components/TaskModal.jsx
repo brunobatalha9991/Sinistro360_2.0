@@ -337,6 +337,7 @@ export function TaskModal() {
       setPastaDriveId("sol_" + Math.random().toString(36).slice(2, 9)); setComentarioConclusao("");
       const prefill = takeDemandaPrefill();
       setTitulo(prefill?.titulo || ""); setDescricao(prefill?.descricao || "");
+      if (prefill?.processoId) setProcessoId(prefill.processoId);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, taskId]);
@@ -429,7 +430,7 @@ export function TaskModal() {
     <div
       style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,.5)", zIndex: 100, display: "flex", alignItems: "flex-start", justifyContent: "center", padding: 30, overflow: "auto" }}
     >
-      <div style={{ width: 640, maxWidth: "100%", background: "var(--card)", border: "1px solid var(--border)", borderRadius: 16, padding: 22, boxShadow: "var(--shadow-lg)" }}>
+      <div style={{ width: 640, maxWidth: "100%", background: "var(--card-solid)", border: "1px solid var(--border)", borderRadius: 16, padding: 22, boxShadow: "var(--shadow-lg)" }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14 }}>
           <h3 style={{ margin: 0 }}>{editing ? "Tarefa" : "Nova tarefa"}</h3>
           <button className="btn sec xs" onClick={closeTaskModal}>✕ Fechar</button>

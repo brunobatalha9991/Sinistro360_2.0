@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Icon } from "./icons.jsx";
 import { NotifBell } from "./NotifBell.jsx";
 import { ROLE_LABELS, userModulos } from "../data/auth";
@@ -36,7 +36,7 @@ function visibleMenu(currentUser, currentRole) {
   return menu;
 }
 
-export function Shell({ route, crumb, currentUser, currentRole, onNavigate, onLogout, theme, onToggleTheme, children }) {
+export function Shell({ route, param, crumb, currentUser, currentRole, onNavigate, onLogout, theme, onToggleTheme, children }) {
   const [collapsed, setCollapsed] = useState(() => {
     try { return localStorage.getItem(SIDEBAR_KEY) === "1"; } catch { return false; }
   });
@@ -47,6 +47,25 @@ export function Shell({ route, crumb, currentUser, currentRole, onNavigate, onLo
       try { localStorage.setItem(SIDEBAR_KEY, next ? "1" : "0"); } catch { /* ignore */ }
       return next;
     });
+  }
+
+  function collapseSidebar() {
+    setCollapsed(true);
+    try { localStorage.setItem(SIDEBAR_KEY, "1"); } catch { /* ignore */ }
+  }
+
+  // Minimiza o menu sozinho ao clicar em qualquer módulo (abaixo, no <nav>)
+  // e também ao entrar em um processo de sinistro, mesmo vindo de fora do
+  // menu lateral (linha da lista de Sinistros, link de outra tela...) — só
+  // reage quando o menu está aberto, nunca briga com uma reabertura manual.
+  useEffect(() => {
+    if (route === "sinistro" && !collapsed) collapseSidebar();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [route, param]);
+
+  function handleNavigate(target) {
+    if (!collapsed) collapseSidebar();
+    onNavigate(target);
   }
 
   const { records } = useData();
@@ -73,7 +92,7 @@ export function Shell({ route, crumb, currentUser, currentRole, onNavigate, onLo
             if (m[0] === "demandas" && demandaUnread > 0) cls += " blink-demanda";
             if (m[0] === "tarefas" && notifUnread > 0) cls += " blink-demanda";
             return (
-              <a key={m[0]} className={cls} title={m[1]} onClick={() => onNavigate(m[0])}>
+              <a key={m[0]} className={cls} title={m[1]} onClick={() => handleNavigate(m[0])}>
                 <Icon name={m[2]} />
                 <span className="nav-label">{m[1]}</span>
                 {m[0] === "sinistros" && atrasadosGlobal > 0 && (

@@ -36,7 +36,7 @@ function App() {
   const { mode } = useData();
   const { currentUser, currentRole, login, logout } = useAuth();
   const { theme, toggleTheme } = useTheme();
-  const { route, navigate } = useHashRoute();
+  const { route, param, navigate } = useHashRoute();
   useAutoSyncDemandas(currentUser);
 
   const allowedRoute = currentUser ? resolveAllowedRoute(route, currentUser, currentRole) : route;
@@ -62,6 +62,7 @@ function App() {
       )}
       <Shell
         route={allowedRoute}
+        param={param}
         crumb={label}
         currentUser={currentUser}
         currentRole={currentRole}

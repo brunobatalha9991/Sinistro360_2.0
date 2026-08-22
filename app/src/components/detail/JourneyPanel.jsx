@@ -1,7 +1,11 @@
 import { getAtendTemplate, getRamoTemplate, getComunsSteps, getUserJourney, isAtendimento, STATUS_DEFAULT, getJourneyNotes } from "../../logic/claims";
+import { fmtDateHoraBR } from "../../logic/format";
 
-// Porte 1:1 de journeyPanel() do HTML original.
-export function JourneyPanel({ c, overrides, config, actions, canEdit, isAdminUser, navigate }) {
+// Porte 1:1 de journeyPanel() do HTML original, com registro automático
+// (a pedido do usuário) de data/hora/usuário da última interação de cada
+// etapa, e de data/hora/usuário da conclusão quando o status virar um
+// status "concluído" — some de novo se o status deixar de ser conclusão.
+export function JourneyPanel({ c, overrides, config, actions, canEdit, isAdminUser, currentUser, navigate }) {
   const atend = isAtendimento(c);
   const templates = config.corp_journey_templates || {};
   const atendTplCfg = config.corp_atendimento_template;
@@ -20,6 +24,19 @@ export function JourneyPanel({ c, overrides, config, actions, canEdit, isAdminUs
   function setStepField(stepId, field, value, title) {
     const sd = { ...(steps[stepId] || { status: "", date: "", note: "" }), [field]: value };
     if (title) sd.title = title;
+    const agora = new Date().toISOString();
+    const quem = (currentUser && currentUser.nome) || "—";
+    sd.lastInteractionAt = agora;
+    sd.lastInteractionBy = quem;
+    if (field === "status") {
+      if (String(value || "").toLowerCase().indexOf("conclu") >= 0) {
+        sd.concludedAt = agora;
+        sd.concludedBy = quem;
+      } else {
+        delete sd.concludedAt;
+        delete sd.concludedBy;
+      }
+    }
     persist({ ...uj, steps: { ...steps, [stepId]: sd } });
   }
 
@@ -114,6 +131,16 @@ export function JourneyPanel({ c, overrides, config, actions, canEdit, isAdminUs
                   <label>Observação</label>
                   <input defaultValue={sd.note || ""} placeholder="Observação desta etapa..." onBlur={(e) => setStepField(step.id, "note", e.target.value)} />
                 </div>
+                {sd.lastInteractionAt && (
+                  <div className="muted" style={{ fontSize: 11, marginTop: 8 }}>
+                    Última interação: {fmtDateHoraBR(sd.lastInteractionAt)} por {sd.lastInteractionBy}
+                  </div>
+                )}
+                {sd.concludedAt && (
+                  <div className="muted" style={{ fontSize: 11, marginTop: 2 }}>
+                    Concluído em: {fmtDateHoraBR(sd.concludedAt)} por {sd.concludedBy}
+                  </div>
+                )}
               </div>
             </div>
           );

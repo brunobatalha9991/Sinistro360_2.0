@@ -1,4 +1,4 @@
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { useData } from "../data/DataProvider.jsx";
 import { useAuth } from "../hooks/useAuth";
 import { useOverrideActions } from "../hooks/useOverrideActions";
@@ -16,6 +16,26 @@ import { UsersCard } from "../components/config/UsersCard.jsx";
 import { AtendimentoStepsEditor } from "../components/config/AtendimentoStepsEditor.jsx";
 import { visibleClaims, ensureRamoTemplateInto } from "../logic/claims";
 import { getToken, setToken } from "../logic/corpApi";
+
+// Agrupador colapsável — a pedido do usuário: Configurações tinha ~10
+// blocos inteiros empilhados, sem organização. Cada grupo junta cards
+// relacionados sob um título com botão "Mostrar/Ocultar"; nenhum card
+// interno mudou (mesmas props, mesma lógica), só a disposição visual.
+function ConfigGroup({ title, subtitle, defaultOpen, children }) {
+  const [open, setOpen] = useState(!!defaultOpen);
+  return (
+    <div style={{ marginBottom: 18 }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 10, padding: "10px 2px", borderBottom: "1px solid var(--border)" }}>
+        <div>
+          <h2 style={{ margin: 0, fontSize: 16 }}>{title}</h2>
+          {subtitle && <p className="muted" style={{ margin: "2px 0 0", fontSize: 12.5 }}>{subtitle}</p>}
+        </div>
+        <button type="button" className="btn sec sm" onClick={() => setOpen((v) => !v)}>{open ? "Ocultar" : "Mostrar"}</button>
+      </div>
+      {open && <div style={{ marginTop: 12, display: "flex", flexDirection: "column", gap: 14 }}>{children}</div>}
+    </div>
+  );
+}
 
 export function Configuracoes() {
   const { records, config, saveRecord, saveConfig } = useData();
@@ -53,16 +73,27 @@ export function Configuracoes() {
         <div className="card"><EmptyState>Apenas administradores podem editar os modelos de jornada por ramo. Altere o perfil no topo para Administrador.</EmptyState></div>
       ) : (
         <>
-          <HistoricoImportCard claims={claims} actions={actions} canEdit={admin} />
-          <ResponsabilidadeBackfillCard claims={claims} records={records} saveRecord={saveRecord} canEdit={admin} />
-          <AtribuirResponsavelEmMassaCard claims={claims} overrides={records.corp_overrides || {}} users={records.corp_users || []} actions={actions} canEdit={admin} />
-          <DriveUploadConfigCard config={config} saveConfig={saveConfig} canEdit={admin} />
-          <SolicitacaoFormulariosCard config={config} saveConfig={saveConfig} canEdit={admin} />
-          <ChecklistMesaAtendimentoCard config={config} saveConfig={saveConfig} canEdit={admin} />
-          <MemoriasIACard users={records.corp_users || []} />
-          <UsersCard users={records.corp_users || []} currentUser={currentUser} saveRecord={saveRecord} />
-          <AtendimentoStepsEditor atendTemplateCfg={config.corp_atendimento_template} saveConfig={saveConfig} />
-          <RamoTemplatesEditor templates={templates} saveConfig={saveConfig} />
+          <ConfigGroup title="Usuários & Acesso" subtitle="Cadastro, papéis e módulos liberados por usuário.">
+            <UsersCard users={records.corp_users || []} currentUser={currentUser} saveRecord={saveRecord} />
+          </ConfigGroup>
+
+          <ConfigGroup title="Processos & Jornada" subtitle="Etapas por ramo, jornadas de atendimento e atribuição de responsável em massa.">
+            <AtendimentoStepsEditor atendTemplateCfg={config.corp_atendimento_template} saveConfig={saveConfig} />
+            <RamoTemplatesEditor templates={templates} saveConfig={saveConfig} />
+            <AtribuirResponsavelEmMassaCard claims={claims} overrides={records.corp_overrides || {}} users={records.corp_users || []} actions={actions} canEdit={admin} />
+          </ConfigGroup>
+
+          <ConfigGroup title="Mesa de Atendimento" subtitle="Checklist de abertura, formulários de solicitação e upload de anexos no Drive.">
+            <ChecklistMesaAtendimentoCard config={config} saveConfig={saveConfig} canEdit={admin} />
+            <SolicitacaoFormulariosCard config={config} saveConfig={saveConfig} canEdit={admin} />
+            <DriveUploadConfigCard config={config} saveConfig={saveConfig} canEdit={admin} />
+          </ConfigGroup>
+
+          <ConfigGroup title="Dados, Migração & IA" subtitle="Importação de histórico, migração de responsabilidade legada e aprovação de memórias da IA.">
+            <HistoricoImportCard claims={claims} actions={actions} canEdit={admin} />
+            <ResponsabilidadeBackfillCard claims={claims} records={records} saveRecord={saveRecord} canEdit={admin} />
+            <MemoriasIACard users={records.corp_users || []} />
+          </ConfigGroup>
         </>
       )}
     </div>
