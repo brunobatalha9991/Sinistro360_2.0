@@ -5,11 +5,13 @@ import { useAuth } from "../hooks/useAuth";
 import { useHashRoute } from "../hooks/useHashRoute";
 import { useTasksActions } from "../hooks/useTasksActions";
 import { useStore } from "../hooks/useStore";
-import { taskModalStore, closeTaskModal, takeDemandaPrefill } from "../state/taskModal";
+import { taskModalStore, closeTaskModal, takeDemandaPrefill, setPendingTaskLink } from "../state/taskModal";
 import { visibleClaims } from "../logic/claims";
 import { txt } from "../logic/format";
-import { CHECKLIST_SEGURADO, CHECKLIST_TERCEIRO, checklistProgresso, checklistVazio } from "../logic/checklistMesaAtendimento";
-import { FORMULARIOS_SOLICITACAO, formularioDisponivel, caminhoPastaSolicitacao } from "../logic/solicitacaoAtendimento";
+import { isAdmin } from "../data/auth";
+import { descreverAlteracoesTarefa } from "../logic/tasks";
+import { getChecklistEfetivo, checklistProgresso, checklistVazio, sincronizarComFormulario } from "../logic/checklistMesaAtendimento";
+import { getFormularioEfetivo, formularioDisponivel, caminhoPastaSolicitacao } from "../logic/solicitacaoAtendimento";
 import { isDriveUploadConfigured, uploadArquivoDrive, CONTEXTO_MESA_ATENDIMENTO } from "../logic/driveUpload";
 
 const ATENDIMENTO_OPCOES = [
@@ -111,7 +113,7 @@ function CampoArquivo({ campo, valores, onChange, endpoint, uploadOk, pasta }) {
 // Usado tanto por analistas/atendentes quanto por usuários "consulta" para
 // registrar o pedido de atendimento antes da abertura do sinistro.
 function SolicitacaoFields({ tipoAtendimento, valores, onChange, config, pastaDrive }) {
-  const def = FORMULARIOS_SOLICITACAO[tipoAtendimento];
+  const def = getFormularioEfetivo(tipoAtendimento, config);
   const v = valores || {};
   const uploadOk = isDriveUploadConfigured(config);
   const endpoint = config.corp_drive_upload_endpoint || "";
@@ -210,11 +212,56 @@ function Chat({ task, currentUser, actions, users }) {
   );
 }
 
+// Auditoria interna da tarefa — a pedido do usuário, registra data/hora,
+// usuário e ação de TUDO que acontece na tarefa (criação, edições campo a
+// campo, comentários, arquivamento manual...) e só é visível pro admin.
+// Alimentada por task.log (ver descreverAlteracoesTarefa em logic/tasks.js
+// e taskInteract/arquivarManualmente em useTasksActions.js).
+function TaskAuditPanel({ task, users }) {
+  const entradas = (task.log || []).slice().reverse();
+  function nomeUser(id) {
+    if (!id) return "Sistema";
+    const u = users.find((x) => x.id === id);
+    return u ? u.nome : "—";
+  }
+  return (
+    <div style={{ marginTop: 14, borderTop: "1px solid var(--line)", paddingTop: 14 }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 8, marginBottom: 8 }}>
+        <label style={{ margin: 0 }}>Auditoria interna</label>
+        <span className="tag-manual">Visível somente para admin</span>
+      </div>
+      {!entradas.length ? (
+        <p className="muted" style={{ fontSize: 12 }}>Nenhum evento registrado ainda.</p>
+      ) : (
+        <div style={{ maxHeight: 240, overflow: "auto", border: "1px solid var(--border)", borderRadius: 8 }}>
+          <table style={{ width: "100%" }}>
+            <thead><tr><th>Data/Hora</th><th>Usuário</th><th>Ação</th></tr></thead>
+            <tbody>
+              {entradas.map((e, idx) => {
+                const dt = new Date(e.at);
+                const when = `${String(dt.getDate()).padStart(2, "0")}/${String(dt.getMonth() + 1).padStart(2, "0")}/${dt.getFullYear()} ${String(dt.getHours()).padStart(2, "0")}:${String(dt.getMinutes()).padStart(2, "0")}`;
+                return (
+                  <tr key={idx}>
+                    <td className="mono" style={{ fontSize: 11.5, whiteSpace: "nowrap" }}>{when}</td>
+                    <td style={{ fontSize: 11.5, whiteSpace: "nowrap" }}>{nomeUser(e.who)}</td>
+                    <td style={{ fontSize: 11.5 }}>{e.acao}</td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </div>
+  );
+}
+
 // Porte 1:1 de taskModal() do HTML original.
 export function TaskModal() {
   const { open, taskId } = useStore(taskModalStore);
   const { records, config } = useData();
   const { currentUser } = useAuth();
+  const { navigate } = useHashRoute();
   const actions = useTasksActions();
 
   const tasks = records.corp_tasks || [];
@@ -237,7 +284,9 @@ export function TaskModal() {
   const [checklistMesa, setChecklistMesa] = useState(checklistVazio());
   const [solicitacao, setSolicitacao] = useState(null);
   const [solicitacaoAberta, setSolicitacaoAberta] = useState(false);
+  const [checklistAberto, setChecklistAberto] = useState(false);
   const [pastaDriveId, setPastaDriveId] = useState("");
+  const [comentarioConclusao, setComentarioConclusao] = useState("");
 
   useEffect(() => {
     if (!open) return;
@@ -248,63 +297,114 @@ export function TaskModal() {
       setDestSel(sel);
       setAnexo(editing.anexo || ""); setObs(editing.obs || ""); setProcessoId(editing.processo || "");
       setTipoAtendimento(editing.tipoAtendimento || ""); setChecklistMesa(editing.checklistMesa || checklistVazio());
-      setSolicitacao(editing.solicitacao || null); setSolicitacaoAberta(false);
-      setPastaDriveId(editing.id);
+      setSolicitacao(editing.solicitacao || null); setSolicitacaoAberta(false); setChecklistAberto(false);
+      setPastaDriveId(editing.id); setComentarioConclusao("");
     } else {
       setTipo(taskTypes[0]); setUrgencia("Leve"); setStatus("Pendente");
-      setDestSel({}); setAnexo(""); setObs(""); setProcessoId("");
+      // Usuário "consulta" já sai com todos os analistas/atendentes marcados
+      // como destinatário — ele pode desmarcar quem quiser antes de criar.
+      const selInicial = {};
+      if (currentUser && currentUser.role === "consulta") {
+        (records.corp_users || []).forEach((u) => { if (u.role === "analista" || u.role === "atendente") selInicial[u.id] = true; });
+      }
+      setDestSel(selInicial);
+      setAnexo(""); setObs(""); setProcessoId("");
       setTipoAtendimento(""); setChecklistMesa(checklistVazio());
-      setSolicitacao(null); setSolicitacaoAberta(false);
-      setPastaDriveId("sol_" + Math.random().toString(36).slice(2, 9));
+      setSolicitacao(null); setSolicitacaoAberta(false); setChecklistAberto(false);
+      setPastaDriveId("sol_" + Math.random().toString(36).slice(2, 9)); setComentarioConclusao("");
       const prefill = takeDemandaPrefill();
       setTitulo(prefill?.titulo || ""); setDescricao(prefill?.descricao || "");
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, taskId]);
 
+  // Vínculo checklist ↔ formulário de Solicitação (Sinistro): assim que um
+  // campo vinculado é preenchido pela primeira vez, o item correspondente é
+  // marcado sozinho. Depois disso o controle é do usuário — a sincronização
+  // nunca desmarca nem remarca um item que o usuário já decidiu (ver
+  // sincronizarComFormulario, que só age uma vez por item).
+  useEffect(() => {
+    if (!open || tipo !== "Mesa de Atendimento" || tipoAtendimento !== "sinistro") return;
+    setChecklistMesa((atual) => sincronizarComFormulario(atual, solicitacao, config));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [solicitacao, tipo, tipoAtendimento, open]);
+
   if (!open) return null;
 
   const procClaim = processoId ? claims.find((c) => c.id === processoId) : null;
   const isMesaAtendimento = tipo === "Mesa de Atendimento";
-  const progresso = checklistProgresso(checklistMesa);
+  const mostrarChecklist = isMesaAtendimento && tipoAtendimento === "sinistro";
+  const isEmergencia = isMesaAtendimento && tipoAtendimento === "assistencia_24h";
+  const progresso = checklistProgresso(checklistMesa, config);
+  const { segurado: checklistSegurado, terceiro: checklistTerceiro } = getChecklistEfetivo(config);
+  const antigoStatus = editing ? editing.status : null;
+  // Toda conclusão exige um comentário (vira feedback pra todos os
+  // envolvidos) — só na TRANSIÇÃO para Concluído, não em toda gravação de
+  // uma tarefa já concluída antes.
+  const concluindoAgora = status === "Concluído" && antigoStatus !== "Concluído";
 
   function toggleChecklistItem(id) {
     setChecklistMesa((c) => ({ ...c, itens: { ...c.itens, [id]: !c.itens[id] } }));
   }
 
+  // Retorna o id da tarefa salva (ou undefined se a validação falhar) — o
+  // atalho "abrir novo atendimento" usa esse retorno pra saber a qual
+  // tarefa vincular o processo criado em seguida no módulo Abertura.
   function salvar() {
     const t = souOrigem ? titulo.trim() : editing ? editing.titulo : "";
     if (!t) { alert("Informe o título."); return; }
     const dests = Object.keys(destSel).filter((k) => destSel[k]);
     if (!dests.length) { alert("Selecione ao menos um destinatário."); return; }
+    if (concluindoAgora && !comentarioConclusao.trim()) {
+      alert("Escreva um comentário de conclusão — ele vira o feedback da tarefa para todos os envolvidos.");
+      return;
+    }
+    const novoComentario = concluindoAgora
+      ? { id: "cmt_" + Math.random().toString(36).slice(2, 9), userId: currentUser.id, text: comentarioConclusao.trim(), at: new Date().toISOString() }
+      : null;
 
+    let idSalvo;
     if (editing) {
-      const antigoStatus = editing.status;
       const atual = {
         ...editing, tipo, urgencia, status, anexo, obs, processo: processoId, destinatarios: dests, tipoAtendimento,
         ...(tipo === "Mesa de Atendimento" ? { checklistMesa, solicitacao } : {}),
         ...(souOrigem ? { titulo: t, descricao } : {}),
-        ...(status === "Concluído" && antigoStatus !== "Concluído" ? { concludedAt: new Date().toISOString() } : {}),
+        ...(concluindoAgora ? { concludedAt: new Date().toISOString(), comments: [...(editing.comments || []), novoComentario] } : {}),
       };
       actions.saveTask(atual);
-      actions.taskInteract(atual, `Tarefa atualizada por ${currentUser.nome}`, currentUser.id);
+      // Auditoria granular: uma linha por campo alterado, não uma frase
+      // genérica — é isso que fica visível pro admin em TaskAuditPanel.
+      const mudancas = descreverAlteracoesTarefa(editing, atual, { users, claims });
+      if (concluindoAgora) mudancas.push(`Comentário de conclusão: "${comentarioConclusao.trim().slice(0, 200)}"`);
+      if (!mudancas.length) mudancas.push("Tarefa revisada (sem alterações de campo)");
+      const notifTexto = concluindoAgora
+        ? `Tarefa concluída por ${currentUser.nome}: "${comentarioConclusao.trim().slice(0, 80)}"`
+        : `Tarefa atualizada por ${currentUser.nome}` + (mudancas.length > 1 ? ` (${mudancas.length} alterações)` : "");
+      actions.taskInteract(atual, mudancas, currentUser.id, isEmergencia, notifTexto);
+      idSalvo = atual.id;
     } else {
+      const agora = new Date().toISOString();
       const novo = {
         id: "tsk_" + Math.random().toString(36).slice(2, 9), tipo, titulo: t, origem: currentUser.id, destinatarios: dests,
         descricao, anexo, obs, status, urgencia, processo: processoId, tipoAtendimento,
         ...(tipo === "Mesa de Atendimento" ? { checklistMesa, solicitacao } : {}),
-        createdAt: new Date().toISOString(), updatedAt: new Date().toISOString(), log: [], comments: [],
+        ...(concluindoAgora ? { concludedAt: new Date().toISOString() } : {}),
+        createdAt: agora, updatedAt: agora,
+        log: [{ at: agora, who: currentUser.id, acao: `Tarefa criada por ${currentUser.nome}` }],
+        comments: novoComentario ? [novoComentario] : [],
       };
       actions.createTask(novo);
-      actions.pushNotif(novo.id, novo.destinatarios, `Nova tarefa de ${currentUser.nome}: ${t}`, currentUser.id);
+      const textoNotif = (isEmergencia ? "EMERGÊNCIA — " : "") + `Nova tarefa de ${currentUser.nome}: ${t}`;
+      actions.pushNotif(novo.id, novo.destinatarios, textoNotif, currentUser.id, isEmergencia);
+      idSalvo = novo.id;
     }
     closeTaskModal();
+    return idSalvo;
   }
 
   return createPortal(
     <div
       style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,.5)", zIndex: 100, display: "flex", alignItems: "flex-start", justifyContent: "center", padding: 30, overflow: "auto" }}
-      onClick={(e) => { if (e.target === e.currentTarget) closeTaskModal(); }}
     >
       <div style={{ width: 640, maxWidth: "100%", background: "var(--card)", border: "1px solid var(--border)", borderRadius: 16, padding: 22, boxShadow: "var(--shadow-lg)" }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14 }}>
@@ -321,22 +421,46 @@ export function TaskModal() {
           </div>
         </div>
 
-        <div className="field">
-          <label>Atendimento</label>
-          <div className="chips">
-            {ATENDIMENTO_OPCOES.map(([k, label]) => (
-              <div key={k} className={"chip-btn" + (tipoAtendimento === k ? " active" : "")} onClick={() => setTipoAtendimento(tipoAtendimento === k ? "" : k)}>{label}</div>
-            ))}
+        {isMesaAtendimento && (
+          <div style={{ marginBottom: 14 }}>
+            <button
+              type="button" className="btn sec sm"
+              onClick={() => {
+                const id = salvar();
+                if (!id) return;
+                setPendingTaskLink(id);
+                navigate("abertura");
+              }}
+            >
+              Atalho: abrir novo atendimento (módulo Abertura)
+            </button>
+            <div className="muted" style={{ fontSize: 11, marginTop: 4 }}>Salva esta tarefa e, ao criar o processo em Abertura, vincula automaticamente os dois.</div>
           </div>
-          {isMesaAtendimento && tipoAtendimento && (
-            <div style={{ marginTop: 8, display: "flex", gap: 8, alignItems: "center" }}>
-              <button type="button" className="btn sec sm" onClick={() => setSolicitacaoAberta((v) => !v)}>
-                Solicitação {solicitacao ? "(preenchida)" : ""}
-              </button>
-              {!formularioDisponivel(tipoAtendimento) && <span className="muted" style={{ fontSize: 11.5 }}>Formulário deste atendimento ainda não configurado.</span>}
+        )}
+
+        {isMesaAtendimento && (
+          <div className="field">
+            <label>Atendimento</label>
+            <div className="chips">
+              {ATENDIMENTO_OPCOES.map(([k, label]) => (
+                <div key={k} className={"chip-btn" + (tipoAtendimento === k ? " active" : "")} onClick={() => setTipoAtendimento(tipoAtendimento === k ? "" : k)}>{label}</div>
+              ))}
             </div>
-          )}
-        </div>
+            {isEmergencia && (
+              <div className="neon-alert" style={{ "--neon-rgb": "var(--danger-rgb)", marginTop: 8, background: "rgba(var(--danger-rgb),.1)", border: "1px solid rgba(var(--danger-rgb),.4)", borderRadius: 8, padding: "8px 12px", fontWeight: 700, fontSize: 13, color: "var(--danger)" }}>
+                Emergência — Assistência 24h. Esta tarefa aparece no topo da lista de Comunicação e gera notificação de urgência.
+              </div>
+            )}
+            {tipoAtendimento && (
+              <div style={{ marginTop: 8, display: "flex", gap: 8, alignItems: "center" }}>
+                <button type="button" className="btn sec sm" onClick={() => setSolicitacaoAberta((v) => !v)}>
+                  Solicitação {solicitacao ? "(preenchida)" : ""}
+                </button>
+                {!formularioDisponivel(tipoAtendimento, config) && <span className="muted" style={{ fontSize: 11.5 }}>Formulário deste atendimento ainda não configurado.</span>}
+              </div>
+            )}
+          </div>
+        )}
 
         {isMesaAtendimento && tipoAtendimento && solicitacaoAberta && (
           <SolicitacaoFields tipoAtendimento={tipoAtendimento} valores={solicitacao} onChange={setSolicitacao} config={config} pastaDrive={caminhoPastaSolicitacao(tipoAtendimento, solicitacao, pastaDriveId)} />
@@ -354,6 +478,13 @@ export function TaskModal() {
             <select value={status} onChange={(e) => setStatus(e.target.value)}>{["Pendente", "Em andamento", "Concluído"].map((s) => <option key={s} value={s}>{s}</option>)}</select>
           </div>
         </div>
+
+        {concluindoAgora && (
+          <div className="field">
+            <label>Comentário de conclusão (obrigatório)</label>
+            <textarea rows={3} placeholder="O que foi feito / resultado final — vira o feedback desta tarefa para todos os envolvidos." value={comentarioConclusao} onChange={(e) => setComentarioConclusao(e.target.value)} />
+          </div>
+        )}
 
         <div className="field">
           <label>Destinatário(s) — pode selecionar vários</label>
@@ -384,36 +515,48 @@ export function TaskModal() {
           <ProcSearch value={{ label: procClaim ? (procClaim.numsin || "#" + procClaim.nosnum) + " — " + txt(procClaim.segurado) : "" }} onChange={setProcessoId} claims={claims} />
         </div>
 
-        {isMesaAtendimento && (
-          <div style={{ marginTop: 14, borderTop: "1px solid var(--line)", paddingTop: 14 }}>
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-              <label style={{ marginBottom: 0 }}>Checklist de abertura de sinistro</label>
+        {mostrarChecklist && (
+          <div className="field">
+            <label>Checklist de abertura de sinistro</label>
+            <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+              <button type="button" className="btn sec sm" onClick={() => setChecklistAberto((v) => !v)}>
+                {checklistAberto ? "Ocultar checklist" : "Abrir checklist"}
+              </button>
               <span className={"badge " + (progresso.total && progresso.feitos === progresso.total ? "green" : "amber")}>{progresso.feitos}/{progresso.total}</span>
             </div>
-            <div className="muted" style={{ fontSize: 11, marginBottom: 8 }}>Marque cada item conforme for coletado — não é um formulário, só o acompanhamento do que falta.</div>
+          </div>
+        )}
 
-            <div className="muted" style={{ fontSize: 12, fontWeight: 700, marginBottom: 4 }}>Segurado</div>
-            {CHECKLIST_SEGURADO.map((item) => (
-              <label key={item.id} style={{ display: "flex", gap: 8, alignItems: "center", padding: "3px 0", cursor: "pointer", fontSize: 13 }}>
-                <input type="checkbox" checked={!!checklistMesa.itens[item.id]} onChange={() => toggleChecklistItem(item.id)} />
-                <span style={checklistMesa.itens[item.id] ? { textDecoration: "line-through", opacity: .6 } : undefined}>{item.label}</span>
-              </label>
-            ))}
+        {mostrarChecklist && checklistAberto && (
+          <div style={{ marginTop: 4, marginBottom: 14, border: "1px solid var(--border)", borderRadius: 8, padding: 14, background: "var(--surface-2)" }}>
+            <div className="muted" style={{ fontSize: 11, marginBottom: 10 }}>Marque cada item conforme for coletado — não é um formulário, só o acompanhamento do que falta.</div>
 
-            <label style={{ display: "flex", gap: 8, alignItems: "center", padding: "8px 0", marginTop: 6, borderTop: "1px dashed var(--line)", cursor: "pointer" }}>
+            <div className="muted" style={{ fontSize: 11.5, fontWeight: 700, textTransform: "uppercase", letterSpacing: ".4px", marginBottom: 6 }}>Segurado</div>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", columnGap: 18, rowGap: 2 }}>
+              {checklistSegurado.map((item) => (
+                <label key={item.id} style={{ display: "flex", gap: 8, alignItems: "flex-start", padding: "4px 0", cursor: "pointer", fontSize: 13 }}>
+                  <input type="checkbox" style={{ marginTop: 2, flexShrink: 0 }} checked={!!checklistMesa.itens[item.id]} onChange={() => toggleChecklistItem(item.id)} />
+                  <span style={checklistMesa.itens[item.id] ? { textDecoration: "line-through", opacity: .6 } : undefined}>{item.label}</span>
+                </label>
+              ))}
+            </div>
+
+            <label style={{ display: "flex", gap: 8, alignItems: "center", padding: "8px 10px", marginTop: 12, borderRadius: 8, background: "var(--card)", border: "1px solid var(--border)", cursor: "pointer" }}>
               <input type="checkbox" checked={checklistMesa.temTerceiro} onChange={() => setChecklistMesa((c) => ({ ...c, temTerceiro: !c.temTerceiro }))} />
               <b style={{ fontSize: 13 }}>Houve terceiro envolvido?</b>
             </label>
 
             {checklistMesa.temTerceiro && (
               <>
-                <div className="muted" style={{ fontSize: 12, fontWeight: 700, margin: "6px 0 4px" }}>Terceiro</div>
-                {CHECKLIST_TERCEIRO.map((item) => (
-                  <label key={item.id} style={{ display: "flex", gap: 8, alignItems: "center", padding: "3px 0", cursor: "pointer", fontSize: 13 }}>
-                    <input type="checkbox" checked={!!checklistMesa.itens[item.id]} onChange={() => toggleChecklistItem(item.id)} />
-                    <span style={checklistMesa.itens[item.id] ? { textDecoration: "line-through", opacity: .6 } : undefined}>{item.label}</span>
-                  </label>
-                ))}
+                <div className="muted" style={{ fontSize: 11.5, fontWeight: 700, textTransform: "uppercase", letterSpacing: ".4px", margin: "12px 0 6px" }}>Terceiro</div>
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", columnGap: 18, rowGap: 2 }}>
+                  {checklistTerceiro.map((item) => (
+                    <label key={item.id} style={{ display: "flex", gap: 8, alignItems: "flex-start", padding: "4px 0", cursor: "pointer", fontSize: 13 }}>
+                      <input type="checkbox" style={{ marginTop: 2, flexShrink: 0 }} checked={!!checklistMesa.itens[item.id]} onChange={() => toggleChecklistItem(item.id)} />
+                      <span style={checklistMesa.itens[item.id] ? { textDecoration: "line-through", opacity: .6 } : undefined}>{item.label}</span>
+                    </label>
+                  ))}
+                </div>
               </>
             )}
           </div>
@@ -424,6 +567,7 @@ export function TaskModal() {
         </div>
 
         {editing && <Chat task={editing} currentUser={currentUser} actions={actions} users={users} />}
+        {editing && isAdmin(currentUser) && <TaskAuditPanel task={editing} users={users} />}
       </div>
     </div>,
     document.body

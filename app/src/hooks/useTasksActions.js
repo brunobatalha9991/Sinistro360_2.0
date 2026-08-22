@@ -12,12 +12,14 @@ export function useTasksActions() {
   const { saveRecord } = useData();
   const { currentUser } = useAuth();
 
-  function pushNotif(taskId, userIds, texto, exceptUserId) {
+  // `emergencia` marca a notificação como Assistência 24h — só diferencial
+  // visual (NotifBell.jsx), não muda o fluxo de leitura/marcação.
+  function pushNotif(taskId, userIds, texto, exceptUserId, emergencia) {
     saveRecord("corp_notifs", (current) => {
       const arr = [...(current || [])];
       (userIds || []).forEach((uid) => {
         if (uid === exceptUserId) return;
-        arr.push({ id: "ntf_" + Math.random().toString(36).slice(2, 9), taskId, userId: uid, text: texto, at: new Date().toISOString(), read: false });
+        arr.push({ id: "ntf_" + Math.random().toString(36).slice(2, 9), taskId, userId: uid, text: texto, at: new Date().toISOString(), read: false, emergencia: !!emergencia });
       });
       return arr;
     });
@@ -29,17 +31,34 @@ export function useTasksActions() {
   function createTask(task) {
     saveRecord("corp_tasks", (current) => [...(current || []), task]);
   }
-  function removeTask(taskId) {
-    saveRecord("corp_tasks", (current) => (current || []).filter((x) => x.id !== taskId));
-    saveRecord("corp_notifs", (current) => (current || []).filter((n) => n.taskId !== taskId));
+
+  // `acoes` pode ser uma string única (compatibilidade) ou uma lista — cada
+  // item vira uma linha própria na auditoria interna da tarefa (log),
+  // visível só pro admin (ver TaskAuditPanel em TaskModal.jsx). A
+  // notificação enviada aos participantes usa `notifTexto` se informado,
+  // senão cai pro primeiro item da lista.
+  function taskInteract(task, acoes, exceptUserId, emergencia, notifTexto) {
+    const lista = Array.isArray(acoes) ? acoes : [acoes];
+    const updatedAt = new Date().toISOString();
+    const novasEntradas = lista.map((acao) => ({ at: updatedAt, who: exceptUserId, acao }));
+    const next = { ...task, updatedAt, log: [...(task.log || []), ...novasEntradas] };
+    saveTask(next);
+    pushNotif(task.id, taskParticipants(task), notifTexto || lista[0], exceptUserId, emergencia);
+    return next;
   }
 
-  function taskInteract(task, acao, exceptUserId) {
-    const updatedAt = new Date().toISOString();
-    const next = { ...task, updatedAt, log: [...(task.log || []), { at: updatedAt, who: exceptUserId, acao }] };
+  // Arquivamento manual — substitui o antigo botão "Remover" (a pedido do
+  // usuário): nunca apaga a tarefa nem seu histórico, só marca como
+  // arquivada com motivo obrigatório, registrado na auditoria interna.
+  function arquivarManualmente(task, motivo, userId) {
+    const agora = new Date().toISOString();
+    const next = {
+      ...task,
+      arquivadoManualmente: { motivo, at: agora, userId },
+      updatedAt: agora,
+      log: [...(task.log || []), { at: agora, who: userId, acao: `Tarefa arquivada manualmente — Motivo: "${motivo}"` }],
+    };
     saveTask(next);
-    pushNotif(task.id, taskParticipants(task), acao, exceptUserId);
-    return next;
   }
 
   function markTaskCiente(taskId) {
@@ -81,5 +100,5 @@ export function useTasksActions() {
     });
   }
 
-  return { pushNotif, saveTask, createTask, removeTask, taskInteract, markTaskCiente, markNotifRead, markAllNotifsRead, purgeOldTasks };
+  return { pushNotif, saveTask, createTask, taskInteract, arquivarManualmente, markTaskCiente, markNotifRead, markAllNotifsRead, purgeOldTasks };
 }

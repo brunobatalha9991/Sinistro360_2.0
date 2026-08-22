@@ -11,6 +11,8 @@ export const CONFIG_KEYS = [
   "corp_temp_options",
   "corp_atendimento_template",
   "corp_drive_upload_endpoint",
+  "corp_solicitacao_formularios",
+  "corp_checklist_mesa_atendimento",
 ];
 
 // Registros grandes/multiusuário: 1 documento por registro.

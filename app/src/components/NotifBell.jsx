@@ -62,10 +62,18 @@ export function NotifBell() {
             const when = new Date(n.at);
             const w = `${String(when.getDate()).padStart(2, "0")}/${String(when.getMonth() + 1).padStart(2, "0")} ${String(when.getHours()).padStart(2, "0")}:${String(when.getMinutes()).padStart(2, "0")}`;
             return (
-              <div key={n.id} className={"notif-item " + (n.read ? "read" : "unread")} onClick={() => openItem(n)}>
+              <div
+                key={n.id}
+                className={"notif-item " + (n.read ? "read" : "unread") + (n.emergencia ? " neon-alert" : "")}
+                style={n.emergencia ? { "--neon-rgb": "var(--danger-rgb)" } : undefined}
+                onClick={() => openItem(n)}
+              >
                 <span className="nt-dot" />
                 <div className="nt-body">
-                  <div className="nt-title">{titulo}</div>
+                  <div className="nt-title">
+                    {n.emergencia && <span className="badge red" style={{ marginRight: 6, fontWeight: 700 }}>EMERGÊNCIA</span>}
+                    {titulo}
+                  </div>
                   <div className="nt-sub">{n.text} • {w}</div>
                 </div>
               </div>

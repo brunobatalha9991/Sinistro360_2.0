@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { formularioDisponivel, validarSolicitacao, secoesDoFormulario, caminhoPastaSolicitacao } from "./solicitacaoAtendimento";
+import { formularioDisponivel, validarSolicitacao, secoesDoFormulario, caminhoPastaSolicitacao, getFormularioEfetivo } from "./solicitacaoAtendimento";
 
 describe("formularioDisponivel", () => {
   it("os 3 formulários estão disponíveis", () => {
@@ -41,6 +41,28 @@ describe("validarSolicitacao", () => {
       atendimento_desejado: "Pequenos Reparos", proposta_assinada: "Sim",
     });
     expect(erro).toBeNull();
+  });
+});
+
+describe("getFormularioEfetivo", () => {
+  it("sem personalização, usa o formulário padrão de fábrica", () => {
+    const def = getFormularioEfetivo("assistencia_24h", {});
+    expect(def.campos.length).toBeGreaterThan(0);
+    expect(def.titulo).toMatch(/Assistências 24h/);
+  });
+
+  it("com personalização do admin, usa os campos configurados", () => {
+    const config = { corp_solicitacao_formularios: { assistencia_24h: { titulo: "Custom", campos: [{ id: "x", label: "Campo X", tipo: "texto", obrigatorio: true }] } } };
+    const def = getFormularioEfetivo("assistencia_24h", config);
+    expect(def.titulo).toBe("Custom");
+    expect(def.campos).toHaveLength(1);
+    expect(def.campos[0].id).toBe("x");
+  });
+
+  it("personalização vazia (campos: []) não sobrescreve o padrão", () => {
+    const config = { corp_solicitacao_formularios: { sinistro: { titulo: "", campos: [] } } };
+    const def = getFormularioEfetivo("sinistro", config);
+    expect(def.campos.length).toBeGreaterThan(1);
   });
 });
 

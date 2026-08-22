@@ -14,6 +14,33 @@ import { sanitizarNomePasta } from "./driveUpload";
 const OP_SIM_NAO = ["Sim", "Não"];
 const OP_SIM_NAO_OUTRO = ["Sim", "Não", "Outro"];
 
+export const TIPOS_ATENDIMENTO = [
+  ["sinistro", "Sinistro"],
+  ["assistencia_24h", "Assistência 24h"],
+  ["assistencia_vidros", "Assistência de Vidros e Pequenos Reparos"],
+];
+
+export const TIPOS_CAMPO = [
+  ["texto", "Texto curto"],
+  ["textarea", "Texto longo (parágrafo)"],
+  ["select", "Seleção (lista de opções)"],
+  ["datahora", "Data e hora"],
+  ["arquivo", "Upload de arquivo"],
+];
+
+// Regra de seção condicional por tipo de atendimento — fixa no código (não
+// editável pelo admin): só a seção "Dados do Terceiro" do formulário de
+// Sinistro é condicional. Se o admin renomear/remover essa seção no editor,
+// a condição simplesmente deixa de encontrar campos correspondentes, sem
+// travar nada.
+const SECAO_VISIVEL_POR_TIPO = {
+  sinistro: (nomeSecao, valores) => (
+    nomeSecao !== "Dados do Terceiro" || (valores.atendimento_desejado || "") !== "Apenas para o segurado"
+  ),
+};
+
+// Formulários padrão de fábrica — usados quando o admin ainda não
+// personalizou nada em Configurações (corp_solicitacao_formularios).
 export const FORMULARIOS_SOLICITACAO = {
   sinistro: {
     titulo: "Atendimento — Sinistros (Interno)",
@@ -54,10 +81,6 @@ export const FORMULARIOS_SOLICITACAO = {
       { id: "outros_anexos_terceiro", secao: "Dados do Terceiro", label: "Outros Anexos (Terceiro)", tipo: "arquivo", obrigatorio: false, maxArquivos: 10, maxTamanhoMb: 100 },
       { id: "observacoes_terceiro", secao: "Dados do Terceiro", label: "Observações (Terceiro)", tipo: "textarea", obrigatorio: false },
     ],
-    // Seção 3 só aparece se o atendimento desejado envolver terceiro.
-    secaoVisivel: (nomeSecao, valores) => (
-      nomeSecao !== "Dados do Terceiro" || (valores.atendimento_desejado || "") !== "Apenas para o segurado"
-    ),
   },
 
   assistencia_24h: {
@@ -114,12 +137,30 @@ export const FORMULARIOS_SOLICITACAO = {
   },
 };
 
-export function formularioDisponivel(tipoAtendimento) {
-  return !!FORMULARIOS_SOLICITACAO[tipoAtendimento];
+// Resolve o formulário que vale de verdade: personalização do admin
+// (config.corp_solicitacao_formularios[tipo]) quando existir e tiver pelo
+// menos 1 campo, senão o padrão de fábrica. `secaoVisivel` sempre vem do
+// código (não é editável), mantendo a regra de negócio segura mesmo que o
+// admin reorganize os campos.
+export function getFormularioEfetivo(tipoAtendimento, config) {
+  const base = FORMULARIOS_SOLICITACAO[tipoAtendimento];
+  const overrides = (config && config.corp_solicitacao_formularios) || {};
+  const personalizado = overrides[tipoAtendimento];
+  const secaoVisivel = SECAO_VISIVEL_POR_TIPO[tipoAtendimento];
+
+  if (personalizado && Array.isArray(personalizado.campos) && personalizado.campos.length) {
+    return { titulo: personalizado.titulo || (base && base.titulo) || tipoAtendimento, campos: personalizado.campos, secaoVisivel };
+  }
+  if (!base) return null;
+  return { ...base, secaoVisivel };
 }
 
-export function secoesDoFormulario(tipoAtendimento) {
-  const def = FORMULARIOS_SOLICITACAO[tipoAtendimento];
+export function formularioDisponivel(tipoAtendimento, config) {
+  return !!getFormularioEfetivo(tipoAtendimento, config);
+}
+
+export function secoesDoFormulario(tipoAtendimento, config) {
+  const def = getFormularioEfetivo(tipoAtendimento, config);
   if (!def) return [];
   const vistas = [];
   def.campos.forEach((c) => { if (c.secao && vistas.indexOf(c.secao) < 0) vistas.push(c.secao); });
@@ -146,8 +187,8 @@ export function caminhoPastaSolicitacao(tipoAtendimento, valores, sufixoUnico) {
   return `${tipoLabel}/${hoje}_${nome}_${sufixo}`;
 }
 
-export function validarSolicitacao(tipoAtendimento, valores) {
-  const def = FORMULARIOS_SOLICITACAO[tipoAtendimento];
+export function validarSolicitacao(tipoAtendimento, valores, config) {
+  const def = getFormularioEfetivo(tipoAtendimento, config);
   if (!def) return "Este formulário ainda não foi configurado.";
   const v = valores || {};
   const visivel = (c) => !def.secaoVisivel || def.secaoVisivel(c.secao, v);

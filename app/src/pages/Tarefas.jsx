@@ -10,7 +10,7 @@ import { openTaskModal } from "../state/taskModal";
 import { EmptyState } from "../components/EmptyState.jsx";
 import { TaskModal } from "../components/TaskModal.jsx";
 import { visibleClaims } from "../logic/claims";
-import { myTasks, taskIsStale, taskCienteByMe, URG_ORDER } from "../logic/tasks";
+import { myTasks, taskIsStale, taskCienteByMe, isTarefaEmergencia, isTarefaArquivada, URG_ORDER, STATUS_ORDER } from "../logic/tasks";
 import { checklistProgresso } from "../logic/checklistMesaAtendimento";
 
 const STATUS_CHIPS = [["todas", "Todas"], ["Pendente", "Pendentes"], ["Em andamento", "Em andamento"], ["Concluído", "Concluídas"]];
@@ -61,6 +61,9 @@ export function Tarefas() {
   }, [param]);
 
   let tasks = myTasks(records.corp_tasks, currentUser);
+  // Arquivadas (concluídas há mais de 4 dias) somem da visão normal mesmo
+  // com todos os filtros marcados — só aparecem no modo "Arquivadas".
+  tasks = tasks.filter((t) => (filter.verArquivadas ? isTarefaArquivada(t) : !isTarefaArquivada(t)));
   if (filter.status !== "todas") tasks = tasks.filter((t) => t.status === filter.status);
   if (filter.urg !== "todas") tasks = tasks.filter((t) => t.urgencia === filter.urg);
   if (filter.tipo !== "todas") tasks = tasks.filter((t) => t.tipo === filter.tipo);
@@ -71,18 +74,38 @@ export function Tarefas() {
     tasks = tasks.filter((t) => (t.titulo + " " + t.descricao).toLowerCase().indexOf(q) >= 0);
   }
   tasks = [...tasks].sort((a, b) => {
+    // Emergência (Assistência 24h) sempre primeiro, acima até de "Urgente".
+    const eA = isTarefaEmergencia(a) ? 0 : 1;
+    const eB = isTarefaEmergencia(b) ? 0 : 1;
+    if (eA !== eB) return eA - eB;
+    // Depois, por status: Pendente > Em andamento > Concluído.
+    const sA = STATUS_ORDER[a.status] ?? 9;
+    const sB = STATUS_ORDER[b.status] ?? 9;
+    if (sA !== sB) return sA - sB;
     const u = (URG_ORDER[a.urgencia] || 9) - (URG_ORDER[b.urgencia] || 9);
     if (u !== 0) return u;
     return String(b.updatedAt).localeCompare(String(a.updatedAt));
   });
 
-  const staleCount = myTasks(records.corp_tasks, currentUser).filter((t) => taskIsStale(t, currentUser)).length;
+  const staleCount = myTasks(records.corp_tasks, currentUser).filter((t) => !isTarefaArquivada(t) && taskIsStale(t, currentUser)).length;
+  const arquivadasCount = myTasks(records.corp_tasks, currentUser).filter(isTarefaArquivada).length;
 
   function openTask(taskId) {
     // marca notificações desta tarefa como lidas para o usuário atual
     const notifsToRead = (records.corp_notifs || []).filter((n) => n.taskId === taskId && n.userId === currentUser.id && !n.read);
     notifsToRead.forEach((n) => actions.markNotifRead(n.id));
     openTaskModal(taskId);
+  }
+
+  // Substitui o antigo botão "Remover" (a pedido do usuário): nunca apaga a
+  // tarefa, só arquiva manualmente com motivo obrigatório — motivo esse que
+  // fica registrado na auditoria interna (visível só pro admin, dentro da
+  // própria tarefa).
+  function arquivarTarefa(t) {
+    const motivo = prompt(`Motivo do arquivamento da tarefa "${t.titulo}":`);
+    if (motivo === null) return;
+    if (!motivo.trim()) { alert("Informe o motivo do arquivamento."); return; }
+    actions.arquivarManualmente(t, motivo.trim(), currentUser.id);
   }
 
   return (
@@ -116,8 +139,14 @@ export function Tarefas() {
         </div>
         <div className="chips">
           <div className={"chip-btn" + (filter.stale ? " active" : "")} onClick={() => taskFilterStore.patch({ stale: !filter.stale })}>⚠ Pendente interação ({staleCount})</div>
+          <div className={"chip-btn" + (filter.verArquivadas ? " active" : "")} onClick={() => taskFilterStore.patch({ verArquivadas: !filter.verArquivadas })}>Arquivadas ({arquivadasCount})</div>
           <input className="inline" style={{ minWidth: 200, marginLeft: 8 }} placeholder="Buscar por título..." value={filter.q} onChange={(e) => taskFilterStore.patch({ q: e.target.value })} />
         </div>
+        {filter.verArquivadas && (
+          <p className="muted" style={{ fontSize: 12, marginTop: 8 }}>
+            Mostrando só tarefas arquivadas (concluídas há mais de 4 dias) — elas não aparecem na visão normal, mesmo com os outros filtros em "todas".
+          </p>
+        )}
         {isAdmin(currentUser) && <TaskTypeManager taskTypes={taskTypes} saveConfig={saveConfig} />}
       </div>
 
@@ -126,11 +155,17 @@ export function Tarefas() {
         const origem = (records.corp_users || []).find((u) => u.id === t.origem) || { nome: "—" };
         const dests = (t.destinatarios || []).map((id) => ((records.corp_users || []).find((u) => u.id === id) || { nome: "?" }).nome).join(", ");
         const proc = t.processo ? claims.find((c) => c.id === t.processo) : null;
+        const emergencia = isTarefaEmergencia(t);
         return (
-          <div key={t.id} className={"task-card " + (t.urgencia || "").toLowerCase() + (stale ? " stale" : "")}>
+          <div
+            key={t.id}
+            className={"task-card " + (t.urgencia || "").toLowerCase() + (stale ? " stale" : "") + (emergencia ? " neon-alert" : "")}
+            style={emergencia ? { "--neon-rgb": "var(--danger-rgb)" } : undefined}
+          >
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 8, flexWrap: "wrap" }}>
               <div style={{ flex: 1, minWidth: 0 }}>
                 <div style={{ display: "flex", gap: 6, alignItems: "center", flexWrap: "wrap", marginBottom: 4 }}>
+                  {emergencia && <span className="badge red" style={{ fontWeight: 700 }}>EMERGÊNCIA</span>}
                   <span className={"badge-mini urg-badge " + (t.urgencia || "").toLowerCase()}>{t.urgencia}</span>
                   <span className="badge gray">{t.tipo}</span>
                   <span className={"badge " + (t.status === "Concluído" ? "green" : t.status === "Em andamento" ? "amber" : "blue")}>{t.status}</span>
@@ -138,7 +173,7 @@ export function Tarefas() {
                   {t.tipoAtendimento === "assistencia_24h" && <span className="badge purple">Assistência 24h</span>}
                   {t.tipoAtendimento === "assistencia_vidros" && <span className="badge purple">Vidros/pequenos reparos</span>}
                   {t.tipo === "Mesa de Atendimento" && (() => {
-                    const p = checklistProgresso(t.checklistMesa);
+                    const p = checklistProgresso(t.checklistMesa, config);
                     return <span className={"badge " + (p.total && p.feitos === p.total ? "green" : "amber")}>Checklist {p.feitos}/{p.total}</span>;
                   })()}
                   {t.tipo === "Mesa de Atendimento" && t.solicitacao && <span className="badge blue">Solicitação preenchida</span>}
@@ -155,8 +190,8 @@ export function Tarefas() {
                   <button className="btn ok xs" title="Marcar que você viu esta tarefa (para o alerta parar)" onClick={() => actions.markTaskCiente(t.id)}>✓ Ciente</button>
                 )}
                 {t.status !== "Concluído" && taskCienteByMe(t, currentUser) && <span className="badge green" style={{ justifyContent: "center" }}>✓ Ciente</span>}
-                {(t.origem === currentUser.id || isAdmin(currentUser)) && (
-                  <button className="btn danger xs" onClick={() => { if (confirm(`Remover a tarefa "${t.titulo}"?`)) actions.removeTask(t.id); }}>Remover</button>
+                {(t.origem === currentUser.id || isAdmin(currentUser)) && !isTarefaArquivada(t) && (
+                  <button className="btn sec xs" onClick={() => arquivarTarefa(t)}>Arquivar</button>
                 )}
               </div>
             </div>

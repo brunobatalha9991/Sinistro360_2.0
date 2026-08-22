@@ -7,6 +7,7 @@ import { EmptyState } from "../components/EmptyState.jsx";
 import { canEdit as canEditRole } from "../data/auth";
 import { distinctComputed, partyTypeFromTipo, defaultRamoTemplate, visibleClaims } from "../logic/claims";
 import { todayISO } from "../logic/format";
+import { takePendingTaskLink } from "../state/taskModal";
 
 const NEW_SENTINEL = "__novo__";
 
@@ -68,6 +69,10 @@ export function Abertura() {
   const [descricao, setDescricao] = useState("");
   const [observacoes, setObservacoes] = useState("");
   const [status, setStatus] = useState(null);
+  // Capturado uma única vez ao montar: id da tarefa que disparou o atalho
+  // "abrir novo atendimento" (Mesa de Atendimento), se houver — o processo
+  // criado aqui é vinculado automaticamente a ela.
+  const [tarefaVinculada] = useState(() => takePendingTaskLink());
 
   const canEdit = canEditRole(currentUser);
   if (!canEdit) {
@@ -105,7 +110,16 @@ export function Abertura() {
     }
     actions.logAudit(claim.id, "Processo criado manualmente", "Via módulo Abertura");
 
-    setStatus({ cls: "ok", msg: "✔ Processo criado! Abrindo..." });
+    if (tarefaVinculada) {
+      const agora = new Date().toISOString();
+      saveRecord("corp_tasks", (current) => (current || []).map((t) => (
+        t.id === tarefaVinculada
+          ? { ...t, processo: claim.id, updatedAt: agora, log: [...(t.log || []), { at: agora, who: currentUser.id, acao: `Vinculada automaticamente ao processo ${claim.numsin || "#" + claim.nosnum} (criado via atalho de abertura)` }] }
+          : t
+      )));
+    }
+
+    setStatus({ cls: "ok", msg: "✔ Processo criado" + (tarefaVinculada ? " e vinculado à tarefa de origem" : "") + "! Abrindo..." });
     setTimeout(() => navigate("sinistro", claim.id), 400);
   }
 
@@ -119,6 +133,12 @@ export function Abertura() {
         <p className="muted">
           Cria um processo direto no sistema (não vem da API CORP). Ele aparece em Sinistros, Clientes, Seguradoras, Oficinas, Dashboard e nos filtros normalmente, com identificação de "criado manualmente", e é preservado nas próximas sincronizações com a API.
         </p>
+
+        {tarefaVinculada && (
+          <div className="status ok" style={{ marginBottom: 12 }}>
+            Este processo será vinculado automaticamente à tarefa de Mesa de Atendimento de onde você veio.
+          </div>
+        )}
 
         <div className="grid c3">
           <div className="field"><label>Tipo</label>

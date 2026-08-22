@@ -93,4 +93,6 @@ export const MOCK_CONFIG = {
   corp_temp_options: ["Tranquilo", "Moderado", "Grave", "Em atenção"],
   corp_atendimento_template: null,
   corp_drive_upload_endpoint: "",
+  corp_solicitacao_formularios: {},
+  corp_checklist_mesa_atendimento: {},
 };
