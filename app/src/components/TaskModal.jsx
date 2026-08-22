@@ -8,7 +8,7 @@ import { useStore } from "../hooks/useStore";
 import { taskModalStore, closeTaskModal, takeDemandaPrefill, setPendingTaskLink } from "../state/taskModal";
 import { visibleClaims } from "../logic/claims";
 import { txt } from "../logic/format";
-import { isAdmin } from "../data/auth";
+import { isAdmin, canEdit } from "../data/auth";
 import { descreverAlteracoesTarefa } from "../logic/tasks";
 import { getChecklistEfetivo, checklistProgresso, checklistVazio, sincronizarComFormulario } from "../logic/checklistMesaAtendimento";
 import { getFormularioEfetivo, formularioDisponivel, caminhoPastaSolicitacao } from "../logic/solicitacaoAtendimento";
@@ -421,10 +421,10 @@ export function TaskModal() {
           </div>
         </div>
 
-        {isMesaAtendimento && (
+        {isMesaAtendimento && canEdit(currentUser) && (
           <div style={{ marginBottom: 14 }}>
             <button
-              type="button" className="btn sec sm"
+              type="button" className="btn sm"
               onClick={() => {
                 const id = salvar();
                 if (!id) return;
@@ -432,7 +432,7 @@ export function TaskModal() {
                 navigate("abertura");
               }}
             >
-              Atalho: abrir novo atendimento (módulo Abertura)
+              Abertura
             </button>
             <div className="muted" style={{ fontSize: 11, marginTop: 4 }}>Salva esta tarefa e, ao criar o processo em Abertura, vincula automaticamente os dois.</div>
           </div>
@@ -531,12 +531,12 @@ export function TaskModal() {
           <div style={{ marginTop: 4, marginBottom: 14, border: "1px solid var(--border)", borderRadius: 8, padding: 14, background: "var(--surface-2)" }}>
             <div className="muted" style={{ fontSize: 11, marginBottom: 10 }}>Marque cada item conforme for coletado — não é um formulário, só o acompanhamento do que falta.</div>
 
-            <div className="muted" style={{ fontSize: 11.5, fontWeight: 700, textTransform: "uppercase", letterSpacing: ".4px", marginBottom: 6 }}>Segurado</div>
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", columnGap: 18, rowGap: 2 }}>
+            <div className="muted" style={{ fontSize: 11.5, fontWeight: 700, textTransform: "uppercase", letterSpacing: ".4px", marginBottom: 4 }}>Segurado</div>
+            <div style={{ display: "flex", flexDirection: "column" }}>
               {checklistSegurado.map((item) => (
-                <label key={item.id} style={{ display: "flex", gap: 8, alignItems: "flex-start", padding: "4px 0", cursor: "pointer", fontSize: 13 }}>
+                <label key={item.id} style={{ display: "flex", gap: 10, alignItems: "flex-start", padding: "8px 4px", cursor: "pointer", fontSize: 13, borderBottom: "1px solid var(--border-soft)" }}>
                   <input type="checkbox" style={{ marginTop: 2, flexShrink: 0 }} checked={!!checklistMesa.itens[item.id]} onChange={() => toggleChecklistItem(item.id)} />
-                  <span style={checklistMesa.itens[item.id] ? { textDecoration: "line-through", opacity: .6 } : undefined}>{item.label}</span>
+                  <span style={{ lineHeight: 1.4, ...(checklistMesa.itens[item.id] ? { textDecoration: "line-through", opacity: .6 } : {}) }}>{item.label}</span>
                 </label>
               ))}
             </div>
@@ -548,12 +548,12 @@ export function TaskModal() {
 
             {checklistMesa.temTerceiro && (
               <>
-                <div className="muted" style={{ fontSize: 11.5, fontWeight: 700, textTransform: "uppercase", letterSpacing: ".4px", margin: "12px 0 6px" }}>Terceiro</div>
-                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", columnGap: 18, rowGap: 2 }}>
+                <div className="muted" style={{ fontSize: 11.5, fontWeight: 700, textTransform: "uppercase", letterSpacing: ".4px", margin: "12px 0 4px" }}>Terceiro</div>
+                <div style={{ display: "flex", flexDirection: "column" }}>
                   {checklistTerceiro.map((item) => (
-                    <label key={item.id} style={{ display: "flex", gap: 8, alignItems: "flex-start", padding: "4px 0", cursor: "pointer", fontSize: 13 }}>
+                    <label key={item.id} style={{ display: "flex", gap: 10, alignItems: "flex-start", padding: "8px 4px", cursor: "pointer", fontSize: 13, borderBottom: "1px solid var(--border-soft)" }}>
                       <input type="checkbox" style={{ marginTop: 2, flexShrink: 0 }} checked={!!checklistMesa.itens[item.id]} onChange={() => toggleChecklistItem(item.id)} />
-                      <span style={checklistMesa.itens[item.id] ? { textDecoration: "line-through", opacity: .6 } : undefined}>{item.label}</span>
+                      <span style={{ lineHeight: 1.4, ...(checklistMesa.itens[item.id] ? { textDecoration: "line-through", opacity: .6 } : {}) }}>{item.label}</span>
                     </label>
                   ))}
                 </div>
