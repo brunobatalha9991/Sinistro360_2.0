@@ -22,6 +22,13 @@ export const RECORD_SPECS = {
   corp_notifs: { col: "s360_notifs", keyed: false },
   corp_demandas: { col: "s360_demandas", keyed: false },
   corp_overrides: { col: "s360_overrides", keyed: true },
+  // Histórico de responsabilidade por processo (Fase 2 — IA Sinistros).
+  // Array de intervalos {claimId, usuarioResponsavelId, inicioResponsabilidadeEm,
+  // fimResponsabilidadeEm, ...} — ver src/logic/responsabilidade.js e
+  // docs/ia-sinistros/regras-responsabilidade.md. Aditivo: não substitui
+  // corp_overrides.responsavelUser, que continua sendo escrito para
+  // compatibilidade retroativa com todas as telas existentes.
+  corp_responsabilidade_historico: { col: "s360_responsabilidade_historico", keyed: false },
 };
 
 export const CONFIG_COLLECTION = "s360_config";

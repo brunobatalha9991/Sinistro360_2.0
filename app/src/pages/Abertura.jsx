@@ -101,7 +101,7 @@ export function Abertura() {
     saveRecord("corp_claims", (current) => [...(current || []), claim]);
     if (responsavelId) {
       const u = users.find((x) => x.id === responsavelId);
-      if (u) actions.saveResponsavel(claim.id, u);
+      if (u) actions.saveResponsavel(claim.id, u, { motivo: "Responsável inicial definido na abertura manual do processo" });
     }
     actions.logAudit(claim.id, "Processo criado manualmente", "Via módulo Abertura");
 

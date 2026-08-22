@@ -1,5 +1,6 @@
 import { useData } from "../data/DataProvider.jsx";
 import { useAuth } from "./useAuth";
+import { alterarResponsavel } from "../logic/responsabilidade";
 
 // Central de gravações em corp_overrides (jornada, financeiro, comunicação,
 // próxima ação, responsável, temperatura, situação de atendimento, vínculos,
@@ -53,7 +54,22 @@ export function useOverrideActions() {
       });
     },
     saveNextAction: (claimId, na) => setOvr(claimId, { nextAction: na }),
-    saveResponsavel: (claimId, user) => setOvr(claimId, { responsavelUser: user ? { id: user.id, nome: user.nome } : null }),
+    // Mantém overrides.responsavelUser (valor único, lido em várias telas
+    // de forma síncrona) E grava o intervalo correspondente no histórico de
+    // responsabilidade (corp_responsabilidade_historico) — ver
+    // src/logic/responsabilidade.js e docs/ia-sinistros/regras-responsabilidade.md.
+    saveResponsavel(claimId, user, opts) {
+      setOvr(claimId, { responsavelUser: user ? { id: user.id, nome: user.nome } : null });
+      const agoraISO = new Date().toISOString();
+      saveRecord("corp_responsabilidade_historico", (current) => alterarResponsavel(current, {
+        claimId, novoUsuarioId: user ? user.id : null,
+        motivoAlteracao: (opts && opts.motivo) || "Definido manualmente",
+        observacao: (opts && opts.observacao) || "",
+        alteradoPorUsuarioId: currentUser ? currentUser.id : null,
+        origemAlteracao: (opts && opts.origem) || "manual",
+        agoraISO,
+      }));
+    },
     saveSitAtend: (claimId, v) => setOvr(claimId, { sitAtend: v }),
     saveTemp: (claimId, v) => setOvr(claimId, { temperatura: v }),
     saveJourneyNotes: (claimId, v) => setOvr(claimId, { journeyNotes: v }),

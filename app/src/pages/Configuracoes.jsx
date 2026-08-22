@@ -5,6 +5,7 @@ import { useOverrideActions } from "../hooks/useOverrideActions";
 import { isAdmin } from "../data/auth";
 import { EmptyState } from "../components/EmptyState.jsx";
 import { HistoricoImportCard } from "../components/config/HistoricoImportCard.jsx";
+import { ResponsabilidadeBackfillCard } from "../components/config/ResponsabilidadeBackfillCard.jsx";
 import { RamoTemplatesEditor } from "../components/config/RamoTemplatesEditor.jsx";
 import { UsersCard } from "../components/config/UsersCard.jsx";
 import { AtendimentoStepsEditor } from "../components/config/AtendimentoStepsEditor.jsx";
@@ -48,6 +49,7 @@ export function Configuracoes() {
       ) : (
         <>
           <HistoricoImportCard claims={claims} actions={actions} canEdit={admin} />
+          <ResponsabilidadeBackfillCard claims={claims} records={records} saveRecord={saveRecord} canEdit={admin} />
           <UsersCard users={records.corp_users || []} currentUser={currentUser} saveRecord={saveRecord} />
           <AtendimentoStepsEditor atendTemplateCfg={config.corp_atendimento_template} saveConfig={saveConfig} />
           <RamoTemplatesEditor templates={templates} saveConfig={saveConfig} />

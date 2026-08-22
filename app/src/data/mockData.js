@@ -79,6 +79,7 @@ export const MOCK_TASKS = [
 
 export const MOCK_NOTIFS = [];
 export const MOCK_DEMANDAS = [];
+export const MOCK_RESPONSABILIDADE_HISTORICO = [];
 
 export const MOCK_CONFIG = {
   corp_cfg: {},
