@@ -20,6 +20,29 @@ const ATENDIMENTO_OPCOES = [
   ["assistencia_vidros", "Assistência de vidros e pequenos reparos"],
 ];
 
+// Linha de item de checklist — grid com coluna fixa pro checkbox e coluna
+// flexível (com limite mínimo em 0) pro texto, que é o jeito confiável de
+// garantir "checkbox + texto numa linha só, alinhado à esquerda" sem o
+// texto sumir: com flexbox simples, o texto podia encolher pra largura 0
+// dependendo do container; grid com minmax(0,1fr) não tem essa ambiguidade.
+function ChecklistItemRow({ item, checked, onToggle }) {
+  return (
+    <label
+      title={item.label}
+      style={{
+        display: "grid", gridTemplateColumns: "18px minmax(0,1fr)", columnGap: 8, alignItems: "center",
+        padding: "6px 2px", cursor: "pointer", fontSize: 13, color: "var(--ink)", textAlign: "left",
+        borderBottom: "1px solid var(--border-soft)",
+      }}
+    >
+      <input type="checkbox" checked={!!checked} onChange={onToggle} style={{ margin: 0 }} />
+      <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", textAlign: "left", ...(checked ? { textDecoration: "line-through", opacity: .6 } : {}) }}>
+        {item.label}
+      </span>
+    </label>
+  );
+}
+
 function ProcSearch({ value, onChange, claims }) {
   const [q, setQ] = useState(value.label || "");
   const [open, setOpen] = useState(false);
@@ -534,10 +557,7 @@ export function TaskModal() {
             <div className="muted" style={{ fontSize: 11.5, fontWeight: 700, textTransform: "uppercase", letterSpacing: ".4px", marginBottom: 2 }}>Segurado</div>
             <div style={{ display: "flex", flexDirection: "column" }}>
               {checklistSegurado.map((item) => (
-                <label key={item.id} title={item.label} style={{ display: "flex", gap: 8, alignItems: "center", padding: "6px 2px", cursor: "pointer", fontSize: 13, borderBottom: "1px solid var(--border-soft)" }}>
-                  <input type="checkbox" style={{ flexShrink: 0 }} checked={!!checklistMesa.itens[item.id]} onChange={() => toggleChecklistItem(item.id)} />
-                  <span style={{ flex: 1, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", textAlign: "left", ...(checklistMesa.itens[item.id] ? { textDecoration: "line-through", opacity: .6 } : {}) }}>{item.label}</span>
-                </label>
+                <ChecklistItemRow key={item.id} item={item} checked={checklistMesa.itens[item.id]} onToggle={() => toggleChecklistItem(item.id)} />
               ))}
             </div>
 
@@ -551,10 +571,7 @@ export function TaskModal() {
                 <div className="muted" style={{ fontSize: 11.5, fontWeight: 700, textTransform: "uppercase", letterSpacing: ".4px", margin: "12px 0 2px" }}>Terceiro</div>
                 <div style={{ display: "flex", flexDirection: "column" }}>
                   {checklistTerceiro.map((item) => (
-                    <label key={item.id} title={item.label} style={{ display: "flex", gap: 8, alignItems: "center", padding: "6px 2px", cursor: "pointer", fontSize: 13, borderBottom: "1px solid var(--border-soft)" }}>
-                      <input type="checkbox" style={{ flexShrink: 0 }} checked={!!checklistMesa.itens[item.id]} onChange={() => toggleChecklistItem(item.id)} />
-                      <span style={{ flex: 1, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", textAlign: "left", ...(checklistMesa.itens[item.id] ? { textDecoration: "line-through", opacity: .6 } : {}) }}>{item.label}</span>
-                    </label>
+                    <ChecklistItemRow key={item.id} item={item} checked={checklistMesa.itens[item.id]} onToggle={() => toggleChecklistItem(item.id)} />
                   ))}
                 </div>
               </>
