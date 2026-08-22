@@ -17,6 +17,7 @@ export const PAGES = {
   seguradoras: lazy(() => import("./AggPage.jsx").then((m) => ({ default: m.Seguradoras }))),
   oficinas: lazy(() => import("./AggPage.jsx").then((m) => ({ default: m.Oficinas }))),
   relatorios: lazy(() => import("./Relatorios.jsx").then((m) => ({ default: m.Relatorios }))),
+  assistente: lazy(() => import("./Assistente.jsx").then((m) => ({ default: m.Assistente }))),
   integracao: lazy(() => import("./Integracao.jsx").then((m) => ({ default: m.Integracao }))),
   config: lazy(() => import("./Configuracoes.jsx").then((m) => ({ default: m.Configuracoes }))),
 };

@@ -13,6 +13,7 @@ export const MODULOS_DISPONIVEIS = [
   ["dashboard", "Dashboard"], ["sinistros", "Sinistros"], ["abertura", "Abertura"],
   ["demandas", "Nova Demanda"], ["tarefas", "Comunicação"], ["clientes", "Clientes"],
   ["seguradoras", "Seguradoras"], ["oficinas", "Oficinas"], ["relatorios", "Relatórios"],
+  ["assistente", "Assistente IA"],
   ["integracao", "Integração CORP"], ["config", "Configurações"],
 ];
 

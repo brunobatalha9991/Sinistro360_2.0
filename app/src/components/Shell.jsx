@@ -18,6 +18,7 @@ export const MENU = [
   ["seguradoras", "Seguradoras", "seguradoras"],
   ["oficinas", "Oficinas", "oficinas"],
   ["relatorios", "Relatórios", "relatorios"],
+  ["assistente", "Assistente IA", "assistente"],
   ["integracao", "Integração CORP", "integracao"],
   ["config", "Configurações", "config"],
 ];
