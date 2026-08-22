@@ -531,12 +531,12 @@ export function TaskModal() {
           <div style={{ marginTop: 4, marginBottom: 14, border: "1px solid var(--border)", borderRadius: 8, padding: 14, background: "var(--surface-2)" }}>
             <div className="muted" style={{ fontSize: 11, marginBottom: 10 }}>Marque cada item conforme for coletado — não é um formulário, só o acompanhamento do que falta.</div>
 
-            <div className="muted" style={{ fontSize: 11.5, fontWeight: 700, textTransform: "uppercase", letterSpacing: ".4px", marginBottom: 4 }}>Segurado</div>
+            <div className="muted" style={{ fontSize: 11.5, fontWeight: 700, textTransform: "uppercase", letterSpacing: ".4px", marginBottom: 2 }}>Segurado</div>
             <div style={{ display: "flex", flexDirection: "column" }}>
               {checklistSegurado.map((item) => (
-                <label key={item.id} style={{ display: "flex", gap: 10, alignItems: "flex-start", padding: "8px 4px", cursor: "pointer", fontSize: 13, borderBottom: "1px solid var(--border-soft)" }}>
-                  <input type="checkbox" style={{ marginTop: 2, flexShrink: 0 }} checked={!!checklistMesa.itens[item.id]} onChange={() => toggleChecklistItem(item.id)} />
-                  <span style={{ lineHeight: 1.4, ...(checklistMesa.itens[item.id] ? { textDecoration: "line-through", opacity: .6 } : {}) }}>{item.label}</span>
+                <label key={item.id} title={item.label} style={{ display: "flex", gap: 8, alignItems: "center", padding: "6px 2px", cursor: "pointer", fontSize: 13, borderBottom: "1px solid var(--border-soft)" }}>
+                  <input type="checkbox" style={{ flexShrink: 0 }} checked={!!checklistMesa.itens[item.id]} onChange={() => toggleChecklistItem(item.id)} />
+                  <span style={{ flex: 1, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", textAlign: "left", ...(checklistMesa.itens[item.id] ? { textDecoration: "line-through", opacity: .6 } : {}) }}>{item.label}</span>
                 </label>
               ))}
             </div>
@@ -548,12 +548,12 @@ export function TaskModal() {
 
             {checklistMesa.temTerceiro && (
               <>
-                <div className="muted" style={{ fontSize: 11.5, fontWeight: 700, textTransform: "uppercase", letterSpacing: ".4px", margin: "12px 0 4px" }}>Terceiro</div>
+                <div className="muted" style={{ fontSize: 11.5, fontWeight: 700, textTransform: "uppercase", letterSpacing: ".4px", margin: "12px 0 2px" }}>Terceiro</div>
                 <div style={{ display: "flex", flexDirection: "column" }}>
                   {checklistTerceiro.map((item) => (
-                    <label key={item.id} style={{ display: "flex", gap: 10, alignItems: "flex-start", padding: "8px 4px", cursor: "pointer", fontSize: 13, borderBottom: "1px solid var(--border-soft)" }}>
-                      <input type="checkbox" style={{ marginTop: 2, flexShrink: 0 }} checked={!!checklistMesa.itens[item.id]} onChange={() => toggleChecklistItem(item.id)} />
-                      <span style={{ lineHeight: 1.4, ...(checklistMesa.itens[item.id] ? { textDecoration: "line-through", opacity: .6 } : {}) }}>{item.label}</span>
+                    <label key={item.id} title={item.label} style={{ display: "flex", gap: 8, alignItems: "center", padding: "6px 2px", cursor: "pointer", fontSize: 13, borderBottom: "1px solid var(--border-soft)" }}>
+                      <input type="checkbox" style={{ flexShrink: 0 }} checked={!!checklistMesa.itens[item.id]} onChange={() => toggleChecklistItem(item.id)} />
+                      <span style={{ flex: 1, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", textAlign: "left", ...(checklistMesa.itens[item.id] ? { textDecoration: "line-through", opacity: .6 } : {}) }}>{item.label}</span>
                     </label>
                   ))}
                 </div>
