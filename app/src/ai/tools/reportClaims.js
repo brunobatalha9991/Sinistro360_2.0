@@ -36,6 +36,14 @@ export const reportClaimsTool = {
       grupos[chave] = (grupos[chave] || 0) + 1;
     });
 
-    return { groupBy, totalGeral: claims.length, grupos };
+    return {
+      groupBy, totalGeral: claims.length, grupos,
+      metodologia: `Contagem de corp_claims (visibleClaims) agrupada por ${groupBy === "cia" ? "seguradora efetiva (campoEfetivo cia)" : groupBy === "temperatura" ? "temperatura (overrides.temperatura, 'Não definida' quando ausente)" : "situação efetiva (situacaoEfetiva)"}${filtroCia ? `, restrito à seguradora "${args.filterCia}"` : ""}.`,
+      fontes: [{
+        tipo: "regra", id: "report_claims_summary",
+        descricao: `Agregação de ${claims.length} sinistro(s) por ${groupBy}`,
+        data_hora: new Date().toISOString(), url_interna: "#/relatorios",
+      }],
+    };
   },
 };

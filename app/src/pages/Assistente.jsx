@@ -5,6 +5,34 @@ import { aiChatStore } from "../state/aiChat";
 import { isGeminiConfigured } from "../ai/geminiApi";
 import { EmptyState } from "../components/EmptyState.jsx";
 import { ActionProposalCard } from "../components/ai/ActionProposalCard.jsx";
+import { FeedbackButtons } from "../components/ai/FeedbackButtons.jsx";
+import { EnsinarAssistente } from "../components/ai/EnsinarAssistente.jsx";
+
+function EnvelopeMeta({ envelope }) {
+  if (!envelope) return null;
+  const { fontes, limitacoes, confianca, metodologia } = envelope;
+  if (!fontes.length && !limitacoes.length && !metodologia) return null;
+  return (
+    <div className="ai-envelope-meta">
+      <span className={"badge " + (confianca === "alta" ? "green" : "amber")}>
+        {confianca === "alta" ? "Confiança alta — baseada em dados do sistema" : "Confiança baixa — sem consulta a dados"}
+      </span>
+      {!!fontes.length && (
+        <div className="ai-envelope-fontes">
+          <b>Fontes:</b>{" "}
+          {fontes.map((f, i) => (
+            <span key={f.tipo + f.id}>
+              {i > 0 && " · "}
+              {f.url_interna ? <a href={f.url_interna}>{f.descricao}</a> : f.descricao}
+            </span>
+          ))}
+        </div>
+      )}
+      {metodologia && <div className="ai-envelope-metodologia" title={metodologia}>Metodologia: {metodologia}</div>}
+      {!!limitacoes.length && limitacoes.map((l, i) => <div key={i} className="ai-envelope-limitacao">⚠ {l}</div>)}
+    </div>
+  );
+}
 
 function Bubble({ message }) {
   if (message.type === "action_proposal") return <ActionProposalCard message={message} />;
@@ -13,6 +41,8 @@ function Bubble({ message }) {
   return (
     <div className={"chat-msg " + (mine ? "mine" : "theirs") + (isError ? " ai-msg-error" : "")}>
       <div style={{ whiteSpace: "pre-wrap" }}>{message.text}</div>
+      <EnvelopeMeta envelope={message.envelope} />
+      {message.envelope && <FeedbackButtons respostaId={message.id} />}
     </div>
   );
 }
@@ -52,6 +82,7 @@ export function Assistente() {
         </div>
       ) : (
         <div className="card">
+          <div style={{ marginBottom: 10 }}><EnsinarAssistente /></div>
           <div className="chat-box" ref={boxRef} style={{ maxHeight: 480 }}>
             {!messages.length ? (
               <div className="chat-empty">Pergunte algo, ex.: "quantos sinistros em andamento por seguradora?"</div>

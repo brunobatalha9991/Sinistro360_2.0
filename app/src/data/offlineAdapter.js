@@ -4,7 +4,8 @@
 import { CONFIG_KEYS, RECORD_SPECS } from "./schema";
 import {
   MOCK_CLAIMS, MOCK_USERS, MOCK_TASKS, MOCK_NOTIFS, MOCK_DEMANDAS,
-  MOCK_OVERRIDES, MOCK_CONFIG, MOCK_RESPONSABILIDADE_HISTORICO,
+  MOCK_OVERRIDES, MOCK_CONFIG, MOCK_RESPONSABILIDADE_HISTORICO, MOCK_AI_AUDITORIA,
+  MOCK_AI_MEMORIAS, MOCK_AI_FEEDBACK,
 } from "./mockData";
 
 const RECORD_SEED = {
@@ -15,6 +16,9 @@ const RECORD_SEED = {
   corp_demandas: MOCK_DEMANDAS,
   corp_overrides: MOCK_OVERRIDES,
   corp_responsabilidade_historico: MOCK_RESPONSABILIDADE_HISTORICO,
+  corp_ai_auditoria: MOCK_AI_AUDITORIA,
+  corp_ai_memorias: MOCK_AI_MEMORIAS,
+  corp_ai_feedback: MOCK_AI_FEEDBACK,
 };
 
 function readKey(key, fallback) {

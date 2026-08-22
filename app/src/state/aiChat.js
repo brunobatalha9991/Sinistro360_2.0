@@ -5,7 +5,9 @@ import { createStore } from "./createStore";
 //
 // messages: histórico exibido na UI. Cada item:
 //   { id, role: "user"|"model"|"error", type: "text"|"action_proposal",
-//     text?, proposal?: { toolName, args, summary, after, status: "pending"|"confirmed"|"cancelled" } }
+//     text?, envelope?: {...} (ver src/ai/responseEnvelope.js — só em
+//     mensagens de texto do modelo, construído pelo orquestrador),
+//     proposal?: { toolName, args, summary, after, status: "pending"|"confirmed"|"cancelled" } }
 // contents: histórico no formato bruto da API do Gemini (role/parts), usado
 //   internamente por useAiChatActions.js para manter o ciclo de function
 //   calling — não é renderizado diretamente.

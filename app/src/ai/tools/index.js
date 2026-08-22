@@ -2,6 +2,9 @@ import { searchClaimsTool } from "./searchClaims";
 import { reportClaimsTool } from "./reportClaims";
 import { createTaskTool } from "./createTask";
 import { updateClaimFieldTool } from "./updateClaimField";
+import { listarFiltrosTool } from "./listarFiltros";
+import { explicarDashboardTool } from "./explicarDashboard";
+import { analisarDesempenhoTool } from "./analisarDesempenho";
 
 // Registro central de "tools" que o Gemini pode chamar. Para adicionar uma
 // tool nova: crie um arquivo em src/ai/tools/ exportando um objeto
@@ -19,7 +22,10 @@ import { updateClaimFieldTool } from "./updateClaimField";
 //   run(): devolvem { summary, after, apply() } (ou { error } se os
 //   argumentos forem inválidos). apply() só é chamada pela UI depois que o
 //   usuário confirma a proposta no chat — nunca antes disso.
-export const TOOLS = [searchClaimsTool, reportClaimsTool, createTaskTool, updateClaimFieldTool];
+export const TOOLS = [
+  searchClaimsTool, reportClaimsTool, createTaskTool, updateClaimFieldTool,
+  listarFiltrosTool, explicarDashboardTool, analisarDesempenhoTool,
+];
 
 export function getTool(name) {
   return TOOLS.find((t) => t.name === name) || null;

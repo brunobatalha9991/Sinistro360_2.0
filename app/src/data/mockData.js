@@ -80,6 +80,9 @@ export const MOCK_TASKS = [
 export const MOCK_NOTIFS = [];
 export const MOCK_DEMANDAS = [];
 export const MOCK_RESPONSABILIDADE_HISTORICO = [];
+export const MOCK_AI_AUDITORIA = [];
+export const MOCK_AI_MEMORIAS = [];
+export const MOCK_AI_FEEDBACK = [];
 
 export const MOCK_CONFIG = {
   corp_cfg: {},

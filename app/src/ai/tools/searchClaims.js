@@ -40,7 +40,8 @@ export const searchClaimsTool = {
     }
 
     const total = claims.length;
-    const resultados = claims.slice(0, limit).map((c) => ({
+    const pagina = claims.slice(0, limit);
+    const resultados = pagina.map((c) => ({
       id: c.id,
       numsin: c.numsin || "#" + c.nosnum,
       segurado: txt(campoEfetivo(overrides, c, "segurado")),
@@ -50,6 +51,14 @@ export const searchClaimsTool = {
       etapaAtual: currentStage(overrides, templates, atendTemplate, c) || "—",
     }));
 
-    return { total, mostrando: resultados.length, resultados };
+    return {
+      total, mostrando: resultados.length, resultados,
+      metodologia: "Busca em corp_claims (visibleClaims), filtrando por texto/situação/seguradora efetivos; lista limitada a " + limit + " item(ns).",
+      fontes: pagina.map((c) => ({
+        tipo: "sinistro", id: c.id,
+        descricao: (c.numsin || "#" + c.nosnum) + " — " + txt(campoEfetivo(overrides, c, "segurado")),
+        data_hora: null, url_interna: "#/sinistro/" + c.id,
+      })),
+    };
   },
 };

@@ -29,6 +29,16 @@ export const RECORD_SPECS = {
   // corp_overrides.responsavelUser, que continua sendo escrito para
   // compatibilidade retroativa com todas as telas existentes.
   corp_responsabilidade_historico: { col: "s360_responsabilidade_historico", keyed: false },
+  // Log de auditoria das interações com o Assistente IA (Fase 3 — IA
+  // Sinistros). Gravado direto do cliente (sem backend — decisão do
+  // usuário), mesmo padrão de gravação de todo o resto do app. Não é à
+  // prova de adulteração (ver docs/ia-sinistros/arquitetura-ia.md), mas
+  // fica centralizado e visível em vez de só na memória do navegador.
+  corp_ai_auditoria: { col: "s360_ai_auditoria", keyed: false },
+  // Memória controlada e feedback do Assistente IA (Fase 6 — IA Sinistros).
+  // Ver src/logic/memoriaIA.js e docs/ia-sinistros/memoria-e-feedback.md.
+  corp_ai_memorias: { col: "s360_ai_memorias", keyed: false },
+  corp_ai_feedback: { col: "s360_ai_feedback", keyed: false },
 };
 
 export const CONFIG_COLLECTION = "s360_config";

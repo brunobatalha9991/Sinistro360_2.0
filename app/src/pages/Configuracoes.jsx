@@ -6,6 +6,7 @@ import { isAdmin } from "../data/auth";
 import { EmptyState } from "../components/EmptyState.jsx";
 import { HistoricoImportCard } from "../components/config/HistoricoImportCard.jsx";
 import { ResponsabilidadeBackfillCard } from "../components/config/ResponsabilidadeBackfillCard.jsx";
+import { MemoriasIACard } from "../components/config/MemoriasIACard.jsx";
 import { RamoTemplatesEditor } from "../components/config/RamoTemplatesEditor.jsx";
 import { UsersCard } from "../components/config/UsersCard.jsx";
 import { AtendimentoStepsEditor } from "../components/config/AtendimentoStepsEditor.jsx";
@@ -50,6 +51,7 @@ export function Configuracoes() {
         <>
           <HistoricoImportCard claims={claims} actions={actions} canEdit={admin} />
           <ResponsabilidadeBackfillCard claims={claims} records={records} saveRecord={saveRecord} canEdit={admin} />
+          <MemoriasIACard users={records.corp_users || []} />
           <UsersCard users={records.corp_users || []} currentUser={currentUser} saveRecord={saveRecord} />
           <AtendimentoStepsEditor atendTemplateCfg={config.corp_atendimento_template} saveConfig={saveConfig} />
           <RamoTemplatesEditor templates={templates} saveConfig={saveConfig} />
