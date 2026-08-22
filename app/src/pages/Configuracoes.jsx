@@ -7,6 +7,8 @@ import { EmptyState } from "../components/EmptyState.jsx";
 import { HistoricoImportCard } from "../components/config/HistoricoImportCard.jsx";
 import { ResponsabilidadeBackfillCard } from "../components/config/ResponsabilidadeBackfillCard.jsx";
 import { MemoriasIACard } from "../components/config/MemoriasIACard.jsx";
+import { AtribuirResponsavelEmMassaCard } from "../components/config/AtribuirResponsavelEmMassaCard.jsx";
+import { DriveUploadConfigCard } from "../components/config/DriveUploadConfigCard.jsx";
 import { RamoTemplatesEditor } from "../components/config/RamoTemplatesEditor.jsx";
 import { UsersCard } from "../components/config/UsersCard.jsx";
 import { AtendimentoStepsEditor } from "../components/config/AtendimentoStepsEditor.jsx";
@@ -51,6 +53,8 @@ export function Configuracoes() {
         <>
           <HistoricoImportCard claims={claims} actions={actions} canEdit={admin} />
           <ResponsabilidadeBackfillCard claims={claims} records={records} saveRecord={saveRecord} canEdit={admin} />
+          <AtribuirResponsavelEmMassaCard claims={claims} overrides={records.corp_overrides || {}} users={records.corp_users || []} actions={actions} canEdit={admin} />
+          <DriveUploadConfigCard config={config} saveConfig={saveConfig} canEdit={admin} />
           <MemoriasIACard users={records.corp_users || []} />
           <UsersCard users={records.corp_users || []} currentUser={currentUser} saveRecord={saveRecord} />
           <AtendimentoStepsEditor atendTemplateCfg={config.corp_atendimento_template} saveConfig={saveConfig} />

@@ -86,10 +86,11 @@ export const MOCK_AI_FEEDBACK = [];
 
 export const MOCK_CONFIG = {
   corp_cfg: {},
-  corp_task_types: ["Comunicação", "Lembrete", "Tarefa"],
+  corp_task_types: ["Comunicação", "Lembrete", "Tarefa", "Mesa de Atendimento"],
   corp_form_endpoints: {},
   corp_journey_templates: {},
   corp_sit_options: ["Aguard. Cliente", "Aguard. Seguradora", "Aguard. Corretora", "Aguard. Oficina"],
   corp_temp_options: ["Tranquilo", "Moderado", "Grave", "Em atenção"],
   corp_atendimento_template: null,
+  corp_drive_upload_endpoint: "",
 };

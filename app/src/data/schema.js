@@ -10,6 +10,7 @@ export const CONFIG_KEYS = [
   "corp_sit_options",
   "corp_temp_options",
   "corp_atendimento_template",
+  "corp_drive_upload_endpoint",
 ];
 
 // Registros grandes/multiusuário: 1 documento por registro.

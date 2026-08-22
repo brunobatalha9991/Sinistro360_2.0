@@ -11,10 +11,15 @@ import { EmptyState } from "../components/EmptyState.jsx";
 import { TaskModal } from "../components/TaskModal.jsx";
 import { visibleClaims } from "../logic/claims";
 import { myTasks, taskIsStale, taskCienteByMe, URG_ORDER } from "../logic/tasks";
+import { checklistProgresso } from "../logic/checklistMesaAtendimento";
 
 const STATUS_CHIPS = [["todas", "Todas"], ["Pendente", "Pendentes"], ["Em andamento", "Em andamento"], ["Concluído", "Concluídas"]];
 const URG_CHIPS = [["todas", "Toda urgência"], ["Urgente", "Urgente"], ["Moderado", "Moderado"], ["Leve", "Leve"]];
-const DEFAULT_TASK_TYPES = ["Comunicação", "Lembrete", "Tarefa"];
+const ATENDIMENTO_CHIPS = [
+  ["todas", "Atendimento: todos"], ["sinistro", "🚗 Sinistro"],
+  ["assistencia_24h", "🛟 Assistência 24h"], ["assistencia_vidros", "🪟 Vidros/pequenos reparos"],
+];
+const DEFAULT_TASK_TYPES = ["Comunicação", "Lembrete", "Tarefa", "Mesa de Atendimento"];
 
 export function Tarefas() {
   const { records, config, saveConfig } = useData();
@@ -47,6 +52,7 @@ export function Tarefas() {
   if (filter.status !== "todas") tasks = tasks.filter((t) => t.status === filter.status);
   if (filter.urg !== "todas") tasks = tasks.filter((t) => t.urgencia === filter.urg);
   if (filter.tipo !== "todas") tasks = tasks.filter((t) => t.tipo === filter.tipo);
+  if (filter.tipoAtendimento !== "todas") tasks = tasks.filter((t) => t.tipoAtendimento === filter.tipoAtendimento);
   if (filter.stale) tasks = tasks.filter((t) => taskIsStale(t, currentUser));
   if (filter.q) {
     const q = filter.q.toLowerCase();
@@ -92,6 +98,11 @@ export function Tarefas() {
           ))}
         </div>
         <div className="chips">
+          {ATENDIMENTO_CHIPS.map(([k, label]) => (
+            <div key={k} className={"chip-btn" + (filter.tipoAtendimento === k ? " active" : "")} onClick={() => taskFilterStore.patch({ tipoAtendimento: k })}>{label}</div>
+          ))}
+        </div>
+        <div className="chips">
           <div className={"chip-btn" + (filter.stale ? " active" : "")} onClick={() => taskFilterStore.patch({ stale: !filter.stale })}>⚠ Pendente interação ({staleCount})</div>
           <input className="inline" style={{ minWidth: 200, marginLeft: 8 }} placeholder="Buscar por título..." value={filter.q} onChange={(e) => taskFilterStore.patch({ q: e.target.value })} />
         </div>
@@ -111,6 +122,14 @@ export function Tarefas() {
                   <span className={"badge-mini urg-badge " + (t.urgencia || "").toLowerCase()}>{t.urgencia}</span>
                   <span className="badge gray">{t.tipo}</span>
                   <span className={"badge " + (t.status === "Concluído" ? "green" : t.status === "Em andamento" ? "amber" : "blue")}>{t.status}</span>
+                  {t.tipoAtendimento === "sinistro" && <span className="badge blue">🚗 Sinistro</span>}
+                  {t.tipoAtendimento === "assistencia_24h" && <span className="badge purple">🛟 Assistência 24h</span>}
+                  {t.tipoAtendimento === "assistencia_vidros" && <span className="badge purple">🪟 Vidros/pequenos reparos</span>}
+                  {t.tipo === "Mesa de Atendimento" && (() => {
+                    const p = checklistProgresso(t.checklistMesa);
+                    return <span className={"badge " + (p.total && p.feitos === p.total ? "green" : "amber")}>✅ {p.feitos}/{p.total}</span>;
+                  })()}
+                  {t.tipo === "Mesa de Atendimento" && t.solicitacao && <span className="badge blue">📋 Solicitação preenchida</span>}
                   {stale && <span className="badge red">⚠ +2h sem interação</span>}
                 </div>
                 <div style={{ fontSize: 15, fontWeight: 600 }}>{t.titulo}</div>

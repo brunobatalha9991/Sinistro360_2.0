@@ -96,6 +96,24 @@ export function useOverrideActions() {
         return next;
       });
     },
+    // Anexos gerais do processo (proposta de seguro, dados do segurado etc.)
+    // — a pedido do usuário, ver components/detail/AnexosPanel.jsx e
+    // logic/anexosProcesso.js. Arquivo em si vive no Drive; aqui só guarda
+    // a referência (nome/url/id/descrição/quem enviou).
+    addAnexo(claimId, anexo) {
+      saveRecord("corp_overrides", (current) => {
+        const cur = current || {};
+        const existing = cur[claimId] || {};
+        return { ...cur, [claimId]: { ...existing, anexos: [...(existing.anexos || []), anexo] } };
+      });
+    },
+    removeAnexo(claimId, anexoId) {
+      saveRecord("corp_overrides", (current) => {
+        const cur = current || {};
+        const existing = cur[claimId] || {};
+        return { ...cur, [claimId]: { ...existing, anexos: (existing.anexos || []).filter((a) => a.id !== anexoId) } };
+      });
+    },
     logAudit(claimId, acao, detalhe) {
       saveRecord("corp_overrides", (current) => {
         const cur = current || {};

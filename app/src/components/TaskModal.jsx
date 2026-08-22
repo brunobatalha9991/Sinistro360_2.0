@@ -8,6 +8,15 @@ import { useStore } from "../hooks/useStore";
 import { taskModalStore, closeTaskModal, takeDemandaPrefill } from "../state/taskModal";
 import { visibleClaims } from "../logic/claims";
 import { txt } from "../logic/format";
+import { CHECKLIST_SEGURADO, CHECKLIST_TERCEIRO, checklistProgresso, checklistVazio } from "../logic/checklistMesaAtendimento";
+import { FORMULARIOS_SOLICITACAO, formularioDisponivel, caminhoPastaSolicitacao } from "../logic/solicitacaoAtendimento";
+import { isDriveUploadConfigured, uploadArquivoDrive, CONTEXTO_MESA_ATENDIMENTO } from "../logic/driveUpload";
+
+const ATENDIMENTO_OPCOES = [
+  ["sinistro", "🚗 Sinistro"],
+  ["assistencia_24h", "🛟 Assistência 24h"],
+  ["assistencia_vidros", "🪟 Assistência de vidros e pequenos reparos"],
+];
 
 function ProcSearch({ value, onChange, claims }) {
   const [q, setQ] = useState(value.label || "");
@@ -44,6 +53,114 @@ function ProcSearch({ value, onChange, claims }) {
           ))}
         </div>
       )}
+    </div>
+  );
+}
+
+// Campo de upload de anexo do formulário de Solicitação — envia pro Google
+// Drive via Apps Script (logic/driveUpload.js), sem exigir login Google do
+// usuário. Guarda no valor do campo uma lista de {nome, url, id}.
+function CampoArquivo({ campo, valores, onChange, endpoint, uploadOk, pasta }) {
+  const [enviando, setEnviando] = useState(false);
+  const [erro, setErro] = useState(null);
+  const arquivos = valores[campo.id] || [];
+
+  async function handleFiles(fileList) {
+    const lista = Array.from(fileList || []);
+    if (!lista.length) return;
+    setEnviando(true); setErro(null);
+    try {
+      const enviados = [];
+      for (const file of lista) {
+        enviados.push(await uploadArquivoDrive({ endpoint, file, pasta, contexto: CONTEXTO_MESA_ATENDIMENTO }));
+      }
+      onChange({ ...valores, [campo.id]: [...arquivos, ...enviados] });
+    } catch (e) {
+      setErro(e.message);
+    } finally {
+      setEnviando(false);
+    }
+  }
+  function remover(idx) {
+    const next = arquivos.slice(); next.splice(idx, 1);
+    onChange({ ...valores, [campo.id]: next });
+  }
+
+  return (
+    <div>
+      {!uploadOk ? (
+        <p className="muted" style={{ fontSize: 11.5, margin: 0 }}>Configure o upload de anexos em Configurações para habilitar este campo.</p>
+      ) : (
+        <input type="file" multiple={campo.maxArquivos > 1} disabled={enviando} onChange={(e) => { handleFiles(e.target.files); e.target.value = ""; }} />
+      )}
+      {enviando && <div className="muted" style={{ fontSize: 11.5, marginTop: 4 }}>Enviando...</div>}
+      {erro && <div style={{ color: "var(--danger)", fontSize: 11.5, marginTop: 4 }}>{erro}</div>}
+      {arquivos.map((a, idx) => (
+        <div key={idx} style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12, marginTop: 4 }}>
+          <a href={a.url} target="_blank" rel="noreferrer">📎 {a.nome} ↗</a>
+          <a style={{ color: "var(--danger)", cursor: "pointer" }} onClick={() => remover(idx)}>✕</a>
+        </div>
+      ))}
+      <div className="muted" style={{ fontSize: 10.5, marginTop: 2 }}>Até {campo.maxArquivos} arquivo(s), {campo.maxTamanhoMb}MB cada.</div>
+    </div>
+  );
+}
+
+// Formulário de solicitação de atendimento — a pedido do usuário, espelha
+// os Google Forms já usados pela operação (ver logic/solicitacaoAtendimento.js).
+// Usado tanto por analistas/atendentes quanto por usuários "consulta" para
+// registrar o pedido de atendimento antes da abertura do sinistro.
+function SolicitacaoFields({ tipoAtendimento, valores, onChange, config, pastaDrive }) {
+  const def = FORMULARIOS_SOLICITACAO[tipoAtendimento];
+  const v = valores || {};
+  const uploadOk = isDriveUploadConfigured(config);
+  const endpoint = config.corp_drive_upload_endpoint || "";
+  function setCampo(id, valor) { onChange({ ...v, [id]: valor }); }
+
+  if (!def) {
+    return (
+      <div style={{ marginTop: 10, border: "1px solid var(--border)", borderRadius: 8, padding: 12, background: "var(--surface-2)" }}>
+        <p className="muted" style={{ margin: 0, fontSize: 13 }}>
+          O formulário de solicitação para este tipo de atendimento ainda não foi configurado no sistema.
+        </p>
+      </div>
+    );
+  }
+
+  const secoes = [];
+  def.campos.forEach((c) => { if (c.secao && secoes.indexOf(c.secao) < 0) secoes.push(c.secao); });
+
+  return (
+    <div style={{ marginTop: 10, border: "1px solid var(--border)", borderRadius: 8, padding: 14, background: "var(--surface-2)" }}>
+      <div style={{ fontWeight: 700, fontSize: 13 }}>{def.titulo}</div>
+      {secoes.map((secao) => {
+        if (def.secaoVisivel && !def.secaoVisivel(secao, v)) return null;
+        return (
+          <div key={secao}>
+            <div className="muted" style={{ fontSize: 11.5, fontWeight: 700, textTransform: "uppercase", letterSpacing: ".4px", marginTop: 12, marginBottom: 4 }}>{secao}</div>
+            {def.campos.filter((c) => c.secao === secao).map((campo) => (
+              <div className="field" key={campo.id} style={{ marginTop: 8 }}>
+                <label>{campo.label}{campo.obrigatorio ? " *" : ""}</label>
+                {campo.ajuda && <div className="muted" style={{ fontSize: 11, marginBottom: 4 }}>{campo.ajuda}</div>}
+                {campo.tipo === "select" ? (
+                  <select value={v[campo.id] || ""} onChange={(e) => setCampo(campo.id, e.target.value)}>
+                    <option value="">Selecione...</option>
+                    {campo.opcoes.map((op) => <option key={op} value={op}>{op}</option>)}
+                  </select>
+                ) : campo.tipo === "textarea" ? (
+                  <textarea rows={3} value={v[campo.id] || ""} onChange={(e) => setCampo(campo.id, e.target.value)} />
+                ) : campo.tipo === "datahora" ? (
+                  <input type="datetime-local" value={v[campo.id] || ""} onChange={(e) => setCampo(campo.id, e.target.value)} />
+                ) : campo.tipo === "arquivo" ? (
+                  <CampoArquivo campo={campo} valores={v} onChange={onChange} endpoint={endpoint} uploadOk={uploadOk} pasta={pastaDrive} />
+                ) : (
+                  <input value={v[campo.id] || ""} onChange={(e) => setCampo(campo.id, e.target.value)} />
+                )}
+              </div>
+            ))}
+          </div>
+        );
+      })}
     </div>
   );
 }
@@ -103,7 +220,7 @@ export function TaskModal() {
   const tasks = records.corp_tasks || [];
   const users = records.corp_users || [];
   const claims = visibleClaims(records.corp_claims);
-  const taskTypes = (config.corp_task_types && config.corp_task_types.length ? config.corp_task_types : ["Comunicação", "Lembrete", "Tarefa"]);
+  const taskTypes = (config.corp_task_types && config.corp_task_types.length ? config.corp_task_types : ["Comunicação", "Lembrete", "Tarefa", "Mesa de Atendimento"]);
   const editing = open && taskId ? tasks.find((t) => t.id === taskId) : null;
   const souOrigem = editing ? editing.origem === currentUser.id : true;
 
@@ -116,6 +233,11 @@ export function TaskModal() {
   const [anexo, setAnexo] = useState("");
   const [obs, setObs] = useState("");
   const [processoId, setProcessoId] = useState("");
+  const [tipoAtendimento, setTipoAtendimento] = useState("");
+  const [checklistMesa, setChecklistMesa] = useState(checklistVazio());
+  const [solicitacao, setSolicitacao] = useState(null);
+  const [solicitacaoAberta, setSolicitacaoAberta] = useState(false);
+  const [pastaDriveId, setPastaDriveId] = useState("");
 
   useEffect(() => {
     if (!open) return;
@@ -125,9 +247,15 @@ export function TaskModal() {
       const sel = {}; (editing.destinatarios || []).forEach((id) => { sel[id] = true; });
       setDestSel(sel);
       setAnexo(editing.anexo || ""); setObs(editing.obs || ""); setProcessoId(editing.processo || "");
+      setTipoAtendimento(editing.tipoAtendimento || ""); setChecklistMesa(editing.checklistMesa || checklistVazio());
+      setSolicitacao(editing.solicitacao || null); setSolicitacaoAberta(false);
+      setPastaDriveId(editing.id);
     } else {
       setTipo(taskTypes[0]); setUrgencia("Leve"); setStatus("Pendente");
       setDestSel({}); setAnexo(""); setObs(""); setProcessoId("");
+      setTipoAtendimento(""); setChecklistMesa(checklistVazio());
+      setSolicitacao(null); setSolicitacaoAberta(false);
+      setPastaDriveId("sol_" + Math.random().toString(36).slice(2, 9));
       const prefill = takeDemandaPrefill();
       setTitulo(prefill?.titulo || ""); setDescricao(prefill?.descricao || "");
     }
@@ -137,6 +265,12 @@ export function TaskModal() {
   if (!open) return null;
 
   const procClaim = processoId ? claims.find((c) => c.id === processoId) : null;
+  const isMesaAtendimento = tipo === "Mesa de Atendimento";
+  const progresso = checklistProgresso(checklistMesa);
+
+  function toggleChecklistItem(id) {
+    setChecklistMesa((c) => ({ ...c, itens: { ...c.itens, [id]: !c.itens[id] } }));
+  }
 
   function salvar() {
     const t = souOrigem ? titulo.trim() : editing ? editing.titulo : "";
@@ -147,7 +281,8 @@ export function TaskModal() {
     if (editing) {
       const antigoStatus = editing.status;
       const atual = {
-        ...editing, tipo, urgencia, status, anexo, obs, processo: processoId, destinatarios: dests,
+        ...editing, tipo, urgencia, status, anexo, obs, processo: processoId, destinatarios: dests, tipoAtendimento,
+        ...(tipo === "Mesa de Atendimento" ? { checklistMesa, solicitacao } : {}),
         ...(souOrigem ? { titulo: t, descricao } : {}),
         ...(status === "Concluído" && antigoStatus !== "Concluído" ? { concludedAt: new Date().toISOString() } : {}),
       };
@@ -156,7 +291,8 @@ export function TaskModal() {
     } else {
       const novo = {
         id: "tsk_" + Math.random().toString(36).slice(2, 9), tipo, titulo: t, origem: currentUser.id, destinatarios: dests,
-        descricao, anexo, obs, status, urgencia, processo: processoId,
+        descricao, anexo, obs, status, urgencia, processo: processoId, tipoAtendimento,
+        ...(tipo === "Mesa de Atendimento" ? { checklistMesa, solicitacao } : {}),
         createdAt: new Date().toISOString(), updatedAt: new Date().toISOString(), log: [], comments: [],
       };
       actions.createTask(novo);
@@ -184,6 +320,27 @@ export function TaskModal() {
             <select value={urgencia} onChange={(e) => setUrgencia(e.target.value)}>{["Leve", "Moderado", "Urgente"].map((s) => <option key={s} value={s}>{s}</option>)}</select>
           </div>
         </div>
+
+        <div className="field">
+          <label>Atendimento</label>
+          <div className="chips">
+            {ATENDIMENTO_OPCOES.map(([k, label]) => (
+              <div key={k} className={"chip-btn" + (tipoAtendimento === k ? " active" : "")} onClick={() => setTipoAtendimento(tipoAtendimento === k ? "" : k)}>{label}</div>
+            ))}
+          </div>
+          {isMesaAtendimento && tipoAtendimento && (
+            <div style={{ marginTop: 8, display: "flex", gap: 8, alignItems: "center" }}>
+              <button type="button" className="btn sec sm" onClick={() => setSolicitacaoAberta((v) => !v)}>
+                📋 Solicitação {solicitacao ? "(preenchida)" : ""}
+              </button>
+              {!formularioDisponivel(tipoAtendimento) && <span className="muted" style={{ fontSize: 11.5 }}>Formulário deste atendimento ainda não configurado.</span>}
+            </div>
+          )}
+        </div>
+
+        {isMesaAtendimento && tipoAtendimento && solicitacaoAberta && (
+          <SolicitacaoFields tipoAtendimento={tipoAtendimento} valores={solicitacao} onChange={setSolicitacao} config={config} pastaDrive={caminhoPastaSolicitacao(tipoAtendimento, solicitacao, pastaDriveId)} />
+        )}
 
         <div className="field"><label>Título</label>
           {souOrigem
@@ -226,6 +383,41 @@ export function TaskModal() {
           <label>Vincular a processo existente</label>
           <ProcSearch value={{ label: procClaim ? (procClaim.numsin || "#" + procClaim.nosnum) + " — " + txt(procClaim.segurado) : "" }} onChange={setProcessoId} claims={claims} />
         </div>
+
+        {isMesaAtendimento && (
+          <div style={{ marginTop: 14, borderTop: "1px solid var(--line)", paddingTop: 14 }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+              <label style={{ marginBottom: 0 }}>Checklist de abertura de sinistro</label>
+              <span className={"badge " + (progresso.total && progresso.feitos === progresso.total ? "green" : "amber")}>{progresso.feitos}/{progresso.total}</span>
+            </div>
+            <div className="muted" style={{ fontSize: 11, marginBottom: 8 }}>Marque cada item conforme for coletado — não é um formulário, só o acompanhamento do que falta.</div>
+
+            <div className="muted" style={{ fontSize: 12, fontWeight: 700, marginBottom: 4 }}>Segurado</div>
+            {CHECKLIST_SEGURADO.map((item) => (
+              <label key={item.id} style={{ display: "flex", gap: 8, alignItems: "center", padding: "3px 0", cursor: "pointer", fontSize: 13 }}>
+                <input type="checkbox" checked={!!checklistMesa.itens[item.id]} onChange={() => toggleChecklistItem(item.id)} />
+                <span style={checklistMesa.itens[item.id] ? { textDecoration: "line-through", opacity: .6 } : undefined}>{item.label}</span>
+              </label>
+            ))}
+
+            <label style={{ display: "flex", gap: 8, alignItems: "center", padding: "8px 0", marginTop: 6, borderTop: "1px dashed var(--line)", cursor: "pointer" }}>
+              <input type="checkbox" checked={checklistMesa.temTerceiro} onChange={() => setChecklistMesa((c) => ({ ...c, temTerceiro: !c.temTerceiro }))} />
+              <b style={{ fontSize: 13 }}>Houve terceiro envolvido?</b>
+            </label>
+
+            {checklistMesa.temTerceiro && (
+              <>
+                <div className="muted" style={{ fontSize: 12, fontWeight: 700, margin: "6px 0 4px" }}>Terceiro</div>
+                {CHECKLIST_TERCEIRO.map((item) => (
+                  <label key={item.id} style={{ display: "flex", gap: 8, alignItems: "center", padding: "3px 0", cursor: "pointer", fontSize: 13 }}>
+                    <input type="checkbox" checked={!!checklistMesa.itens[item.id]} onChange={() => toggleChecklistItem(item.id)} />
+                    <span style={checklistMesa.itens[item.id] ? { textDecoration: "line-through", opacity: .6 } : undefined}>{item.label}</span>
+                  </label>
+                ))}
+              </>
+            )}
+          </div>
+        )}
 
         <div style={{ display: "flex", gap: 8, marginTop: 6 }}>
           <button className="btn" onClick={salvar}>{editing ? "Salvar alterações" : "Criar tarefa"}</button>

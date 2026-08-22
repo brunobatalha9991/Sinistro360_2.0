@@ -14,6 +14,7 @@ import { CommsPanel } from "../components/detail/CommsPanel.jsx";
 import { NextActionPanel } from "../components/detail/NextActionPanel.jsx";
 import { LinksPanel } from "../components/detail/LinksPanel.jsx";
 import { AuditPanel } from "../components/detail/AuditPanel.jsx";
+import { AnexosPanel } from "../components/detail/AnexosPanel.jsx";
 import { visibleClaims, relatedClaims } from "../logic/claims";
 import { mapSituacao } from "../logic/situacao";
 import { isAdmin, canEdit as canEditRole } from "../data/auth";
@@ -55,6 +56,7 @@ export function Sinistro() {
     ["financeiro", "Financeiro"],
     ["atendimento", "Atendimento"],
     ["vinculos", `Vínculos (${rel.length})`],
+    ["anexos", "Anexos"],
     ["auditoria", "Auditoria Interna"],
     ["raw", "Dados brutos (API)"],
   ];
@@ -66,6 +68,7 @@ export function Sinistro() {
       case "proxima": return <NextActionPanel c={c} overrides={overrides} actions={actions} canEdit={canEdit} />;
       case "auditoria": return <AuditPanel c={c} overrides={overrides} records={records} />;
       case "vinculos": return <LinksPanel c={c} claims={claims} allClaimsRaw={allClaimsRaw} overrides={overrides} actions={actions} navigate={navigate} setDetailTab={setDetailTab} />;
+      case "anexos": return <AnexosPanel c={c} overrides={overrides} config={config} actions={actions} canEdit={canEdit} currentUser={currentUser} />;
       case "geral": return <GeralPanel c={c} claims={claims} overrides={overrides} actions={actions} canEdit={canEdit} />;
       case "financeiro": return <FinancePanel c={c} overrides={overrides} actions={actions} canEdit={canEdit} />;
       case "atendimento": return <AtendimentoPanel c={c} claims={claims} overrides={overrides} actions={actions} canEdit={canEdit} />;
