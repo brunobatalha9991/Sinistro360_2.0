@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { EmptyState } from "../EmptyState.jsx";
 import { useAuth } from "../../hooks/useAuth";
-import { loadComms, currentStage, allJourneyStages } from "../../logic/claims";
+import { loadComms, currentStage, allJourneyStages, journeyStageStatusMap, journeyStageLabel } from "../../logic/claims";
 import { fmtDateBR, todayISO, txt } from "../../logic/format";
 import { generateContent, isGeminiConfigured } from "../../ai/geminiApi.js";
 import { takeComsPrefill } from "../../state/comsPrefill";
@@ -138,8 +138,9 @@ export function CommsPanel({ c, overrides, actions, canEdit, config }) {
   const list = loadComms(overrides, c.id).slice().reverse();
   const templates = (config && config.corp_journey_templates) || {};
   const atendTemplateCfg = config && config.corp_atendimento_template;
-  const etapaAtual = currentStage(overrides, templates, atendTemplateCfg, c) || "";
-  const titulosEtapas = allJourneyStages(templates, atendTemplateCfg);
+  const statusEtapas = journeyStageStatusMap(overrides, c.id);
+  const etapaAtual = journeyStageLabel(currentStage(overrides, templates, atendTemplateCfg, c) || "", statusEtapas);
+  const titulosEtapas = allJourneyStages(templates, atendTemplateCfg).map((t) => journeyStageLabel(t, statusEtapas));
 
   const [data, setData] = useState(todayISO());
   const [titulo, setTitulo] = useState(() => etapaAtual);

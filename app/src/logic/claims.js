@@ -326,6 +326,28 @@ export function allJourneyStages(templates, atendTemplateCfg) {
   return out;
 }
 
+// Mapa {título da etapa: status atual} do processo (a pedido do usuário) —
+// usado pra compor o título "Etapa: Status" oferecido no Histórico (ex.:
+// "Vistoria: Aguard. agendamento"), refletindo automaticamente qualquer
+// edição, inclusão ou renovação de etapa feita em Jornada do cliente. Lido
+// direto de uj.steps (que já grava título junto com o status — ver
+// JourneyPanel.setStepField), sem precisar duplicar a lógica de trilhas
+// por caminho/ramo.
+export function journeyStageStatusMap(overrides, claimId) {
+  const steps = (getUserJourney(overrides, claimId) || {}).steps || {};
+  const map = {};
+  Object.values(steps).forEach((sd) => { if (sd && sd.title && sd.status) map[sd.title] = sd.status; });
+  return map;
+}
+// "Vistoria" -> "Vistoria: Aguard. agendamento" quando a etapa já tem
+// status definido; sem status ainda, mantém só o nome da etapa (mesmo
+// comportamento de antes).
+export function journeyStageLabel(title, statusMap) {
+  if (!title) return title;
+  const status = statusMap[title];
+  return status ? `${title}: ${status}` : title;
+}
+
 export function currentStage(overrides, templates, atendTemplateCfg, c) {
   const sit = situacaoEfetiva(overrides, c).label;
   if (sit === "Indenizado" || sit === "Encerrado sem Indenização") return "";
