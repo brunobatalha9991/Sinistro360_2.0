@@ -10,7 +10,7 @@ import { ReplyEmailModal } from "../components/ReplyEmailModal.jsx";
 import { visibleClaims, isManualClaim, emailAlertaDispensado, getEmailAlertas } from "../logic/claims";
 import { fmtDateHoraBR, txt } from "../logic/format";
 import { setDemandaPrefill } from "../state/taskModal";
-import { isGmailConfigured, getGmailAccountEmail, getGmailToken, gmailLogin, saveGmailAccountEmail } from "../gmail/googleAuthClient";
+import { isGmailConfigured, getGmailAccountEmail, getGmailToken, gmailLogin, gmailLogout, saveGmailAccountEmail } from "../gmail/googleAuthClient";
 import { fetchInboxMessages, fetchGmailProfile, trashMessage, sendRawMessage, modifyLabels, baixarAnexoGmail } from "../logic/gmailApi";
 import { buildRawMessage } from "../logic/gmailCompose";
 import { encontrarProcessosNoEmail, MOTIVO_LABEL } from "../logic/emailMatching";
@@ -89,6 +89,18 @@ export function Emails() {
     } catch (e) {
       setErro(e.message || "Falha ao conectar com o Gmail.");
     }
+  }
+
+  // Desconectar direto por aqui (a pedido do usuário): a sessão do Gmail
+  // expira sozinha de vez em quando, e nem todo usuário tem acesso a
+  // Configurações pra desconectar/reconectar por lá — precisa dar pra
+  // resolver sem sair do módulo E-mails.
+  function desconectar() {
+    gmailLogout();
+    setConta(null);
+    setEmails([]);
+    setMatches({});
+    setErro(null);
   }
 
   async function carregarCaixaEntrada() {
@@ -300,9 +312,12 @@ export function Emails() {
           <>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 8 }}>
               <span className="badge green">Conectado como {conta}</span>
-              <button className="btn sec sm" disabled={carregando} onClick={carregarCaixaEntrada}>
-                {carregando ? "Carregando..." : "Atualizar caixa de entrada"}
-              </button>
+              <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                <button className="btn sec sm" disabled={carregando} onClick={carregarCaixaEntrada}>
+                  {carregando ? "Carregando..." : "Atualizar caixa de entrada"}
+                </button>
+                <button className="btn sec sm" onClick={desconectar}>Desconectar</button>
+              </div>
             </div>
             {erro && <div style={{ color: "var(--danger)", fontSize: 13, marginTop: 10 }}>{erro}</div>}
           </>
