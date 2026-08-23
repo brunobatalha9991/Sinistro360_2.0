@@ -37,7 +37,7 @@ function PainelItem({ cor, titulo, acoes, children, ultimo }) {
 function EmailAlertBox({ alertas, onVer, onUsar, onDispensar }) {
   const a = alertas[0];
   return (
-    <div style={{ borderRadius: 8, padding: "10px 12px", background: "rgba(var(--info-rgb),.08)", border: "1px solid rgba(var(--info-rgb),.3)" }}>
+    <div style={{ minWidth: 0, overflow: "hidden", borderRadius: 8, padding: "10px 12px", background: "rgba(var(--info-rgb),.08)", border: "1px solid rgba(var(--info-rgb),.3)" }}>
       <div style={{ fontSize: 11, fontWeight: 700, color: "var(--info)", textTransform: "uppercase", letterSpacing: ".5px" }}>
         ✉ E-mail{alertas.length > 1 ? ` (${alertas.length})` : ""}
       </div>
@@ -55,12 +55,12 @@ function EmailAlertBox({ alertas, onVer, onUsar, onDispensar }) {
 function ResponsavelBox({ c, users, overrides, actions, canEdit }) {
   const atual = getResponsavel(overrides, c.id);
   return (
-    <div className={"responsavel-box" + (!atual ? " needs-attention" : "")} style={{ borderRadius: 8, padding: "10px 12px", ...(atual ? { background: "var(--surface-2)", border: "1px solid var(--border)" } : {}) }}>
+    <div className={"responsavel-box" + (!atual ? " needs-attention" : "")} style={{ minWidth: 0, overflow: "hidden", borderRadius: 8, padding: "10px 12px", ...(atual ? { background: "var(--surface-2)", border: "1px solid var(--border)" } : {}) }}>
       <div style={{ fontSize: 11, fontWeight: 700, color: !atual ? "var(--warn)" : "var(--ink-soft)", textTransform: "uppercase", letterSpacing: ".5px" }}>
         {!atual ? "⚠ Responsável" : "Responsável"}
       </div>
       <select
-        className="inline" style={{ minWidth: 180, marginTop: 6 }} value={atual ? atual.id : ""}
+        className="inline" style={{ width: "100%", marginTop: 6 }} value={atual ? atual.id : ""}
         onChange={(e) => {
           if (!canEdit) { alert("Seu perfil é apenas de consulta. Você pode visualizar, mas não editar processos."); return; }
           const uid = e.target.value;
@@ -176,9 +176,9 @@ export function DetailHeader({ c, sit, rel, claims, allClaimsRaw, overrides, use
         )}
       </div>
 
-      <div style={{ width: 320, flexShrink: 0 }}>
+      <div style={{ width: 320, flexShrink: 0, minWidth: 0, overflow: "hidden" }}>
         {emailAlertas.length > 0 ? (
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
+          <div style={{ display: "grid", gridTemplateColumns: "minmax(0,1fr) minmax(0,1fr)", gap: 8 }}>
             <EmailAlertBox
               alertas={emailAlertas}
               onVer={() => setEmailAberto(emailAlertas[0])}
