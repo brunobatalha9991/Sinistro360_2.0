@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { decodeBase64Url, extractText, headerValue } from "./gmailApi";
+import { decodeBase64Url, extractText, headerValue, extractAttachments } from "./gmailApi";
 
 function toBase64Url(s) {
   const bytes = new TextEncoder().encode(s);
@@ -49,5 +49,24 @@ describe("extractText", () => {
   });
   it("payload nulo não quebra", () => {
     expect(extractText(null)).toBe("");
+  });
+});
+
+describe("extractAttachments", () => {
+  it("acha anexos dentro de multipart, ignorando as partes de texto", () => {
+    const payload = {
+      parts: [
+        { mimeType: "text/plain", body: { data: "abc" } },
+        { filename: "boletim.pdf", mimeType: "application/pdf", body: { attachmentId: "att1", size: 12345 } },
+      ],
+    };
+    const out = extractAttachments(payload);
+    expect(out).toEqual([{ attachmentId: "att1", filename: "boletim.pdf", mimeType: "application/pdf", size: 12345 }]);
+  });
+  it("sem anexos, devolve array vazio", () => {
+    expect(extractAttachments({ body: { data: "abc" } })).toEqual([]);
+  });
+  it("payload nulo não quebra", () => {
+    expect(extractAttachments(null)).toEqual([]);
   });
 });

@@ -6,7 +6,14 @@
 // então não sofre do mesmo bloqueio de admin do Microsoft 365. Passo a
 // passo de cadastro gratuito no Google Cloud Console em
 // docs/gmail-integracao.md.
-const SCOPE = "https://www.googleapis.com/auth/gmail.readonly";
+// Ampliado (a pedido do usuário) além da leitura: gmail.modify pra
+// excluir/mover e-mails (rótulos/pastas) e gmail.send pra responder direto
+// pelo sistema. Isso muda o consentimento pedido — quem já conectou com o
+// escopo antigo (só leitura) precisa clicar em "Conectar com Gmail" de
+// novo pra autorizar as permissões novas. Os dois escopos novos são
+// "sensíveis" no Google e precisam estar cadastrados na Tela de
+// Consentimento OAuth (ver docs/gmail-integracao.md).
+const SCOPE = "https://www.googleapis.com/auth/gmail.readonly https://www.googleapis.com/auth/gmail.modify https://www.googleapis.com/auth/gmail.send";
 const TOKEN_KEY = "gmail_access_token";
 const TOKEN_EXP_KEY = "gmail_token_exp";
 const EMAIL_KEY = "gmail_account_email";

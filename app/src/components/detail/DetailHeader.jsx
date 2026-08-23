@@ -30,6 +30,28 @@ function PainelItem({ cor, titulo, acoes, children, ultimo }) {
   );
 }
 
+// Compacto o bastante pra ficar lado a lado com Responsável (a pedido do
+// usuário) — versão reduzida do que era um PainelItem dentro de
+// "Acompanhamento"; "Ver completo"/"Transformar"/"Dispensar" continuam
+// valendo, só com rótulos mais curtos pra caber na largura menor.
+function EmailAlertBox({ alertas, onVer, onUsar, onDispensar }) {
+  const a = alertas[0];
+  return (
+    <div style={{ borderRadius: 8, padding: "10px 12px", background: "rgba(var(--info-rgb),.08)", border: "1px solid rgba(var(--info-rgb),.3)" }}>
+      <div style={{ fontSize: 11, fontWeight: 700, color: "var(--info)", textTransform: "uppercase", letterSpacing: ".5px" }}>
+        ✉ E-mail{alertas.length > 1 ? ` (${alertas.length})` : ""}
+      </div>
+      <div style={{ fontWeight: 600, fontSize: 12, marginTop: 4, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }} title={a.assunto}>{a.assunto}</div>
+      <div className="muted" style={{ fontSize: 11 }}>{txt(a.remetente)}</div>
+      <div style={{ display: "flex", gap: 4, marginTop: 6, flexWrap: "wrap" }}>
+        <button className="btn sec xs" onClick={onVer}>Ver</button>
+        <button className="btn xs" onClick={onUsar}>Usar</button>
+        <button className="btn sec xs" onClick={onDispensar}>✕</button>
+      </div>
+    </div>
+  );
+}
+
 function ResponsavelBox({ c, users, overrides, actions, canEdit }) {
   const atual = getResponsavel(overrides, c.id);
   return (
@@ -112,6 +134,22 @@ export function DetailHeader({ c, sit, rel, claims, allClaimsRaw, overrides, use
           {isManualClaim(c) && <span className="badge purple" title={"Criado por " + (c.criadoPor || "—")}>✎ Criado manualmente</span>}
           <span className={"badge " + situacaoEfe.cls}>{situacaoEfe.label}</span>
           {rel.length ? <span className="badge purple">{rel.length} processo(s) vinculado(s)</span> : <span className="badge gray">Sem vínculos</span>}
+        </div>
+
+        <div className="detail-badges" style={{ alignItems: "center", marginTop: 8 }}>
+          <span className="badge chip-live blue" style={{ gap: 6 }}>
+            <select className="inline" value={sitAt} onChange={(e) => changeSit(e.target.value)}>
+              <option value="">Situação...</option>
+              {sitOpts.map((op) => <option key={op} value={op}>{op}</option>)}
+            </select>
+            {isAdminUser && (
+              <span style={{ display: "inline-flex", gap: 4, marginLeft: 4 }}>
+                <button className="btn sec xs" title="Adicionar" onClick={() => { const v = prompt("Nova situação:"); if (v) saveConfig("corp_sit_options", (cur) => [...(cur && cur.length ? cur : DEFAULT_SIT_OPTIONS), v.trim()]); }}>+</button>
+                <button className="btn sec xs" title="Editar atual" onClick={() => { if (!sitAt) { alert("Selecione uma situação para editar."); return; } const nv = prompt("Editar situação:", sitAt); if (nv) { saveConfig("corp_sit_options", (cur) => (cur && cur.length ? cur : DEFAULT_SIT_OPTIONS).map((x) => (x === sitAt ? nv.trim() : x))); changeSit(nv.trim()); } }}>✎</button>
+                <button className="btn sec xs" title="Remover atual" onClick={() => { if (!sitAt) { alert("Selecione uma situação para remover."); return; } if (confirm(`Remover "${sitAt}" da lista?`)) { saveConfig("corp_sit_options", (cur) => (cur && cur.length ? cur : DEFAULT_SIT_OPTIONS).filter((x) => x !== sitAt)); changeSit(""); } }}>✕</button>
+              </span>
+            )}
+          </span>
 
           <span className={"badge chip-live " + tempClr + (tempUrgente ? " neon-alert" : "")} style={{ gap: 6, ...(tempUrgente ? { "--neon-rgb": "var(--danger-rgb)" } : {}) }} title={tempUrgente ? "Atendimento requer atenção" : ""}>
             <select className="inline" value={temp} onChange={(e) => changeTemp(e.target.value)}>
@@ -128,20 +166,6 @@ export function DetailHeader({ c, sit, rel, claims, allClaimsRaw, overrides, use
           </span>
 
           {caminho ? <span className={"badge " + (caminho === "integral" ? "red" : "blue")}>{caminho === "integral" ? "Perda Integral" : "Perda Parcial"}</span> : <span className="badge gray">Caminho não definido</span>}
-
-          <span className="badge chip-live blue" style={{ gap: 6 }}>
-            <select className="inline" value={sitAt} onChange={(e) => changeSit(e.target.value)}>
-              <option value="">Situação...</option>
-              {sitOpts.map((op) => <option key={op} value={op}>{op}</option>)}
-            </select>
-            {isAdminUser && (
-              <span style={{ display: "inline-flex", gap: 4, marginLeft: 4 }}>
-                <button className="btn sec xs" title="Adicionar" onClick={() => { const v = prompt("Nova situação:"); if (v) saveConfig("corp_sit_options", (cur) => [...(cur && cur.length ? cur : DEFAULT_SIT_OPTIONS), v.trim()]); }}>+</button>
-                <button className="btn sec xs" title="Editar atual" onClick={() => { if (!sitAt) { alert("Selecione uma situação para editar."); return; } const nv = prompt("Editar situação:", sitAt); if (nv) { saveConfig("corp_sit_options", (cur) => (cur && cur.length ? cur : DEFAULT_SIT_OPTIONS).map((x) => (x === sitAt ? nv.trim() : x))); changeSit(nv.trim()); } }}>✎</button>
-                <button className="btn sec xs" title="Remover atual" onClick={() => { if (!sitAt) { alert("Selecione uma situação para remover."); return; } if (confirm(`Remover "${sitAt}" da lista?`)) { saveConfig("corp_sit_options", (cur) => (cur && cur.length ? cur : DEFAULT_SIT_OPTIONS).filter((x) => x !== sitAt)); changeSit(""); } }}>✕</button>
-              </span>
-            )}
-          </span>
         </div>
 
         {c.observacoes && String(c.observacoes).trim() && (
@@ -152,8 +176,20 @@ export function DetailHeader({ c, sit, rel, claims, allClaimsRaw, overrides, use
         )}
       </div>
 
-      <div style={{ width: 280, flexShrink: 0 }}>
-        <ResponsavelBox c={c} users={users} overrides={overrides} actions={actions} canEdit={canEdit} />
+      <div style={{ width: 320, flexShrink: 0 }}>
+        {emailAlertas.length > 0 ? (
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
+            <EmailAlertBox
+              alertas={emailAlertas}
+              onVer={() => setEmailAberto(emailAlertas[0])}
+              onUsar={() => usarEmailComoAtualizacao(emailAlertas[0])}
+              onDispensar={() => actions.dismissEmailAlerta(c.id, emailAlertas[0].emailId)}
+            />
+            <ResponsavelBox c={c} users={users} overrides={overrides} actions={actions} canEdit={canEdit} />
+          </div>
+        ) : (
+          <ResponsavelBox c={c} users={users} overrides={overrides} actions={actions} canEdit={canEdit} />
+        )}
 
         <button
           className="btn sec xs" style={{ marginTop: 8, width: "100%" }}
@@ -189,7 +225,7 @@ export function DetailHeader({ c, sit, rel, claims, allClaimsRaw, overrides, use
             cor={semAtualizacao ? "var(--danger)" : "var(--ink-soft)"}
             titulo={semAtualizacao ? "⚠ Último histórico (+3 dias)" : "Último histórico"}
             acoes={<button className="btn sec xs" onClick={() => setDetailTab("historico")}>Abrir histórico</button>}
-            ultimo={!emailAlertas.length}
+            ultimo
           >
             {last ? (
               <>
@@ -201,24 +237,6 @@ export function DetailHeader({ c, sit, rel, claims, allClaimsRaw, overrides, use
               </>
             ) : <div className="muted" style={{ fontSize: 11.5, marginTop: 2 }}>Nenhum histórico registrado.</div>}
           </PainelItem>
-
-          {emailAlertas.length > 0 && (
-            <PainelItem
-              cor="var(--info)"
-              titulo={`✉ E-mail identificado${emailAlertas.length > 1 ? ` (${emailAlertas.length})` : ""}`}
-              ultimo
-              acoes={
-                <>
-                  <button className="btn sec xs" onClick={() => setEmailAberto(emailAlertas[0])}>Ver completo</button>
-                  <button className="btn xs" onClick={() => usarEmailComoAtualizacao(emailAlertas[0])}>Transformar em atualização</button>
-                  <button className="btn sec xs" onClick={() => actions.dismissEmailAlerta(c.id, emailAlertas[0].emailId)}>Dispensar</button>
-                </>
-              }
-            >
-              <div style={{ fontWeight: 600, fontSize: 12.5, marginTop: 2 }}>{emailAlertas[0].assunto}</div>
-              <div className="muted" style={{ fontSize: 11.5 }}>{txt(emailAlertas[0].remetente)} • {fmtDateHoraBR(emailAlertas[0].recebidoEm)}</div>
-            </PainelItem>
-          )}
         </div>
       </div>
 

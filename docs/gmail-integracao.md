@@ -10,8 +10,10 @@ isso de novo, use uma conta Gmail pessoal (@gmail.com) mesmo.
 
 Assim como no Outlook, ninguém vê sua senha do Google em momento nenhum —
 o login acontece na tela oficial do Google, e o Sinistro360 só recebe de
-volta um token temporário, com permissão só de **leitura** de e-mail
-(`gmail.readonly`).
+volta um token temporário. Hoje o sistema pede três permissões: ler e-mail
+(`gmail.readonly`), mover/organizar e-mail em pastas (`gmail.modify`) e
+enviar e-mail (`gmail.send`) — essa última só é usada quando você clica em
+"Enviar" no botão "Responder" dentro do sistema, nunca automaticamente.
 
 ## Passo a passo
 
@@ -33,6 +35,17 @@ volta um token temporário, com permissão só de **leitura** de e-mail
      (enquanto o app estiver em modo "Teste", só esses e-mails conseguem
      logar — é justamente isso que evita precisar da revisão do Google,
      que demora e não é gratuita pra escopos sensíveis).
+   - Na etapa **"Dados de acesso"/"Escopos"** ("Scopes"), clique em
+     **"Adicionar ou remover escopos"** e marque, além do
+     `.../auth/gmail.readonly` que já deve estar lá, também
+     `.../auth/gmail.modify` e `.../auth/gmail.send` (aparecem na lista
+     como "Ler, compor, enviar e excluir permanentemente e-mail..." /
+     "Gerenciar rótulos..." — marque as opções da **Gmail API**, não do
+     Gmail "básico"). Salve.
+   - **Se você já tinha conectado o Gmail antes** dessa mudança, precisa
+     desconectar e conectar de novo no sistema (Configurações → E-mails ou
+     no módulo E-mails) pra que a tela do Google peça essas novas
+     permissões — o token antigo só tinha a de leitura.
 
 4. Ainda em "APIs e serviços", vá em **"Biblioteca"**, busque **"Gmail API"**
    e clique em **"Ativar"**.

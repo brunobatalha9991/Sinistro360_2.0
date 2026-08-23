@@ -6,12 +6,22 @@ import { useEmailStateActions } from "../hooks/useEmailStateActions";
 import { EmptyState } from "../components/EmptyState.jsx";
 import { ProcSearch } from "../components/ProcSearch.jsx";
 import { EmailViewerModal } from "../components/EmailViewerModal.jsx";
+import { ReplyEmailModal } from "../components/ReplyEmailModal.jsx";
 import { visibleClaims, isManualClaim, emailAlertaDispensado } from "../logic/claims";
 import { fmtDateHoraBR, txt } from "../logic/format";
 import { setDemandaPrefill } from "../state/taskModal";
 import { isGmailConfigured, getGmailAccountEmail, getGmailToken, gmailLogin, saveGmailAccountEmail } from "../gmail/googleAuthClient";
-import { fetchInboxMessages, fetchGmailProfile } from "../logic/gmailApi";
+import { fetchInboxMessages, fetchGmailProfile, trashMessage, sendRawMessage, modifyLabels, fetchAttachmentData } from "../logic/gmailApi";
+import { buildRawMessage } from "../logic/gmailCompose";
 import { encontrarProcessosNoEmail, MOTIVO_LABEL } from "../logic/emailMatching";
+import { encontrarRegraAplicavel } from "../logic/emailRules";
+
+function fmtBytes(n) {
+  if (!n) return "";
+  if (n < 1024) return `${n} B`;
+  if (n < 1024 * 1024) return `${Math.round(n / 1024)} KB`;
+  return `${(n / (1024 * 1024)).toFixed(1)} MB`;
+}
 
 // Vínculo manual de um e-mail não identificado automaticamente — reaproveita
 // o mesmo ProcSearch já usado em Tarefas (vincular a processo existente).
@@ -60,6 +70,10 @@ export function Emails() {
   const [dataDe, setDataDe] = useState("");
   const [dataAte, setDataAte] = useState("");
   const [verArquivados, setVerArquivados] = useState(false);
+  const [selecionados, setSelecionados] = useState({});
+  const [excluindo, setExcluindo] = useState(false);
+  const [respondendo, setRespondendo] = useState(null);
+  const assinatura = config.corp_email_assinatura || "";
 
   useEffect(() => {
     if (configurado && getGmailToken()) setConta(getGmailAccountEmail());
@@ -82,9 +96,30 @@ export function Emails() {
     try {
       const token = getGmailToken();
       if (!token) throw new Error('Sessão do Gmail expirada. Clique em "Conectar com Gmail" de novo.');
-      const lista = await fetchInboxMessages(token, { top: 50 });
+      const brutos = await fetchInboxMessages(token, { top: 50 });
+      const regras = config.corp_email_regras || [];
+      const restantes = [];
+      let movidos = 0;
+      // Regras de pasta (a pedido do usuário): a primeira regra que bater
+      // move o e-mail de verdade no Gmail (sai da INBOX, ganha o rótulo da
+      // pasta) — some da lista aqui também, já que não está mais na caixa
+      // de entrada.
+      for (const email of brutos) {
+        const regra = encontrarRegraAplicavel(email, regras);
+        if (regra) {
+          try {
+            await modifyLabels(token, email.id, { addLabelIds: [regra.labelId], removeLabelIds: ["INBOX"] });
+            movidos++;
+            continue;
+          } catch {
+            // se falhar ao mover, mantém na caixa de entrada normal
+          }
+        }
+        restantes.push(email);
+      }
+
       const novosMatches = {};
-      lista.forEach((email) => {
+      restantes.forEach((email) => {
         const texto = `${email.assunto}\n${email.corpoTexto}`;
         // Não volta a mostrar como identificado um vínculo que o usuário já
         // removeu manualmente antes (mesmo que a identificação automática
@@ -100,12 +135,79 @@ export function Emails() {
           });
         });
       });
-      setEmails(lista);
+      setEmails(restantes);
       setMatches(novosMatches);
+      setSelecionados({});
+      if (movidos) setErro(null);
     } catch (e) {
       setErro(e.message || "Falha ao carregar a caixa de entrada.");
     } finally {
       setCarregando(false);
+    }
+  }
+
+  function toggleSelecionado(emailId) {
+    setSelecionados((s) => ({ ...s, [emailId]: !s[emailId] }));
+  }
+  function toggleSelecionarTodos(lista) {
+    const todosMarcados = lista.length && lista.every((e) => selecionados[e.id]);
+    setSelecionados((s) => {
+      const next = { ...s };
+      lista.forEach((e) => { next[e.id] = !todosMarcados; });
+      return next;
+    });
+  }
+  const idsSelecionados = Object.keys(selecionados).filter((id) => selecionados[id]);
+
+  // Exclui de verdade no Gmail — vai pra Lixeira (reversível por lá, até 30
+  // dias), não é apagado pra sempre.
+  async function excluirSelecionados() {
+    if (!idsSelecionados.length) return;
+    if (!confirm(`Excluir ${idsSelecionados.length} e-mail(s) selecionado(s)? Vão pra Lixeira do Gmail.`)) return;
+    setExcluindo(true); setErro(null);
+    try {
+      const token = getGmailToken();
+      if (!token) throw new Error("Sessão do Gmail expirada.");
+      for (const id of idsSelecionados) {
+        await trashMessage(token, id);
+      }
+      setEmails((atual) => atual.filter((e) => !selecionados[e.id]));
+      setSelecionados({});
+    } catch (e) {
+      setErro(e.message || "Falha ao excluir os e-mails selecionados.");
+    } finally {
+      setExcluindo(false);
+    }
+  }
+
+  async function enviarResposta({ to, cc, assunto, corpo }) {
+    const token = getGmailToken();
+    if (!token) throw new Error("Sessão do Gmail expirada. Conecte de novo.");
+    const raw = buildRawMessage({
+      to, cc, subject: assunto, body: corpo,
+      inReplyTo: respondendo.messageIdHeader, references: respondendo.messageIdHeader,
+    });
+    await sendRawMessage(token, raw);
+  }
+
+  async function baixarAnexo(email, anexo) {
+    setErro(null);
+    try {
+      const token = getGmailToken();
+      if (!token) throw new Error("Sessão do Gmail expirada.");
+      const b64url = await fetchAttachmentData(token, email.id, anexo.attachmentId);
+      const norm = b64url.replace(/-/g, "+").replace(/_/g, "/");
+      const bin = atob(norm);
+      const bytes = new Uint8Array(bin.length);
+      for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+      const blob = new Blob([bytes], { type: anexo.mimeType });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url; a.download = anexo.filename;
+      document.body.appendChild(a); a.click(); document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    } catch (e) {
+      setErro(e.message || "Falha ao baixar o anexo.");
     }
   }
 
@@ -213,6 +315,18 @@ export function Emails() {
             </div>
           </div>
 
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8, marginTop: 10, flexWrap: "wrap" }}>
+            <label style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12.5, cursor: "pointer" }}>
+              <input type="checkbox" checked={!!emailsFiltrados.length && emailsFiltrados.every((e) => selecionados[e.id])} onChange={() => toggleSelecionarTodos(emailsFiltrados)} />
+              Selecionar todos
+            </label>
+            {idsSelecionados.length > 0 && (
+              <button className="btn danger sm" disabled={excluindo} onClick={excluirSelecionados}>
+                {excluindo ? "Excluindo..." : `Excluir selecionados (${idsSelecionados.length})`}
+              </button>
+            )}
+          </div>
+
           <div style={{ display: "flex", flexDirection: "column", gap: 8, marginTop: 10 }}>
             {!emailsFiltrados.length ? (
               <EmptyState>{verArquivados ? "Nenhum e-mail arquivado." : "Nenhum e-mail para este filtro."}</EmptyState>
@@ -229,9 +343,12 @@ export function Emails() {
                   }}
                 >
                   <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 8, flexWrap: "wrap" }}>
-                    <div>
-                      <div style={{ fontWeight: 700, fontSize: 14 }}>{email.assunto}</div>
-                      <div className="muted" style={{ fontSize: 12 }}>{txt(email.remetenteNome || email.remetente)} • {fmtDateHoraBR(email.recebidoEm)}</div>
+                    <div style={{ display: "flex", gap: 8, alignItems: "flex-start" }}>
+                      <input type="checkbox" style={{ marginTop: 3 }} checked={!!selecionados[email.id]} onChange={() => toggleSelecionado(email.id)} />
+                      <div>
+                        <div style={{ fontWeight: 700, fontSize: 14 }}>{email.assunto}</div>
+                        <div className="muted" style={{ fontSize: 12 }}>{txt(email.remetenteNome || email.remetente)} • {fmtDateHoraBR(email.recebidoEm)}</div>
+                      </div>
                     </div>
                     {identificado ? (
                       <span className="badge green">Identificado</span>
@@ -240,6 +357,16 @@ export function Emails() {
                     )}
                   </div>
                   <div style={{ fontSize: 13, marginTop: 6, color: "var(--muted)" }}>{email.resumo}</div>
+
+                  {!!(email.anexos && email.anexos.length) && (
+                    <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginTop: 6 }}>
+                      {email.anexos.map((a) => (
+                        <a key={a.attachmentId} className="badge gray" style={{ cursor: "pointer" }} onClick={() => baixarAnexo(email, a)}>
+                          📎 {a.filename} {a.size ? `(${fmtBytes(a.size)})` : ""}
+                        </a>
+                      ))}
+                    </div>
+                  )}
 
                   {identificado && (
                     <div style={{ marginTop: 8, display: "flex", flexDirection: "column", gap: 4 }}>
@@ -264,6 +391,7 @@ export function Emails() {
 
                   <div style={{ display: "flex", gap: 6, marginTop: 8, flexWrap: "wrap" }}>
                     <button className="btn sec xs" onClick={() => setEmailAberto(email)}>Ver e-mail completo</button>
+                    <button className="btn sec xs" onClick={() => setRespondendo(email)}>Responder</button>
                     <button className="btn sec xs" onClick={() => criarTarefa(email)}>Criar tarefa</button>
                     {verArquivados ? (
                       <button className="btn sec xs" onClick={() => emailState.desarquivar(email.id)}>Desarquivar</button>
@@ -279,6 +407,12 @@ export function Emails() {
       )}
 
       <EmailViewerModal email={emailAberto} onClose={() => setEmailAberto(null)} />
+      {respondendo && (
+        <ReplyEmailModal
+          email={respondendo} assinatura={assinatura}
+          onSend={enviarResposta} onClose={() => setRespondendo(null)}
+        />
+      )}
     </div>
   );
 }

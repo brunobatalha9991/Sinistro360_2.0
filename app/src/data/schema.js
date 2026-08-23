@@ -15,6 +15,8 @@ export const CONFIG_KEYS = [
   "corp_checklist_mesa_atendimento",
   "corp_agentes_catalogo",
   "corp_gmail_cfg",
+  "corp_email_assinatura",
+  "corp_email_regras",
 ];
 
 // Registros grandes/multiusuário: 1 documento por registro.

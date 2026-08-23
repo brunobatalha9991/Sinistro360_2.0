@@ -17,6 +17,8 @@ import { AtendimentoStepsEditor } from "../components/config/AtendimentoStepsEdi
 import { AgentesCatalogoCard } from "../components/config/AgentesCatalogoCard.jsx";
 import { ImportarAgenteProdutorCard } from "../components/config/ImportarAgenteProdutorCard.jsx";
 import { GmailConfigCard } from "../components/config/GmailConfigCard.jsx";
+import { EmailAssinaturaCard } from "../components/config/EmailAssinaturaCard.jsx";
+import { EmailRegrasCard } from "../components/config/EmailRegrasCard.jsx";
 import { visibleClaims, ensureRamoTemplateInto, distinctProdutores, distinctGruposProdutores, getAgentesEfetivo } from "../logic/claims";
 import { getToken, setToken } from "../logic/corpApi";
 
@@ -105,8 +107,10 @@ export function Configuracoes() {
             <DriveUploadConfigCard config={config} saveConfig={saveConfig} canEdit={admin} />
           </ConfigGroup>
 
-          <ConfigGroup title="E-mails (Gmail)" subtitle="Login e identificação automática de processos na caixa de entrada — veja docs/gmail-integracao.md.">
+          <ConfigGroup title="E-mails (Gmail)" subtitle="Login, identificação automática de processos, assinatura e pastas/regras — veja docs/gmail-integracao.md.">
             <GmailConfigCard config={config} saveConfig={saveConfig} canEdit={admin} />
+            <EmailAssinaturaCard config={config} saveConfig={saveConfig} canEdit={admin} />
+            <EmailRegrasCard config={config} saveConfig={saveConfig} canEdit={admin} />
           </ConfigGroup>
 
           <ConfigGroup title="Dados, Migração & IA" subtitle="Importação de histórico, migração de responsabilidade legada e aprovação de memórias da IA.">

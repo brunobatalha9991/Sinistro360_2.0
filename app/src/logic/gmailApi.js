@@ -7,20 +7,26 @@ const GMAIL_BASE = "https://gmail.googleapis.com/gmail/v1";
 
 function errorMessage(status) {
   if (status === 401) return "Sessão do Gmail expirada. Conecte de novo.";
-  if (status === 403) return "Sem permissão pra ler a caixa de entrada (escopo gmail.readonly).";
+  if (status === 403) return "Sem permissão pra essa ação — pode ser preciso reconectar o Gmail pra autorizar o novo escopo.";
   if (status === 429) return "Limite de uso da API do Gmail atingido. Tente novamente em instantes.";
   return `Erro ao consultar o Gmail (HTTP ${status}).`;
 }
 
-async function authedFetch(token, path) {
+async function authedFetch(token, path, opts) {
+  opts = opts || {};
   let resp;
   try {
-    resp = await fetch(GMAIL_BASE + path, { headers: { Authorization: `Bearer ${token}` } });
+    resp = await fetch(GMAIL_BASE + path, {
+      method: opts.method || "GET",
+      headers: { Authorization: `Bearer ${token}`, ...(opts.body ? { "Content-Type": "application/json" } : {}) },
+      body: opts.body ? JSON.stringify(opts.body) : undefined,
+    });
   } catch {
     throw new Error("Falha de rede ao consultar o Gmail. Verifique sua conexão.");
   }
   if (!resp.ok) throw new Error(errorMessage(resp.status));
-  return resp.json();
+  const text = await resp.text();
+  return text ? JSON.parse(text) : {};
 }
 
 export async function fetchGmailProfile(token) {
@@ -64,6 +70,18 @@ export function headerValue(headers, name) {
   return h ? h.value : "";
 }
 
+// Anexos de verdade (tem attachmentId, não vêm com o conteúdo já embutido
+// como o corpo do texto) — percorre as partes MIME recursivamente.
+export function extractAttachments(payload, out) {
+  out = out || [];
+  if (!payload) return out;
+  if (payload.filename && payload.body && payload.body.attachmentId) {
+    out.push({ attachmentId: payload.body.attachmentId, filename: payload.filename, mimeType: payload.mimeType || "application/octet-stream", size: payload.body.size || 0 });
+  }
+  if (payload.parts) payload.parts.forEach((p) => extractAttachments(p, out));
+  return out;
+}
+
 function mapMessage(m) {
   const headers = m.payload && m.payload.headers;
   const from = headerValue(headers, "From");
@@ -77,6 +95,10 @@ function mapMessage(m) {
     resumo: m.snippet || "",
     corpoTexto: extractText(m.payload) || m.snippet || "",
     lido: !(m.labelIds || []).includes("UNREAD"),
+    // Cabeçalho Message-ID de verdade (RFC 2822) — necessário pra responder
+    // no mesmo thread (In-Reply-To/References), diferente do "id" da API.
+    messageIdHeader: headerValue(headers, "Message-ID"),
+    anexos: extractAttachments(m.payload),
   };
 }
 
@@ -85,4 +107,39 @@ export async function fetchInboxMessages(token, { top = 50 } = {}) {
   const ids = ((list && list.messages) || []).map((m) => m.id);
   const msgs = await Promise.all(ids.map((id) => authedFetch(token, `/users/me/messages/${id}?format=full`)));
   return msgs.map(mapMessage);
+}
+
+// Move pra Lixeira do Gmail (reversível por lá, diferente de exclusão
+// permanente) — a pedido do usuário, "excluir" aqui.
+export async function trashMessage(token, id) {
+  await authedFetch(token, `/users/me/messages/${id}/trash`, { method: "POST", body: {} });
+}
+
+export async function sendRawMessage(token, raw) {
+  return authedFetch(token, "/users/me/messages/send", { method: "POST", body: { raw } });
+}
+
+export async function fetchAttachmentData(token, messageId, attachmentId) {
+  const data = await authedFetch(token, `/users/me/messages/${messageId}/attachments/${attachmentId}`);
+  return data.data || "";
+}
+
+// "Pastas" = rótulos do Gmail criados pelo usuário (type "user" — exclui os
+// de sistema como INBOX/SENT/SPAM, que não fazem sentido como destino de
+// uma regra de organização).
+export async function listLabels(token) {
+  const data = await authedFetch(token, "/users/me/labels");
+  return ((data && data.labels) || []).filter((l) => l.type === "user");
+}
+export async function createLabel(token, name) {
+  return authedFetch(token, "/users/me/labels", {
+    method: "POST",
+    body: { name, labelListVisibility: "labelShow", messageListVisibility: "show" },
+  });
+}
+export async function modifyLabels(token, messageId, { addLabelIds, removeLabelIds }) {
+  return authedFetch(token, `/users/me/messages/${messageId}/modify`, {
+    method: "POST",
+    body: { addLabelIds: addLabelIds || [], removeLabelIds: removeLabelIds || [] },
+  });
 }
