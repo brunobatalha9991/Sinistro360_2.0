@@ -169,7 +169,7 @@ export function DetailHeader({ c, sit, rel, claims, allClaimsRaw, overrides, use
         </div>
 
         {c.observacoes && String(c.observacoes).trim() && (
-          <div style={{ marginTop: 12, background: "var(--surface-2)", border: "1px solid var(--border)", borderRadius: 8, padding: "10px 12px" }}>
+          <div style={{ marginTop: 12, maxWidth: 520, background: "var(--surface-2)", border: "1px solid var(--border)", borderRadius: 8, padding: "10px 12px" }}>
             <div style={{ fontSize: 11, fontWeight: 700, color: "var(--muted)", textTransform: "uppercase", letterSpacing: ".5px", marginBottom: 4 }}>Observações (CORP)</div>
             <div style={{ fontSize: 13, whiteSpace: "pre-wrap", color: "var(--ink-soft)" }}>{String(c.observacoes).trim()}</div>
           </div>
