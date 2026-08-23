@@ -44,6 +44,9 @@ export const RECORD_SPECS = {
   // Ver src/logic/memoriaIA.js e docs/ia-sinistros/memoria-e-feedback.md.
   corp_ai_memorias: { col: "s360_ai_memorias", keyed: false },
   corp_ai_feedback: { col: "s360_ai_feedback", keyed: false },
+  // Estado local por e-mail (arquivado ou não) — a pedido do usuário, ver
+  // src/pages/Emails.jsx. Chave = id composto "provedor:idDoEmail".
+  corp_email_estado: { col: "s360_email_estado", keyed: true },
 };
 
 export const CONFIG_COLLECTION = "s360_config";

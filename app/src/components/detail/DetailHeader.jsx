@@ -1,4 +1,6 @@
+import { useState } from "react";
 import { PartyBadge } from "../PartyBadge.jsx";
+import { EmailViewerModal } from "../EmailViewerModal.jsx";
 import { useData } from "../../data/DataProvider.jsx";
 import { setDemandaPrefill } from "../../state/taskModal";
 import { setComsPrefill } from "../../state/comsPrefill";
@@ -11,6 +13,22 @@ import { fmtDateBR, fmtDateHoraBR, txt } from "../../logic/format";
 
 const DEFAULT_TEMP_OPTIONS = ["Tranquilo", "Moderado", "Grave", "Em atenção"];
 const DEFAULT_SIT_OPTIONS = ["Aguard. Cliente", "Aguard. Seguradora", "Aguard. Corretora", "Aguard. Oficina"];
+
+// Linha compacta de um item de acompanhamento (próxima ação, último
+// histórico, e-mail identificado) — a pedido do usuário: a versão antiga
+// empilhava uma caixa grande, com borda e fundo coloridos, pra cada item, o
+// que deixava a coluna lateral do processo enorme. Agora os três dividem UM
+// card só, cada um como uma linha compacta com uma barra de cor à esquerda
+// (mesmo sinal de urgência, bem menos peso visual).
+function PainelItem({ cor, titulo, acoes, children, ultimo }) {
+  return (
+    <div style={{ borderLeft: `3px solid ${cor}`, paddingLeft: 10, paddingBottom: 10, marginBottom: ultimo ? 0 : 10 }}>
+      <div style={{ fontSize: 11.5, fontWeight: 700, color: cor }}>{titulo}</div>
+      {children}
+      {acoes && <div style={{ display: "flex", gap: 6, marginTop: 6, flexWrap: "wrap" }}>{acoes}</div>}
+    </div>
+  );
+}
 
 function ResponsavelBox({ c, users, overrides, actions, canEdit }) {
   const atual = getResponsavel(overrides, c.id);
@@ -69,6 +87,7 @@ export function DetailHeader({ c, sit, rel, claims, allClaimsRaw, overrides, use
   const semAtualizacao = isSemAtualizacao(overrides, c);
   const situacaoEfe = situacaoEfetiva(overrides, c);
   const emailAlertas = getEmailAlertas(overrides, c.id);
+  const [emailAberto, setEmailAberto] = useState(null);
 
   // "Transformar em atualização" (a pedido do usuário): nunca grava nada
   // sozinho — só pré-preenche a caixa "Comunicação com o Cliente" do
@@ -146,60 +165,64 @@ export function DetailHeader({ c, sit, rel, claims, allClaimsRaw, overrides, use
           + Criar tarefa vinculada a este processo
         </button>
 
-        {na && na.title && !atrasada && (
-          <div style={{ background: "rgba(var(--brand-rgb),.08)", border: "1px solid rgba(var(--brand-rgb),.28)", borderRadius: 8, padding: "10px 12px", marginTop: 8 }}>
-            <div style={{ fontSize: 11, fontWeight: 700, color: "var(--brand)", textTransform: "uppercase", letterSpacing: ".5px" }}>Próxima ação</div>
-            <div style={{ fontWeight: 700, marginTop: 2 }}>{na.title}</div>
-            <div className="muted" style={{ fontSize: 12 }}>{na.date ? "Prazo: " + fmtDateBR(na.date) : "Sem prazo"}</div>
-            <button className="btn sec xs" style={{ marginTop: 6 }} onClick={() => setDetailTab("proxima")}>Ver / editar</button>
-          </div>
-        )}
-        {na && na.title && atrasada && (
-          <div className="neon-alert" style={{ "--neon-rgb": "var(--danger-rgb)", background: "rgba(var(--danger-rgb),.1)", border: "1px solid rgba(var(--danger-rgb),.35)", borderRadius: 8, padding: "10px 12px", marginTop: 8 }}>
-            <div style={{ fontSize: 11, fontWeight: 700, color: "var(--danger)", textTransform: "uppercase", letterSpacing: ".5px" }}>⚠ Próxima ação atrasada</div>
-            <div style={{ fontWeight: 700, marginTop: 2 }}>{na.title}</div>
-            <div className="muted" style={{ fontSize: 12 }}>Prazo era: {fmtDateBR(na.date)}</div>
-            <button className="btn sec xs" style={{ marginTop: 6 }} onClick={() => setDetailTab("proxima")}>Ver / editar</button>
-          </div>
-        )}
-        {!(na && na.title) && (
-          <div className="neon-alert" style={{ "--neon-rgb": "var(--danger-rgb)", background: "rgba(var(--danger-rgb),.08)", border: "1px solid rgba(var(--danger-rgb),.3)", borderRadius: 8, padding: "10px 12px", marginTop: 8 }}>
-            <div style={{ fontSize: 11, fontWeight: 700, color: "var(--danger)", textTransform: "uppercase", letterSpacing: ".5px" }}>⚠ Sem próxima ação</div>
-            <div className="muted" style={{ fontSize: 12, margin: "2px 0" }}>Nenhuma próxima ação definida.</div>
-            <button className="btn xs" style={{ marginTop: 4 }} onClick={() => setDetailTab("proxima")}>+ Criar próxima ação</button>
-          </div>
-        )}
+        <div className="card" style={{ padding: 14, marginTop: 10 }}>
+          <h4 style={{ margin: "0 0 10px", fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: ".5px", color: "var(--muted)" }}>
+            Acompanhamento
+          </h4>
 
-        <div className={semAtualizacao ? "neon-alert" : ""} style={{ "--neon-rgb": "var(--danger-rgb)", ...(semAtualizacao ? { background: "rgba(var(--danger-rgb),.08)", border: "1px solid rgba(var(--danger-rgb),.35)" } : { background: "var(--surface-2)", border: "1px solid var(--border)" }), borderRadius: 8, padding: "10px 12px", marginTop: 8 }}>
-          <div style={{ fontSize: 11, fontWeight: 700, color: semAtualizacao ? "var(--danger)" : "var(--ink-soft)", textTransform: "uppercase", letterSpacing: ".5px" }}>
-            {semAtualizacao ? "⚠ Último histórico (+3 dias sem retorno)" : "Último histórico"}
-          </div>
-          {last ? (
-            <div>
-              <div style={{ fontSize: 12, marginTop: 2 }}>
-                <span className={"badge " + (last.canal === "Cliente" ? "green" : last.canal === "Oficina" ? "amber" : "purple")}>{last.canal}</span>
-                <span className="muted" style={{ marginLeft: 6 }}>{last.meio} • {fmtDateBR(last.date)}</span>
-              </div>
-              <div style={{ fontSize: 12, marginTop: 4, maxHeight: 48, overflow: "hidden" }}>{last.text}</div>
-            </div>
-          ) : <div className="muted" style={{ fontSize: 12, marginTop: 2 }}>Nenhum histórico registrado.</div>}
-          <button className="btn sec xs" style={{ marginTop: 6 }} onClick={() => setDetailTab("historico")}>Abrir histórico</button>
+          <PainelItem
+            cor={atrasada ? "var(--danger)" : na && na.title ? "var(--brand)" : "var(--danger)"}
+            titulo={atrasada ? "⚠ Próxima ação atrasada" : na && na.title ? "Próxima ação" : "⚠ Sem próxima ação"}
+            acoes={<button className="btn sec xs" onClick={() => setDetailTab("proxima")}>{na && na.title ? "Ver / editar" : "+ Criar"}</button>}
+          >
+            {na && na.title ? (
+              <>
+                <div style={{ fontWeight: 600, fontSize: 12.5, marginTop: 2 }}>{na.title}</div>
+                <div className="muted" style={{ fontSize: 11.5 }}>{atrasada ? "Prazo era: " + fmtDateBR(na.date) : (na.date ? "Prazo: " + fmtDateBR(na.date) : "Sem prazo")}</div>
+              </>
+            ) : (
+              <div className="muted" style={{ fontSize: 11.5, marginTop: 2 }}>Nenhuma próxima ação definida.</div>
+            )}
+          </PainelItem>
+
+          <PainelItem
+            cor={semAtualizacao ? "var(--danger)" : "var(--ink-soft)"}
+            titulo={semAtualizacao ? "⚠ Último histórico (+3 dias)" : "Último histórico"}
+            acoes={<button className="btn sec xs" onClick={() => setDetailTab("historico")}>Abrir histórico</button>}
+            ultimo={!emailAlertas.length}
+          >
+            {last ? (
+              <>
+                <div style={{ fontSize: 12, marginTop: 2 }}>
+                  <span className={"badge " + (last.canal === "Cliente" ? "green" : last.canal === "Oficina" ? "amber" : "purple")}>{last.canal}</span>
+                  <span className="muted" style={{ marginLeft: 6 }}>{last.meio} • {fmtDateBR(last.date)}</span>
+                </div>
+                <div style={{ fontSize: 12, marginTop: 4, maxHeight: 40, overflow: "hidden" }}>{last.text}</div>
+              </>
+            ) : <div className="muted" style={{ fontSize: 11.5, marginTop: 2 }}>Nenhum histórico registrado.</div>}
+          </PainelItem>
+
+          {emailAlertas.length > 0 && (
+            <PainelItem
+              cor="var(--info)"
+              titulo={`✉ E-mail identificado${emailAlertas.length > 1 ? ` (${emailAlertas.length})` : ""}`}
+              ultimo
+              acoes={
+                <>
+                  <button className="btn sec xs" onClick={() => setEmailAberto(emailAlertas[0])}>Ver completo</button>
+                  <button className="btn xs" onClick={() => usarEmailComoAtualizacao(emailAlertas[0])}>Transformar em atualização</button>
+                  <button className="btn sec xs" onClick={() => actions.dismissEmailAlerta(c.id, emailAlertas[0].emailId)}>Dispensar</button>
+                </>
+              }
+            >
+              <div style={{ fontWeight: 600, fontSize: 12.5, marginTop: 2 }}>{emailAlertas[0].assunto}</div>
+              <div className="muted" style={{ fontSize: 11.5 }}>{txt(emailAlertas[0].remetente)} • {fmtDateHoraBR(emailAlertas[0].recebidoEm)}</div>
+            </PainelItem>
+          )}
         </div>
-
-        {emailAlertas.length > 0 && (
-          <div className="neon-alert" style={{ "--neon-rgb": "var(--info-rgb)", background: "rgba(var(--info-rgb),.08)", border: "1px solid rgba(var(--info-rgb),.3)", borderRadius: 8, padding: "10px 12px", marginTop: 8 }}>
-            <div style={{ fontSize: 11, fontWeight: 700, color: "var(--info)", textTransform: "uppercase", letterSpacing: ".5px" }}>
-              ✉ E-mail identificado{emailAlertas.length > 1 ? ` (${emailAlertas.length})` : ""}
-            </div>
-            <div style={{ fontWeight: 700, marginTop: 2, fontSize: 13 }}>{emailAlertas[0].assunto}</div>
-            <div className="muted" style={{ fontSize: 12 }}>{txt(emailAlertas[0].remetente)} • {fmtDateHoraBR(emailAlertas[0].recebidoEm)}</div>
-            <div style={{ display: "flex", gap: 6, marginTop: 6 }}>
-              <button className="btn xs" onClick={() => usarEmailComoAtualizacao(emailAlertas[0])}>Transformar em atualização</button>
-              <button className="btn sec xs" onClick={() => actions.dismissEmailAlerta(c.id, emailAlertas[0].emailId)}>Dispensar</button>
-            </div>
-          </div>
-        )}
       </div>
+
+      <EmailViewerModal email={emailAberto} onClose={() => setEmailAberto(null)} />
     </div>
   );
 }

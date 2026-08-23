@@ -2,10 +2,13 @@ import { useEffect, useState } from "react";
 import { useData } from "../data/DataProvider.jsx";
 import { useHashRoute } from "../hooks/useHashRoute";
 import { useOverrideActions } from "../hooks/useOverrideActions";
+import { useEmailStateActions } from "../hooks/useEmailStateActions";
 import { EmptyState } from "../components/EmptyState.jsx";
 import { ProcSearch } from "../components/ProcSearch.jsx";
-import { visibleClaims, isManualClaim } from "../logic/claims";
+import { EmailViewerModal } from "../components/EmailViewerModal.jsx";
+import { visibleClaims, isManualClaim, emailAlertaDispensado } from "../logic/claims";
 import { fmtDateHoraBR, txt } from "../logic/format";
+import { setDemandaPrefill } from "../state/taskModal";
 import { isGmailConfigured, getGmailAccountEmail, getGmailToken, gmailLogin, saveGmailAccountEmail } from "../gmail/googleAuthClient";
 import { fetchInboxMessages, fetchGmailProfile } from "../logic/gmailApi";
 import { encontrarProcessosNoEmail, MOTIVO_LABEL } from "../logic/emailMatching";
@@ -40,6 +43,7 @@ export function Emails() {
   const { records, config } = useData();
   const { navigate } = useHashRoute();
   const actions = useOverrideActions();
+  const emailState = useEmailStateActions();
 
   const claims = visibleClaims(records.corp_claims).filter((c) => !isManualClaim(c));
   const overrides = records.corp_overrides || {};
@@ -50,6 +54,12 @@ export function Emails() {
   const [matches, setMatches] = useState({});
   const [carregando, setCarregando] = useState(false);
   const [erro, setErro] = useState(null);
+  const [emailAberto, setEmailAberto] = useState(null);
+
+  const [busca, setBusca] = useState("");
+  const [dataDe, setDataDe] = useState("");
+  const [dataAte, setDataAte] = useState("");
+  const [verArquivados, setVerArquivados] = useState(false);
 
   useEffect(() => {
     if (configurado && getGmailToken()) setConta(getGmailAccountEmail());
@@ -76,7 +86,11 @@ export function Emails() {
       const novosMatches = {};
       lista.forEach((email) => {
         const texto = `${email.assunto}\n${email.corpoTexto}`;
-        const achados = encontrarProcessosNoEmail(texto, claims, overrides);
+        // Não volta a mostrar como identificado um vínculo que o usuário já
+        // removeu manualmente antes (mesmo que a identificação automática
+        // bata de novo numa atualização seguinte da caixa de entrada).
+        const achados = encontrarProcessosNoEmail(texto, claims, overrides)
+          .filter(({ claimId }) => !emailAlertaDispensado(overrides, claimId, email.id));
         novosMatches[email.id] = achados;
         achados.forEach(({ claimId, motivos }) => {
           actions.addEmailAlerta(claimId, {
@@ -104,6 +118,42 @@ export function Emails() {
     });
     setMatches((m) => ({ ...m, [email.id]: [...(m[email.id] || []), { claimId, motivos: ["manual"] }] }));
   }
+
+  // Remove um vínculo (automático ou manual) — a pedido do usuário: às
+  // vezes a identificação automática erra, e é melhor poder tirar na hora,
+  // direto na caixa de entrada, em vez de precisar abrir o processo.
+  function removerVinculo(email, claimId) {
+    actions.dismissEmailAlerta(claimId, email.id);
+    setMatches((m) => ({ ...m, [email.id]: (m[email.id] || []).filter((a) => a.claimId !== claimId) }));
+  }
+
+  // Cria uma tarefa já com o conteúdo do e-mail (título/descrição
+  // preenchidos) — se o e-mail bateu com exatamente um processo, já vincula
+  // direto; se bateu com mais de um ou nenhum, fica sem processo vinculado
+  // pra decidir na hora de criar. Mesmo mecanismo de prefill já usado no
+  // atalho "Criar tarefa vinculada a este processo" (DetailHeader.jsx).
+  function criarTarefa(email) {
+    const achados = matches[email.id] || [];
+    setDemandaPrefill({
+      titulo: `E-mail: ${email.assunto}`,
+      descricao: `[E-mail de ${email.remetenteNome || email.remetente} em ${fmtDateHoraBR(email.recebidoEm)}]\n\n${email.corpoTexto}`,
+      processoId: achados.length === 1 ? achados[0].claimId : "",
+    });
+    navigate("tarefas", "newfromdemanda");
+  }
+
+  const emailsFiltrados = emails.filter((email) => {
+    if (emailState.isArquivado(email.id) !== verArquivados) return false;
+    if (dataDe && (!email.recebidoEm || email.recebidoEm.slice(0, 10) < dataDe)) return false;
+    if (dataAte && (!email.recebidoEm || email.recebidoEm.slice(0, 10) > dataAte)) return false;
+    if (busca.trim()) {
+      const q = busca.trim().toLowerCase();
+      const hay = `${email.assunto} ${email.remetenteNome} ${email.remetente} ${email.corpoTexto}`.toLowerCase();
+      if (hay.indexOf(q) < 0) return false;
+    }
+    return true;
+  });
+  const qtdArquivados = emails.filter((e) => emailState.isArquivado(e.id)).length;
 
   if (!configurado) {
     return (
@@ -148,10 +198,25 @@ export function Emails() {
         <div className="card">
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 8 }}>
             <h3 style={{ margin: 0 }}>Caixa de entrada</h3>
-            <span className="muted" style={{ fontSize: 12 }}>{emails.length} e-mail(s)</span>
+            <span className="muted" style={{ fontSize: 12 }}>{emailsFiltrados.length} de {emails.length} e-mail(s)</span>
           </div>
+
+          <div className="chips" style={{ alignItems: "center", marginTop: 10 }}>
+            <input placeholder="Buscar por assunto, remetente ou conteúdo..." style={{ minWidth: 260, flex: 1 }} value={busca} onChange={(e) => setBusca(e.target.value)} />
+            <span className="muted" style={{ fontSize: 12 }}>de</span>
+            <input type="date" className="inline" value={dataDe} onChange={(e) => setDataDe(e.target.value)} />
+            <span className="muted" style={{ fontSize: 12 }}>até</span>
+            <input type="date" className="inline" value={dataAte} onChange={(e) => setDataAte(e.target.value)} />
+            {(dataDe || dataAte) && <button className="chip-btn" onClick={() => { setDataDe(""); setDataAte(""); }}>limpar datas</button>}
+            <div className={"chip-btn" + (verArquivados ? " active" : "")} onClick={() => setVerArquivados((v) => !v)}>
+              Arquivados ({qtdArquivados})
+            </div>
+          </div>
+
           <div style={{ display: "flex", flexDirection: "column", gap: 8, marginTop: 10 }}>
-            {emails.map((email) => {
+            {!emailsFiltrados.length ? (
+              <EmptyState>{verArquivados ? "Nenhum e-mail arquivado." : "Nenhum e-mail para este filtro."}</EmptyState>
+            ) : emailsFiltrados.map((email) => {
               const achados = matches[email.id] || [];
               const identificado = achados.length > 0;
               return (
@@ -176,30 +241,44 @@ export function Emails() {
                   </div>
                   <div style={{ fontSize: 13, marginTop: 6, color: "var(--muted)" }}>{email.resumo}</div>
 
-                  {identificado ? (
+                  {identificado && (
                     <div style={{ marginTop: 8, display: "flex", flexDirection: "column", gap: 4 }}>
                       {achados.map(({ claimId, motivos }) => {
                         const c = claims.find((x) => x.id === claimId);
                         if (!c) return null;
                         return (
-                          <div key={claimId} style={{ fontSize: 12.5 }}>
-                            <a onClick={() => navigate("sinistro", claimId)} style={{ cursor: "pointer" }}>
-                              {c.numsin || "#" + c.nosnum} — {txt(c.segurado)}
-                            </a>
-                            <span className="muted"> ({motivos.map((m) => MOTIVO_LABEL[m] || m).join(", ")})</span>
+                          <div key={claimId} style={{ fontSize: 12.5, display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+                            <div>
+                              <a onClick={() => navigate("sinistro", claimId)} style={{ cursor: "pointer" }}>
+                                {c.numsin || "#" + c.nosnum} — {txt(c.segurado)}
+                              </a>
+                              <span className="muted"> ({motivos.map((m) => MOTIVO_LABEL[m] || m).join(", ")})</span>
+                            </div>
+                            <a style={{ color: "var(--danger)", cursor: "pointer", fontSize: 11.5, flexShrink: 0 }} onClick={() => removerVinculo(email, claimId)}>✕ Remover vínculo</a>
                           </div>
                         );
                       })}
                     </div>
-                  ) : (
-                    <VincularEmailBox claims={claims} onVincular={(claimId) => vincularManual(email, claimId)} />
                   )}
+                  {!identificado && <VincularEmailBox claims={claims} onVincular={(claimId) => vincularManual(email, claimId)} />}
+
+                  <div style={{ display: "flex", gap: 6, marginTop: 8, flexWrap: "wrap" }}>
+                    <button className="btn sec xs" onClick={() => setEmailAberto(email)}>Ver e-mail completo</button>
+                    <button className="btn sec xs" onClick={() => criarTarefa(email)}>Criar tarefa</button>
+                    {verArquivados ? (
+                      <button className="btn sec xs" onClick={() => emailState.desarquivar(email.id)}>Desarquivar</button>
+                    ) : (
+                      <button className="btn sec xs" onClick={() => emailState.arquivar(email.id)}>Arquivar</button>
+                    )}
+                  </div>
                 </div>
               );
             })}
           </div>
         </div>
       )}
+
+      <EmailViewerModal email={emailAberto} onClose={() => setEmailAberto(null)} />
     </div>
   );
 }

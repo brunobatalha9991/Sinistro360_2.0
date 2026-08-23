@@ -194,6 +194,15 @@ export function getAgenteProdutor(overrides, claimId) {
 export function getEmailAlertas(overrides, claimId) {
   return (getOvr(overrides, claimId).emailAlertas || []).filter((a) => !a.dismissed);
 }
+// Verifica se um vínculo específico (e-mail x processo) já foi removido
+// manualmente (dismissEmailAlerta) — usado em Emails.jsx pra não voltar a
+// mostrar como "Identificado" um vínculo que o usuário já tirou, mesmo que
+// a identificação automática bata de novo numa próxima atualização da
+// caixa de entrada.
+export function emailAlertaDispensado(overrides, claimId, emailId) {
+  const entry = (getOvr(overrides, claimId).emailAlertas || []).find((a) => a.emailId === emailId);
+  return !!(entry && entry.dismissed);
+}
 // Vínculo de acesso por Agente/Produtor (a pedido do usuário): um usuário
 // "consulta" com agentes/produtores configurados só enxerga processos
 // ligados a eles. Sem nenhum vínculo configurado, não restringe nada —

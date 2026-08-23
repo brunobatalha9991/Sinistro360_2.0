@@ -2,7 +2,7 @@ import { describe, it, expect } from "vitest";
 import {
   usuarioTemVinculoRestrito, claimVisivelParaUsuario, visibleClaims,
   distinctAgentes, distinctProdutores, getAgentesEfetivo,
-  grupoProdutor, distinctGruposProdutores,
+  grupoProdutor, distinctGruposProdutores, emailAlertaDispensado,
 } from "./claims";
 
 const overrides = {
@@ -106,5 +106,19 @@ describe("distinctGruposProdutores", () => {
     };
     const cl = [{ id: "c1" }, { id: "c2" }, { id: "c3" }];
     expect(distinctGruposProdutores(ovr, cl)).toEqual(["LORENA / DANIELA DE SÁ", "MAGNO SUED"]);
+  });
+});
+
+describe("emailAlertaDispensado", () => {
+  it("falso quando não há nenhum alerta pra esse e-mail", () => {
+    expect(emailAlertaDispensado({}, "c1", "gmail:1")).toBe(false);
+  });
+  it("falso quando o alerta existe mas não foi dispensado", () => {
+    const ovr = { c1: { emailAlertas: [{ emailId: "gmail:1", dismissed: false }] } };
+    expect(emailAlertaDispensado(ovr, "c1", "gmail:1")).toBe(false);
+  });
+  it("verdadeiro quando o vínculo foi removido manualmente", () => {
+    const ovr = { c1: { emailAlertas: [{ emailId: "gmail:1", dismissed: true }] } };
+    expect(emailAlertaDispensado(ovr, "c1", "gmail:1")).toBe(true);
   });
 });
