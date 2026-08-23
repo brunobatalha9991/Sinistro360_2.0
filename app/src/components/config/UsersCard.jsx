@@ -1,12 +1,92 @@
 import { useState } from "react";
+import { createPortal } from "react-dom";
 import { ROLE_LABELS, MODULOS_DISPONIVEIS } from "../../data/auth";
 import { uid } from "../../logic/format";
 import { hashNewPassword } from "../../logic/passwordHash";
 
 const ROLE_ORDER = ["atendente", "analista", "consulta", "admin"];
 
+// Modal de vínculo Agente/Produtor — a pedido do usuário: com muitas
+// opções, o antigo prompt() numerado ficava impossível de usar ("não
+// consigo visualizar pra poder escolher"). Lista com rolagem + busca pra
+// cada lado, igual ao padrão já usado no checklist/formulários da Mesa de
+// Atendimento.
+function VinculoAgenteProdutorModal({ user, agentesDisponiveis, produtoresDisponiveis, onSave, onClose }) {
+  const [buscaAg, setBuscaAg] = useState("");
+  const [buscaPr, setBuscaPr] = useState("");
+  const [agSel, setAgSel] = useState(() => {
+    const s = {}; (user.agentesVinculados || []).forEach((a) => { s[a] = true; }); return s;
+  });
+  const [prSel, setPrSel] = useState(() => {
+    const s = {}; (user.produtoresVinculados || []).forEach((p) => { s[p] = true; }); return s;
+  });
+
+  const agFiltrados = (agentesDisponiveis || []).filter((a) => a.toLowerCase().indexOf(buscaAg.toLowerCase()) >= 0);
+  const prFiltrados = (produtoresDisponiveis || []).filter((p) => p.toLowerCase().indexOf(buscaPr.toLowerCase()) >= 0);
+  const qtdAg = Object.values(agSel).filter(Boolean).length;
+  const qtdPr = Object.values(prSel).filter(Boolean).length;
+
+  function salvar() {
+    onSave(Object.keys(agSel).filter((k) => agSel[k]), Object.keys(prSel).filter((k) => prSel[k]));
+  }
+
+  return createPortal(
+    <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,.5)", zIndex: 100, display: "flex", alignItems: "flex-start", justifyContent: "center", padding: 30, overflow: "auto" }}>
+      <div style={{ width: 720, maxWidth: "100%", background: "var(--card-solid)", border: "1px solid var(--border)", borderRadius: 16, padding: 22, boxShadow: "var(--shadow-lg)" }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
+          <h3 style={{ margin: 0 }}>Agente / Produtor — {user.nome}</h3>
+          <button className="btn sec xs" onClick={onClose}>✕ Fechar</button>
+        </div>
+        <p className="muted" style={{ fontSize: 12, marginBottom: 14 }}>
+          Sem nenhum agente/produtor marcado, este usuário continua vendo todos os processos.
+        </p>
+
+        <div className="grid c2">
+          <div>
+            <label style={{ fontWeight: 700 }}>Agentes ({qtdAg} selecionado(s) de {(agentesDisponiveis || []).length})</label>
+            <input placeholder="Buscar agente..." value={buscaAg} onChange={(e) => setBuscaAg(e.target.value)} style={{ marginTop: 4, marginBottom: 6 }} />
+            <div style={{ maxHeight: 280, overflow: "auto", border: "1px solid var(--border)", borderRadius: 8, padding: 8 }}>
+              {!(agentesDisponiveis || []).length ? (
+                <div className="muted" style={{ fontSize: 12 }}>Nenhum agente cadastrado ainda (Configurações → Agentes e Produtores).</div>
+              ) : !agFiltrados.length ? (
+                <div className="muted" style={{ fontSize: 12 }}>Nenhum agente encontrado para "{buscaAg}".</div>
+              ) : agFiltrados.map((a) => (
+                <label key={a} style={{ display: "flex", gap: 8, alignItems: "center", padding: "5px 4px", cursor: "pointer", fontSize: 13 }}>
+                  <input type="checkbox" checked={!!agSel[a]} onChange={() => setAgSel((s) => ({ ...s, [a]: !s[a] }))} />
+                  <span>{a}</span>
+                </label>
+              ))}
+            </div>
+          </div>
+
+          <div>
+            <label style={{ fontWeight: 700 }}>Produtores ({qtdPr} selecionado(s) de {(produtoresDisponiveis || []).length})</label>
+            <input placeholder="Buscar produtor..." value={buscaPr} onChange={(e) => setBuscaPr(e.target.value)} style={{ marginTop: 4, marginBottom: 6 }} />
+            <div style={{ maxHeight: 280, overflow: "auto", border: "1px solid var(--border)", borderRadius: 8, padding: 8 }}>
+              {!(produtoresDisponiveis || []).length ? (
+                <div className="muted" style={{ fontSize: 12 }}>Nenhum produtor cadastrado ainda (Configurações → Agentes e Produtores).</div>
+              ) : !prFiltrados.length ? (
+                <div className="muted" style={{ fontSize: 12 }}>Nenhum produtor encontrado para "{buscaPr}".</div>
+              ) : prFiltrados.map((p) => (
+                <label key={p} style={{ display: "flex", gap: 8, alignItems: "center", padding: "5px 4px", cursor: "pointer", fontSize: 13 }}>
+                  <input type="checkbox" checked={!!prSel[p]} onChange={() => setPrSel((s) => ({ ...s, [p]: !s[p] }))} />
+                  <span>{p}</span>
+                </label>
+              ))}
+            </div>
+          </div>
+        </div>
+
+        <button className="btn" style={{ marginTop: 16 }} onClick={salvar}>Salvar vínculos</button>
+      </div>
+    </div>,
+    document.body
+  );
+}
+
 // Porte 1:1 do card "Usuários do sistema" das Configurações do HTML original.
 export function UsersCard({ users, currentUser, saveRecord, agentesDisponiveis, produtoresDisponiveis }) {
+  const [vinculoUser, setVinculoUser] = useState(null);
   const [nome, setNome] = useState("");
   const [email, setEmail] = useState("");
   const [senha, setSenha] = useState("");
@@ -55,34 +135,11 @@ export function UsersCard({ users, currentUser, saveRecord, agentesDisponiveis, 
   // continua vendo tudo, igual antes.
   function abrirAgentesProdutores(u) {
     if (u.role !== "consulta") { alert('Vínculo de agente/produtor só se aplica a usuários com função "Consulta".'); return; }
-    const listaAg = agentesDisponiveis || [];
-    const atuaisAg = u.agentesVinculados || [];
-    let novosAg = atuaisAg;
-    if (listaAg.length) {
-      const txtAg = listaAg.map((a, i) => `${i + 1} - ${a}${atuaisAg.indexOf(a) >= 0 ? " [vinculado]" : ""}`).join("\n");
-      const idxAg = atuaisAg.map((a) => listaAg.indexOf(a)).filter((x) => x >= 0).map((x) => x + 1).join(",");
-      const escAg = prompt(`Agentes vinculados a "${u.nome}" — números separados por vírgula (vazio = nenhum):\n\n${txtAg}`, idxAg);
-      if (escAg === null) return;
-      const numsAg = String(escAg).split(",").map((s) => parseInt(s.trim(), 10)).filter((n) => !isNaN(n) && n >= 1 && n <= listaAg.length);
-      novosAg = numsAg.map((n) => listaAg[n - 1]);
-    } else if (!confirm('Nenhum agente cadastrado ainda (importe Agente/Produtor em lote em Configurações, ou cadastre um agente manualmente). Continuar só pra vincular produtores?')) {
-      return;
-    }
-
-    const listaPr = produtoresDisponiveis || [];
-    const atuaisPr = u.produtoresVinculados || [];
-    let novosPr = atuaisPr;
-    if (listaPr.length) {
-      const txtPr = listaPr.map((p, i) => `${i + 1} - ${p}${atuaisPr.indexOf(p) >= 0 ? " [vinculado]" : ""}`).join("\n");
-      const idxPr = atuaisPr.map((p) => listaPr.indexOf(p)).filter((x) => x >= 0).map((x) => x + 1).join(",");
-      const escPr = prompt(`Produtores vinculados a "${u.nome}" — números separados por vírgula (vazio = nenhum):\n\n${txtPr}`, idxPr);
-      if (escPr === null) return;
-      const numsPr = String(escPr).split(",").map((s) => parseInt(s.trim(), 10)).filter((n) => !isNaN(n) && n >= 1 && n <= listaPr.length);
-      novosPr = numsPr.map((n) => listaPr[n - 1]);
-    }
-
-    saveUsers((current) => (current || []).map((x) => (x.id === u.id ? { ...x, agentesVinculados: novosAg, produtoresVinculados: novosPr } : x)));
-    alert(`Vínculos de "${u.nome}" atualizados.` + (novosAg.length || novosPr.length ? "" : " Sem nenhum agente/produtor selecionado, o usuário volta a ver todos os processos."));
+    setVinculoUser(u);
+  }
+  function salvarVinculo(novosAg, novosPr) {
+    saveUsers((current) => (current || []).map((x) => (x.id === vinculoUser.id ? { ...x, agentesVinculados: novosAg, produtoresVinculados: novosPr } : x)));
+    setVinculoUser(null);
   }
 
   async function redefinirSenha(u) {
@@ -214,6 +271,13 @@ export function UsersCard({ users, currentUser, saveRecord, agentesDisponiveis, 
           </tbody>
         </table>
       </div>
+
+      {vinculoUser && (
+        <VinculoAgenteProdutorModal
+          user={vinculoUser} agentesDisponiveis={agentesDisponiveis} produtoresDisponiveis={produtoresDisponiveis}
+          onSave={salvarVinculo} onClose={() => setVinculoUser(null)}
+        />
+      )}
     </div>
   );
 }
