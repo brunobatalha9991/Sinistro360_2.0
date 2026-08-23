@@ -165,7 +165,13 @@ export function DetailHeader({ c, sit, rel, claims, allClaimsRaw, overrides, use
   const semAtualizacao = isSemAtualizacao(overrides, c);
   const situacaoEfe = situacaoEfetiva(overrides, c);
   const emailAlertas = getEmailAlertas(overrides, c.id);
-  const [emailAberto, setEmailAberto] = useState(null);
+  // Índice do e-mail aberto no modal (não o objeto direto): quando o
+  // processo tem mais de um e-mail vinculado, as setas ‹ › do
+  // EmailViewerModal precisam saber a posição atual pra andar pra
+  // frente/trás dentro de emailAlertas, e Usar/Dispensar (lá dentro)
+  // precisam agir sobre o e-mail exibido no momento, não sempre o primeiro.
+  const [emailModalIndex, setEmailModalIndex] = useState(null);
+  const emailAberto = emailModalIndex != null ? emailAlertas[emailModalIndex] : null;
   const [editMode, setEditMode] = useState(false);
 
   // "Transformar em atualização" (a pedido do usuário): nunca grava nada
@@ -252,7 +258,7 @@ export function DetailHeader({ c, sit, rel, claims, allClaimsRaw, overrides, use
     email: emailAlertas.length > 0 ? (
       <EmailAlertBox
         alertas={emailAlertas}
-        onVer={() => setEmailAberto(emailAlertas[0])}
+        onVer={() => setEmailModalIndex(0)}
         onUsar={() => usarEmailComoAtualizacao(emailAlertas[0])}
         onDispensar={() => actions.dismissEmailAlerta(c.id, emailAlertas[0].emailId)}
       />
@@ -342,7 +348,21 @@ export function DetailHeader({ c, sit, rel, claims, allClaimsRaw, overrides, use
         />
       </div>
 
-      <EmailViewerModal email={emailAberto} onClose={() => setEmailAberto(null)} />
+      <EmailViewerModal
+        email={emailAberto}
+        index={emailModalIndex}
+        total={emailAlertas.length}
+        onPrev={() => setEmailModalIndex((i) => Math.max(0, i - 1))}
+        onNext={() => setEmailModalIndex((i) => Math.min(emailAlertas.length - 1, i + 1))}
+        onClose={() => setEmailModalIndex(null)}
+        onUsar={() => emailAberto && usarEmailComoAtualizacao(emailAberto)}
+        onDispensar={() => {
+          if (!emailAberto) return;
+          const restantes = emailAlertas.length - 1;
+          actions.dismissEmailAlerta(c.id, emailAberto.emailId);
+          setEmailModalIndex(restantes <= 0 ? null : Math.min(emailModalIndex, restantes - 1));
+        }}
+      />
     </div>
   );
 }
