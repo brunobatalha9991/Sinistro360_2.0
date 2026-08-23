@@ -16,7 +16,6 @@ import { UsersCard } from "../components/config/UsersCard.jsx";
 import { AtendimentoStepsEditor } from "../components/config/AtendimentoStepsEditor.jsx";
 import { AgentesCatalogoCard } from "../components/config/AgentesCatalogoCard.jsx";
 import { ImportarAgenteProdutorCard } from "../components/config/ImportarAgenteProdutorCard.jsx";
-import { OutlookConfigCard } from "../components/config/OutlookConfigCard.jsx";
 import { GmailConfigCard } from "../components/config/GmailConfigCard.jsx";
 import { visibleClaims, ensureRamoTemplateInto, distinctProdutores, distinctGruposProdutores, getAgentesEfetivo } from "../logic/claims";
 import { getToken, setToken } from "../logic/corpApi";
@@ -106,8 +105,7 @@ export function Configuracoes() {
             <DriveUploadConfigCard config={config} saveConfig={saveConfig} canEdit={admin} />
           </ConfigGroup>
 
-          <ConfigGroup title="E-mails (Outlook / Gmail)" subtitle="Login e identificação automática de processos na caixa de entrada — veja docs/outlook-integracao.md e docs/gmail-integracao.md.">
-            <OutlookConfigCard config={config} saveConfig={saveConfig} canEdit={admin} />
+          <ConfigGroup title="E-mails (Gmail)" subtitle="Login e identificação automática de processos na caixa de entrada — veja docs/gmail-integracao.md.">
             <GmailConfigCard config={config} saveConfig={saveConfig} canEdit={admin} />
           </ConfigGroup>
 

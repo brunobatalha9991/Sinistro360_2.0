@@ -189,7 +189,7 @@ export function isConstatacaoSemIndeniz(c) {
 export function getAgenteProdutor(overrides, claimId) {
   return getOvr(overrides, claimId).agenteProdutor || null;
 }
-// Alertas de e-mail (Outlook) vinculados a este processo, não dispensados —
+// Alertas de e-mail (Gmail) vinculados a este processo, não dispensados —
 // ver useOverrideActions.addEmailAlerta/dismissEmailAlerta.
 export function getEmailAlertas(overrides, claimId) {
   return (getOvr(overrides, claimId).emailAlertas || []).filter((a) => !a.dismissed);

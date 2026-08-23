@@ -6,13 +6,9 @@ import { EmptyState } from "../components/EmptyState.jsx";
 import { ProcSearch } from "../components/ProcSearch.jsx";
 import { visibleClaims, isManualClaim } from "../logic/claims";
 import { fmtDateHoraBR, txt } from "../logic/format";
-import { isOutlookConfigured, getOutlookAccount, outlookLogin, getOutlookToken } from "../outlook/msalClient";
-import { fetchInboxMessages as fetchOutlookMessages } from "../logic/outlookApi";
 import { isGmailConfigured, getGmailAccountEmail, getGmailToken, gmailLogin, saveGmailAccountEmail } from "../gmail/googleAuthClient";
-import { fetchInboxMessages as fetchGmailMessages, fetchGmailProfile } from "../logic/gmailApi";
+import { fetchInboxMessages, fetchGmailProfile } from "../logic/gmailApi";
 import { encontrarProcessosNoEmail, MOTIVO_LABEL } from "../logic/emailMatching";
-
-const PROVEDOR_LABEL = { outlook: "Outlook", gmail: "Gmail" };
 
 // Vínculo manual de um e-mail não identificado automaticamente — reaproveita
 // o mesmo ProcSearch já usado em Tarefas (vincular a processo existente).
@@ -33,36 +29,13 @@ function VincularEmailBox({ onVincular, claims }) {
   );
 }
 
-// Bloco de conexão de um provedor (Outlook ou Gmail) — os dois convivem: dá
-// pra ter só um configurado, ou os dois ao mesmo tempo (útil quando a conta
-// corporativa do Outlook está travada esperando aprovação de administrador
-// e uma conta Gmail pessoal serve de alternativa sem esse bloqueio).
-function ProvedorBox({ provedor, conta, carregando, onConectar, onAtualizar }) {
-  return (
-    <div className="card">
-      <h3 style={{ marginTop: 0 }}>{PROVEDOR_LABEL[provedor]}</h3>
-      {!conta ? (
-        <button className="btn" onClick={onConectar}>Conectar com {PROVEDOR_LABEL[provedor]}</button>
-      ) : (
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 8 }}>
-          <span className="badge green">Conectado como {conta}</span>
-          <button className="btn sec sm" disabled={carregando} onClick={onAtualizar}>
-            {carregando ? "Carregando..." : "Atualizar caixa de entrada"}
-          </button>
-        </div>
-      )}
-    </div>
-  );
-}
-
-// Módulo "E-mails" — lê a caixa de entrada (Outlook e/ou Gmail, login OAuth
-// próprio de cada provedor, sem senha passando pelo sistema) e tenta
-// identificar, pra cada e-mail, a qual processo ele se refere (nº de
-// sinistro, placa ou nome do segurado no assunto+corpo). Nunca grava nada
-// sozinho — só registra um ALERTA no processo (ver DetailHeader.jsx), que o
-// usuário decide se transforma em atualização de histórico ou dispensa.
-// E-mails sem nenhum sinal em comum ficam marcados em outra cor, pra
-// revisão manual.
+// Módulo "E-mails" — lê a caixa de entrada do Gmail (login OAuth próprio,
+// sem senha passando pelo sistema) e tenta identificar, pra cada e-mail, a
+// qual processo ele se refere (nº de sinistro, placa ou nome do segurado no
+// assunto+corpo). Nunca grava nada sozinho — só registra um ALERTA no
+// processo (ver DetailHeader.jsx), que o usuário decide se transforma em
+// atualização de histórico ou dispensa. E-mails sem nenhum sinal em comum
+// ficam marcados em outra cor, pra revisão manual.
 export function Emails() {
   const { records, config } = useData();
   const { navigate } = useHashRoute();
@@ -70,107 +43,75 @@ export function Emails() {
 
   const claims = visibleClaims(records.corp_claims).filter((c) => !isManualClaim(c));
   const overrides = records.corp_overrides || {};
-  const outlookOk = isOutlookConfigured(config);
-  const gmailOk = isGmailConfigured(config);
+  const configurado = isGmailConfigured(config);
 
-  const [contaOutlook, setContaOutlook] = useState(null);
-  const [contaGmail, setContaGmail] = useState(getGmailAccountEmail());
+  const [conta, setConta] = useState(getGmailAccountEmail());
   const [emails, setEmails] = useState([]);
   const [matches, setMatches] = useState({});
-  const [carregando, setCarregando] = useState(null); // "outlook" | "gmail" | null
+  const [carregando, setCarregando] = useState(false);
   const [erro, setErro] = useState(null);
 
   useEffect(() => {
-    if (outlookOk) getOutlookAccount(config).then((a) => setContaOutlook(a)).catch(() => setContaOutlook(null));
-    if (gmailOk && getGmailToken()) setContaGmail(getGmailAccountEmail());
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [outlookOk, gmailOk]);
+    if (configurado && getGmailToken()) setConta(getGmailAccountEmail());
+  }, [configurado]);
 
-  async function conectarOutlook() {
-    setErro(null);
-    try {
-      const account = await outlookLogin(config);
-      setContaOutlook(account);
-    } catch (e) {
-      setErro(e.message || "Falha ao conectar com o Outlook.");
-    }
-  }
-  async function conectarGmail() {
+  async function conectar() {
     setErro(null);
     try {
       const token = await gmailLogin(config);
-      const conta = await fetchGmailProfile(token);
-      saveGmailAccountEmail(conta);
-      setContaGmail(conta);
+      const email = await fetchGmailProfile(token);
+      saveGmailAccountEmail(email);
+      setConta(email);
     } catch (e) {
       setErro(e.message || "Falha ao conectar com o Gmail.");
     }
   }
 
-  function registrarAchados(lista, provedor) {
-    const novosMatches = {};
-    lista.forEach((email) => {
-      const texto = `${email.assunto}\n${email.corpoTexto}`;
-      const achados = encontrarProcessosNoEmail(texto, claims, overrides);
-      novosMatches[email.id] = achados;
-      achados.forEach(({ claimId, motivos }) => {
-        actions.addEmailAlerta(claimId, {
-          emailId: email.id, provedor, assunto: email.assunto, remetente: email.remetenteNome || email.remetente,
-          recebidoEm: email.recebidoEm, resumo: email.resumo, corpoTexto: email.corpoTexto, motivos,
-          encontradoEm: new Date().toISOString(), dismissed: false,
-        });
-      });
-    });
-    setEmails((atual) => {
-      const semEsseProvedor = atual.filter((e) => e.provedor !== provedor);
-      return [...semEsseProvedor, ...lista].sort((a, b) => String(b.recebidoEm).localeCompare(String(a.recebidoEm)));
-    });
-    setMatches((m) => ({ ...m, ...novosMatches }));
-  }
-
-  async function atualizarOutlook() {
-    setCarregando("outlook"); setErro(null);
-    try {
-      const token = await getOutlookToken(config);
-      const brutos = await fetchOutlookMessages(token, { top: 50 });
-      registrarAchados(brutos.map((e) => ({ ...e, id: `outlook:${e.id}`, provedor: "outlook" })), "outlook");
-    } catch (e) {
-      setErro(e.message || "Falha ao carregar a caixa de entrada do Outlook.");
-    } finally {
-      setCarregando(null);
-    }
-  }
-  async function atualizarGmail() {
-    setCarregando("gmail"); setErro(null);
+  async function carregarCaixaEntrada() {
+    setCarregando(true); setErro(null);
     try {
       const token = getGmailToken();
-      if (!token) throw new Error("Sessão do Gmail expirada. Clique em \"Conectar com Gmail\" de novo.");
-      const brutos = await fetchGmailMessages(token, { top: 50 });
-      registrarAchados(brutos.map((e) => ({ ...e, id: `gmail:${e.id}`, provedor: "gmail" })), "gmail");
+      if (!token) throw new Error('Sessão do Gmail expirada. Clique em "Conectar com Gmail" de novo.');
+      const lista = await fetchInboxMessages(token, { top: 50 });
+      const novosMatches = {};
+      lista.forEach((email) => {
+        const texto = `${email.assunto}\n${email.corpoTexto}`;
+        const achados = encontrarProcessosNoEmail(texto, claims, overrides);
+        novosMatches[email.id] = achados;
+        achados.forEach(({ claimId, motivos }) => {
+          actions.addEmailAlerta(claimId, {
+            emailId: email.id, provedor: "gmail", assunto: email.assunto, remetente: email.remetenteNome || email.remetente,
+            recebidoEm: email.recebidoEm, resumo: email.resumo, corpoTexto: email.corpoTexto, motivos,
+            encontradoEm: new Date().toISOString(), dismissed: false,
+          });
+        });
+      });
+      setEmails(lista);
+      setMatches(novosMatches);
     } catch (e) {
-      setErro(e.message || "Falha ao carregar a caixa de entrada do Gmail.");
+      setErro(e.message || "Falha ao carregar a caixa de entrada.");
     } finally {
-      setCarregando(null);
+      setCarregando(false);
     }
   }
 
   function vincularManual(email, claimId) {
     if (!claimId) return;
     actions.addEmailAlerta(claimId, {
-      emailId: email.id, provedor: email.provedor, assunto: email.assunto, remetente: email.remetenteNome || email.remetente,
+      emailId: email.id, provedor: "gmail", assunto: email.assunto, remetente: email.remetenteNome || email.remetente,
       recebidoEm: email.recebidoEm, resumo: email.resumo, corpoTexto: email.corpoTexto, motivos: ["manual"],
       encontradoEm: new Date().toISOString(), dismissed: false,
     });
     setMatches((m) => ({ ...m, [email.id]: [...(m[email.id] || []), { claimId, motivos: ["manual"] }] }));
   }
 
-  if (!outlookOk && !gmailOk) {
+  if (!configurado) {
     return (
       <div className="page-enter">
-        <div className="page-head"><div><h1>E-mails</h1><p>Caixa de entrada (Outlook/Gmail)</p></div></div>
+        <div className="page-head"><div><h1>E-mails</h1><p>Caixa de entrada do Gmail</p></div></div>
         <div className="card">
           <EmptyState>
-            Nenhum provedor de e-mail configurado ainda. Configure o Outlook e/ou o Gmail em Configurações → E-mails (Outlook / Gmail).
+            Gmail ainda não configurado. Configure o Client ID em Configurações → E-mails (Gmail).
           </EmptyState>
           <button className="btn sec sm" style={{ marginTop: 10 }} onClick={() => navigate("config")}>Ir para Configurações</button>
         </div>
@@ -181,24 +122,27 @@ export function Emails() {
   return (
     <div className="page-enter">
       <div className="page-head">
-        <div><h1>E-mails</h1><p>Caixa de entrada — identificação automática de processos</p></div>
+        <div><h1>E-mails</h1><p>Caixa de entrada do Gmail — identificação automática de processos</p></div>
       </div>
 
-      <div className="grid c2">
-        {outlookOk && (
-          <ProvedorBox
-            provedor="outlook" conta={contaOutlook ? contaOutlook.username : null} carregando={carregando === "outlook"}
-            onConectar={conectarOutlook} onAtualizar={atualizarOutlook}
-          />
-        )}
-        {gmailOk && (
-          <ProvedorBox
-            provedor="gmail" conta={contaGmail} carregando={carregando === "gmail"}
-            onConectar={conectarGmail} onAtualizar={atualizarGmail}
-          />
+      <div className="card">
+        {!conta ? (
+          <>
+            <p className="muted">Conecte sua conta Gmail pra carregar a caixa de entrada.</p>
+            <button className="btn" onClick={conectar}>Conectar com Gmail</button>
+          </>
+        ) : (
+          <>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 8 }}>
+              <span className="badge green">Conectado como {conta}</span>
+              <button className="btn sec sm" disabled={carregando} onClick={carregarCaixaEntrada}>
+                {carregando ? "Carregando..." : "Atualizar caixa de entrada"}
+              </button>
+            </div>
+            {erro && <div style={{ color: "var(--danger)", fontSize: 13, marginTop: 10 }}>{erro}</div>}
+          </>
         )}
       </div>
-      {erro && <div className="card" style={{ color: "var(--danger)", fontSize: 13 }}>{erro}</div>}
 
       {!!emails.length && (
         <div className="card">
@@ -221,9 +165,7 @@ export function Emails() {
                 >
                   <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 8, flexWrap: "wrap" }}>
                     <div>
-                      <div style={{ fontWeight: 700, fontSize: 14 }}>
-                        {email.assunto} <span className="badge gray" style={{ fontSize: 10, marginLeft: 6 }}>{PROVEDOR_LABEL[email.provedor]}</span>
-                      </div>
+                      <div style={{ fontWeight: 700, fontSize: 14 }}>{email.assunto}</div>
                       <div className="muted" style={{ fontSize: 12 }}>{txt(email.remetenteNome || email.remetente)} • {fmtDateHoraBR(email.recebidoEm)}</div>
                     </div>
                     {identificado ? (

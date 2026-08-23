@@ -79,7 +79,7 @@ export function useOverrideActions() {
     // Produtor em Sinistros e o vínculo de acesso de usuários "Consulta".
     saveAgenteProdutor: (claimId, snapshot) => setOvr(claimId, { agenteProdutor: snapshot }),
 
-    // Alertas de e-mail (Outlook) — a pedido do usuário: quando um e-mail
+    // Alertas de e-mail (Gmail) — a pedido do usuário: quando um e-mail
     // bate com um processo (por nº de sinistro/placa/nome, ou vínculo
     // manual), fica registrado aqui SEM gravar nada no histórico sozinho —
     // só um alerta visual (ver DetailHeader.jsx) até o usuário decidir
