@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { isManualClaim } from "../logic/claims";
-import { fetchDocumento } from "../logic/corpApi";
+import { fetchDocumento, normalizeAgenteProdutorSnapshot } from "../logic/corpApi";
 
 // Busca sob demanda o endpoint /documento do CORP pra um processo, vinculado
 // por codfil+nosnum (nosnum é a chave universal do CORP, mesmo valor já
@@ -8,7 +8,12 @@ import { fetchDocumento } from "../logic/corpApi";
 // geral) quanto pra url_apolice (Anexos) — cada tela que chama este hook
 // dispara sua própria busca ao montar; sem cache entre abas (GET simples,
 // custo baixo, evita a complexidade de estado compartilhado entre telas).
-export function useDocumentoCorp(c, config) {
+//
+// Quando `actions` é passado, o resultado também é persistido em
+// overrides[c.id].agenteProdutor (cache oportunista, sem esperar a
+// importação em lote) — é o que alimenta o filtro de Agente/Produtor em
+// Sinistros e o vínculo de acesso de usuários "Consulta".
+export function useDocumentoCorp(c, config, actions) {
   const [resp, setResp] = useState(null);
   const [carregando, setCarregando] = useState(false);
   const [erro, setErro] = useState(null);
@@ -18,7 +23,11 @@ export function useDocumentoCorp(c, config) {
     let cancelado = false;
     setCarregando(true); setErro(null);
     fetchDocumento((config && config.corp_cfg) || {}, c.codfil, c.nosnum)
-      .then((r) => { if (!cancelado) setResp(r); })
+      .then((r) => {
+        if (cancelado) return;
+        setResp(r);
+        if (actions && actions.saveAgenteProdutor) actions.saveAgenteProdutor(c.id, normalizeAgenteProdutorSnapshot(r));
+      })
       .catch((e) => { if (!cancelado) setErro(e.message || "Falha ao buscar dados do CORP."); })
       .finally(() => { if (!cancelado) setCarregando(false); });
     return () => { cancelado = true; };

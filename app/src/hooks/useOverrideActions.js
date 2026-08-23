@@ -73,6 +73,11 @@ export function useOverrideActions() {
     saveSitAtend: (claimId, v) => setOvr(claimId, { sitAtend: v }),
     saveTemp: (claimId, v) => setOvr(claimId, { temperatura: v }),
     saveJourneyNotes: (claimId, v) => setOvr(claimId, { journeyNotes: v }),
+    // Snapshot de Agente/Produtor (endpoint /documento do CORP) — gravado
+    // sob demanda (ao abrir Visão geral/Anexos de um processo) ou via
+    // importação em lote (Configurações). Alimenta o filtro de Agente/
+    // Produtor em Sinistros e o vínculo de acesso de usuários "Consulta".
+    saveAgenteProdutor: (claimId, snapshot) => setOvr(claimId, { agenteProdutor: snapshot }),
     saveUserJourney: (claimId, uj) => setOvr(claimId, { journeyUser: uj }),
     setManualLinks: (claimId, ids) => setOvr(claimId, { links: ids }),
 

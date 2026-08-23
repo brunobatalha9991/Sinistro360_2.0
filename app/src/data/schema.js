@@ -13,6 +13,7 @@ export const CONFIG_KEYS = [
   "corp_drive_upload_endpoint",
   "corp_solicitacao_formularios",
   "corp_checklist_mesa_atendimento",
+  "corp_agentes_catalogo",
 ];
 
 // Registros grandes/multiusuário: 1 documento por registro.

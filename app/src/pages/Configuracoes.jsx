@@ -14,7 +14,9 @@ import { ChecklistMesaAtendimentoCard } from "../components/config/ChecklistMesa
 import { RamoTemplatesEditor } from "../components/config/RamoTemplatesEditor.jsx";
 import { UsersCard } from "../components/config/UsersCard.jsx";
 import { AtendimentoStepsEditor } from "../components/config/AtendimentoStepsEditor.jsx";
-import { visibleClaims, ensureRamoTemplateInto } from "../logic/claims";
+import { AgentesCatalogoCard } from "../components/config/AgentesCatalogoCard.jsx";
+import { ImportarAgenteProdutorCard } from "../components/config/ImportarAgenteProdutorCard.jsx";
+import { visibleClaims, ensureRamoTemplateInto, distinctProdutores, getAgentesEfetivo } from "../logic/claims";
 import { getToken, setToken } from "../logic/corpApi";
 
 // Agrupador colapsável — a pedido do usuário: Configurações tinha ~10
@@ -56,6 +58,9 @@ export function Configuracoes() {
   }, [claims.length, templates]);
 
   const ramosCount = Object.keys(templates).length;
+  const overrides = records.corp_overrides || {};
+  const agentesEfetivo = getAgentesEfetivo(config, overrides, claims);
+  const produtoresEfetivo = distinctProdutores(overrides, claims);
 
   return (
     <div className="page-enter">
@@ -73,14 +78,22 @@ export function Configuracoes() {
         <div className="card"><EmptyState>Apenas administradores podem editar os modelos de jornada por ramo. Altere o perfil no topo para Administrador.</EmptyState></div>
       ) : (
         <>
-          <ConfigGroup title="Usuários & Acesso" subtitle="Cadastro, papéis e módulos liberados por usuário.">
-            <UsersCard users={records.corp_users || []} currentUser={currentUser} saveRecord={saveRecord} />
+          <ConfigGroup title="Usuários & Acesso" subtitle="Cadastro, papéis, módulos e vínculo de Agente/Produtor (usuários Consulta) por usuário.">
+            <UsersCard
+              users={records.corp_users || []} currentUser={currentUser} saveRecord={saveRecord}
+              agentesDisponiveis={agentesEfetivo} produtoresDisponiveis={produtoresEfetivo}
+            />
           </ConfigGroup>
 
           <ConfigGroup title="Processos & Jornada" subtitle="Etapas por ramo, jornadas de atendimento e atribuição de responsável em massa.">
             <AtendimentoStepsEditor atendTemplateCfg={config.corp_atendimento_template} saveConfig={saveConfig} />
             <RamoTemplatesEditor templates={templates} saveConfig={saveConfig} />
-            <AtribuirResponsavelEmMassaCard claims={claims} overrides={records.corp_overrides || {}} users={records.corp_users || []} actions={actions} canEdit={admin} />
+            <AtribuirResponsavelEmMassaCard claims={claims} overrides={overrides} users={records.corp_users || []} actions={actions} canEdit={admin} />
+          </ConfigGroup>
+
+          <ConfigGroup title="Agentes & Produtores" subtitle="Catálogo de agentes e importação em lote de Agente/Produtor da API CORP — usado no filtro de Sinistros e no vínculo de acesso de usuários Consulta.">
+            <AgentesCatalogoCard config={config} saveConfig={saveConfig} overrides={overrides} claims={claims} canEdit={admin} />
+            <ImportarAgenteProdutorCard claims={claims} config={config} actions={actions} canEdit={admin} />
           </ConfigGroup>
 
           <ConfigGroup title="Mesa de Atendimento" subtitle="Checklist de abertura, formulários de solicitação e upload de anexos no Drive.">

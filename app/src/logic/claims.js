@@ -186,8 +186,69 @@ export function isConstatacaoSemIndeniz(c) {
   if (of !== "01-CONSTATAÇÃO") return false;
   return String(c.situacao || "").toUpperCase().indexOf("SEM IND") >= 0;
 }
-export function visibleClaims(allClaims) {
-  return (allClaims || []).filter((c) => !isConstatacaoSemIndeniz(c));
+export function getAgenteProdutor(overrides, claimId) {
+  return getOvr(overrides, claimId).agenteProdutor || null;
+}
+// Vínculo de acesso por Agente/Produtor (a pedido do usuário): um usuário
+// "consulta" com agentes/produtores configurados só enxerga processos
+// ligados a eles. Sem nenhum vínculo configurado, não restringe nada —
+// mesmo critério já usado em userModulos() pra módulos (ver data/auth.js) —
+// pra não trancar usuários "consulta" já existentes assim que a função for
+// ligada, antes de um admin configurar os vínculos deles.
+export function usuarioTemVinculoRestrito(user) {
+  if (!user || user.role !== "consulta") return false;
+  const ag = user.agentesVinculados || [];
+  const pr = user.produtoresVinculados || [];
+  return ag.length > 0 || pr.length > 0;
+}
+export function claimVisivelParaUsuario(overrides, c, user) {
+  if (!usuarioTemVinculoRestrito(user)) return true;
+  const ap = getAgenteProdutor(overrides, c.id);
+  if (!ap) return false;
+  const ag = user.agentesVinculados || [];
+  const pr = user.produtoresVinculados || [];
+  const bateAgente = ag.length > 0 && (ap.agentes || []).some((a) => ag.indexOf(a) >= 0);
+  const bateProdutor = pr.length > 0 && (ap.produtores || []).some((p) => pr.indexOf(p) >= 0);
+  return bateAgente || bateProdutor;
+}
+
+// `overrides`/`currentUser` são opcionais (retrocompatível com as várias
+// chamadas existentes de 1 argumento só) — só filtra por vínculo de Agente/
+// Produtor quando os dois são passados e o usuário for "consulta" com
+// vínculo configurado.
+export function visibleClaims(allClaims, overrides, currentUser) {
+  let out = (allClaims || []).filter((c) => !isConstatacaoSemIndeniz(c));
+  if (currentUser && usuarioTemVinculoRestrito(currentUser)) {
+    out = out.filter((c) => claimVisivelParaUsuario(overrides, c, currentUser));
+  }
+  return out;
+}
+
+export function distinctAgentes(overrides, claims) {
+  const seen = {}; const out = [];
+  (claims || []).forEach((c) => {
+    const ap = getAgenteProdutor(overrides, c.id);
+    (ap && ap.agentes || []).forEach((a) => { if (a && !seen[a]) { seen[a] = true; out.push(a); } });
+  });
+  return out.sort((a, b) => String(a).localeCompare(String(b), "pt-BR"));
+}
+export function distinctProdutores(overrides, claims) {
+  const seen = {}; const out = [];
+  (claims || []).forEach((c) => {
+    const ap = getAgenteProdutor(overrides, c.id);
+    (ap && ap.produtores || []).forEach((p) => { if (p && !seen[p]) { seen[p] = true; out.push(p); } });
+  });
+  return out.sort((a, b) => String(a).localeCompare(String(b), "pt-BR"));
+}
+// Catálogo efetivo de agentes: união do catálogo editável pelo admin
+// (config.corp_agentes_catalogo, com "+ Novo agente" em Configurações) com
+// os agentes já descobertos em processos sincronizados/importados.
+export function getAgentesEfetivo(config, overrides, claims) {
+  const manual = (config && config.corp_agentes_catalogo) || [];
+  const auto = distinctAgentes(overrides, claims);
+  const seen = {}; const out = [];
+  manual.concat(auto).forEach((a) => { if (a && !seen[a]) { seen[a] = true; out.push(a); } });
+  return out.sort((a, b) => String(a).localeCompare(String(b), "pt-BR"));
 }
 
 export function relatedClaims(overrides, allClaimsRaw, c) {

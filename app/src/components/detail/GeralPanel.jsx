@@ -10,8 +10,8 @@ import { useDocumentoCorp } from "../../hooks/useDocumentoCorp";
 // a aba, usando o "nosnum" do processo (chave universal no CORP) + codfil.
 // Processos criados manualmente (sem nosnum real da API) não têm o que
 // buscar aqui.
-function AgenteProdutorBox({ c, config }) {
-  const { resp, carregando, erro } = useDocumentoCorp(c, config);
+function AgenteProdutorBox({ c, config, actions }) {
+  const { resp, carregando, erro } = useDocumentoCorp(c, config, actions);
   const prodDocs = extractProdDocs(resp);
 
   if (isManualClaim(c)) return null;
@@ -79,7 +79,7 @@ export function GeralPanel({ c, claims, overrides, actions, canEdit, config }) {
         O valor que você digitar prevalece sobre o dado da API e não se perde ao sincronizar. Nº controle e Tipo (API) não são editáveis. O dado bruto original continua visível na aba "Dados brutos (API)".
       </p>
       <KvList rows={rows} />
-      <AgenteProdutorBox c={c} config={config} />
+      <AgenteProdutorBox c={c} config={config} actions={actions} />
     </div>
   );
 }

@@ -29,10 +29,14 @@ export function Sinistro() {
   const [detailTab, setDetailTab] = useDetailTab();
   const actions = useOverrideActions();
 
-  const claims = useMemo(() => visibleClaims(records.corp_claims), [records.corp_claims]);
   const allClaimsRaw = records.corp_claims || [];
   const overrides = records.corp_overrides || {};
   const users = records.corp_users || [];
+  // overrides/currentUser aplicam o vínculo de acesso por Agente/Produtor
+  // (usuários "Consulta" vinculados) — acesso direto por URL a um processo
+  // fora do vínculo cai no mesmo "Registro não encontrado" de baixo, sem
+  // vazar que o processo existe.
+  const claims = useMemo(() => visibleClaims(records.corp_claims, overrides, currentUser), [records.corp_claims, overrides, currentUser]);
 
   const c = claims.find((x) => x.id === param);
   if (!c) {

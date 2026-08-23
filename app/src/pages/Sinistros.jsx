@@ -14,7 +14,7 @@ import { exportCSV } from "../logic/exportCsv";
 import {
   visibleClaims, campoEfetivo, situacaoEfetiva, getUserJourney, getNextAction,
   getSitAtend, getTemp, getResponsavel, isAtrasado, isSemAtualizacao, isManualClaim,
-  allJourneyStages, currentStage,
+  allJourneyStages, currentStage, getAgenteProdutor, getAgentesEfetivo, distinctProdutores,
 } from "../logic/claims";
 
 const DEFAULT_TEMP_OPTIONS = ["Tranquilo", "Moderado", "Grave", "Em atenção"];
@@ -26,7 +26,6 @@ export function Sinistros() {
   const lf = useListFilter();
   const [pref, setPref] = useState(loadCols);
 
-  const claims = useMemo(() => visibleClaims(records.corp_claims), [records.corp_claims]);
   const allClaimsRaw = records.corp_claims || [];
   const overrides = records.corp_overrides || {};
   const users = records.corp_users || [];
@@ -34,6 +33,11 @@ export function Sinistros() {
   const atendTemplate = config.corp_atendimento_template;
   const sitOptions = config.corp_sit_options || ["Aguard. Cliente", "Aguard. Seguradora", "Aguard. Corretora", "Aguard. Oficina"];
   const tempOptions = config.corp_temp_options && config.corp_temp_options.length ? config.corp_temp_options : DEFAULT_TEMP_OPTIONS;
+  // Vínculo de acesso por Agente/Produtor (usuários "Consulta" vinculados)
+  // — sem vínculo configurado, não filtra nada.
+  const claims = useMemo(() => visibleClaims(records.corp_claims, overrides, currentUser), [records.corp_claims, overrides, currentUser]);
+  const agenteOptions = getAgentesEfetivo(config, overrides, claims);
+  const produtorOptions = distinctProdutores(overrides, claims);
 
   function updatePref(next) { setPref(next); saveCols(next); }
 
@@ -74,6 +78,14 @@ export function Sinistros() {
       const t = getTemp(overrides, c.id);
       if (lf.termometro === "__sem__") { if (t) return false; }
       else if (t !== lf.termometro) return false;
+    }
+    if (except !== "agente" && lf.agente && lf.agente !== "todos") {
+      const ap = getAgenteProdutor(overrides, c.id);
+      if (!ap || (ap.agentes || []).indexOf(lf.agente) < 0) return false;
+    }
+    if (except !== "produtor" && lf.produtor && lf.produtor !== "todos") {
+      const ap = getAgenteProdutor(overrides, c.id);
+      if (!ap || (ap.produtores || []).indexOf(lf.produtor) < 0) return false;
     }
     if (except !== "texto" && q) {
       const hay = [campoEfetivo(overrides, c, "segurado"), campoEfetivo(overrides, c, "placa"), campoEfetivo(overrides, c, "numsin"), campoEfetivo(overrides, c, "numapo"), campoEfetivo(overrides, c, "cia"), c.partyType, campoEfetivo(overrides, c, "oficina"), campoEfetivo(overrides, c, "ramo")].join(" ").toLowerCase();
@@ -152,6 +164,14 @@ export function Sinistros() {
       if (lf.termometro === "__sem__") { if (t) return false; }
       else if (t !== lf.termometro) return false;
     }
+    if (lf.agente && lf.agente !== "todos") {
+      const ap = getAgenteProdutor(overrides, c.id);
+      if (!ap || (ap.agentes || []).indexOf(lf.agente) < 0) return false;
+    }
+    if (lf.produtor && lf.produtor !== "todos") {
+      const ap = getAgenteProdutor(overrides, c.id);
+      if (!ap || (ap.produtores || []).indexOf(lf.produtor) < 0) return false;
+    }
     if (!q) return true;
     return [campoEfetivo(overrides, c, "segurado"), campoEfetivo(overrides, c, "placa"), campoEfetivo(overrides, c, "numsin"), campoEfetivo(overrides, c, "numapo"), campoEfetivo(overrides, c, "cia"), c.partyType, campoEfetivo(overrides, c, "oficina"), campoEfetivo(overrides, c, "ramo")].join(" ").toLowerCase().indexOf(q) >= 0;
   });
@@ -168,6 +188,8 @@ export function Sinistros() {
   if (lf.manual) activeCount++;
   if (lf.aberto) activeCount++;
   if (lf.caminho && lf.caminho !== "todos") activeCount++;
+  if (lf.agente && lf.agente !== "todos") activeCount++;
+  if (lf.produtor && lf.produtor !== "todos") activeCount++;
 
   const allCols = getAllCols({ overrides, allClaimsRaw, navigate });
 
@@ -280,6 +302,21 @@ export function Sinistros() {
                 {users.map((u) => <option key={u.id} value={u.id}>{u.nome}</option>)}
               </select>
               <span className="muted" style={{ fontSize: 11 }}>(traz apenas Pendente / Em andamento)</span>
+            </div>
+          </div>
+
+          <div className="filter-group">
+            <div className="filter-group-title">Agente / Produtor</div>
+            <div className="chips" style={{ alignItems: "center" }}>
+              <select className="inline" style={{ minWidth: 200 }} value={lf.agente} onChange={(e) => patchListFilter({ agente: e.target.value })}>
+                <option value="todos">Agente: todos</option>
+                {agenteOptions.map((a) => <option key={a} value={a}>{a}</option>)}
+              </select>
+              <select className="inline" style={{ minWidth: 200 }} value={lf.produtor} onChange={(e) => patchListFilter({ produtor: e.target.value })}>
+                <option value="todos">Produtor: todos</option>
+                {produtorOptions.map((p) => <option key={p} value={p}>{p}</option>)}
+              </select>
+              <span className="muted" style={{ fontSize: 11 }}>(dados de processos já buscados — importe em lote em Configurações se faltar algum)</span>
             </div>
           </div>
         </div>

@@ -75,6 +75,21 @@ export function extractUrlApolice(resp) {
   return (resp && resp.acompanhamento && resp.acompanhamento.emissao && resp.acompanhamento.emissao.url_apolice) || "";
 }
 
+// Resumo persistível da resposta de fetchDocumento — o que fica guardado em
+// overrides[claimId].agenteProdutor (ver useOverrideActions.saveAgenteProdutor
+// e useDocumentoCorp), usado pra filtrar Sinistros e pro vínculo de acesso
+// de usuários "Consulta" por agente/produtor.
+export function normalizeAgenteProdutorSnapshot(resp) {
+  const prodDocs = extractProdDocs(resp);
+  const agentes = []; const produtores = [];
+  const seenA = {}; const seenP = {};
+  prodDocs.forEach((p) => {
+    if (p.agente && !seenA[p.agente]) { seenA[p.agente] = true; agentes.push(p.agente); }
+    if (p.produtor && !seenP[p.produtor]) { seenP[p.produtor] = true; produtores.push(p.produtor); }
+  });
+  return { agentes, produtores, prodDocs, urlApolice: extractUrlApolice(resp), atualizadoEm: new Date().toISOString() };
+}
+
 export function mapCorp(c) {
   return {
     id: "clm_" + (c.codfil || "0") + "_" + String(c.tipo || "?").charAt(0).toUpperCase() + "_" + (c.nosnum || uid("")),

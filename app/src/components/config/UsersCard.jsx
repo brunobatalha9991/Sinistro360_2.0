@@ -6,7 +6,7 @@ import { hashNewPassword } from "../../logic/passwordHash";
 const ROLE_ORDER = ["atendente", "analista", "consulta", "admin"];
 
 // Porte 1:1 do card "Usuários do sistema" das Configurações do HTML original.
-export function UsersCard({ users, currentUser, saveRecord }) {
+export function UsersCard({ users, currentUser, saveRecord, agentesDisponiveis, produtoresDisponiveis }) {
   const [nome, setNome] = useState("");
   const [email, setEmail] = useState("");
   const [senha, setSenha] = useState("");
@@ -46,6 +46,43 @@ export function UsersCard({ users, currentUser, saveRecord }) {
     const novos = nums.map((n) => MODULOS_DISPONIVEIS[n - 1][0]);
     saveUsers((current) => (current || []).map((x) => (x.id === u.id ? { ...x, modulos: novos } : x)));
     alert(`Módulos de "${u.nome}" atualizados.`);
+  }
+
+  // Vínculo de acesso por Agente/Produtor — a pedido do usuário: usuário
+  // "consulta" vinculado a um ou mais agentes/produtores só enxerga
+  // sinistros ligados a eles (ver claimVisivelParaUsuario em logic/claims.js
+  // e o filtro aplicado em Sinistros.jsx/Sinistro.jsx). Sem vínculo nenhum,
+  // continua vendo tudo, igual antes.
+  function abrirAgentesProdutores(u) {
+    if (u.role !== "consulta") { alert('Vínculo de agente/produtor só se aplica a usuários com função "Consulta".'); return; }
+    const listaAg = agentesDisponiveis || [];
+    const atuaisAg = u.agentesVinculados || [];
+    let novosAg = atuaisAg;
+    if (listaAg.length) {
+      const txtAg = listaAg.map((a, i) => `${i + 1} - ${a}${atuaisAg.indexOf(a) >= 0 ? " [vinculado]" : ""}`).join("\n");
+      const idxAg = atuaisAg.map((a) => listaAg.indexOf(a)).filter((x) => x >= 0).map((x) => x + 1).join(",");
+      const escAg = prompt(`Agentes vinculados a "${u.nome}" — números separados por vírgula (vazio = nenhum):\n\n${txtAg}`, idxAg);
+      if (escAg === null) return;
+      const numsAg = String(escAg).split(",").map((s) => parseInt(s.trim(), 10)).filter((n) => !isNaN(n) && n >= 1 && n <= listaAg.length);
+      novosAg = numsAg.map((n) => listaAg[n - 1]);
+    } else if (!confirm('Nenhum agente cadastrado ainda (importe Agente/Produtor em lote em Configurações, ou cadastre um agente manualmente). Continuar só pra vincular produtores?')) {
+      return;
+    }
+
+    const listaPr = produtoresDisponiveis || [];
+    const atuaisPr = u.produtoresVinculados || [];
+    let novosPr = atuaisPr;
+    if (listaPr.length) {
+      const txtPr = listaPr.map((p, i) => `${i + 1} - ${p}${atuaisPr.indexOf(p) >= 0 ? " [vinculado]" : ""}`).join("\n");
+      const idxPr = atuaisPr.map((p) => listaPr.indexOf(p)).filter((x) => x >= 0).map((x) => x + 1).join(",");
+      const escPr = prompt(`Produtores vinculados a "${u.nome}" — números separados por vírgula (vazio = nenhum):\n\n${txtPr}`, idxPr);
+      if (escPr === null) return;
+      const numsPr = String(escPr).split(",").map((s) => parseInt(s.trim(), 10)).filter((n) => !isNaN(n) && n >= 1 && n <= listaPr.length);
+      novosPr = numsPr.map((n) => listaPr[n - 1]);
+    }
+
+    saveUsers((current) => (current || []).map((x) => (x.id === u.id ? { ...x, agentesVinculados: novosAg, produtoresVinculados: novosPr } : x)));
+    alert(`Vínculos de "${u.nome}" atualizados.` + (novosAg.length || novosPr.length ? "" : " Sem nenhum agente/produtor selecionado, o usuário volta a ver todos os processos."));
   }
 
   async function redefinirSenha(u) {
@@ -164,6 +201,9 @@ export function UsersCard({ users, currentUser, saveRecord }) {
                 <td><span className={"badge " + (u.role === "admin" ? "purple" : u.role === "consulta" ? "gray" : "blue")}>{ROLE_LABELS[u.role]}</span></td>
                 <td>
                   <button className="btn ghost xs" style={{ marginRight: 6 }} onClick={() => abrirModulos(u)}>Módulos</button>
+                  {u.role === "consulta" && (
+                    <button className="btn ghost xs" style={{ marginRight: 6 }} onClick={() => abrirAgentesProdutores(u)}>Agente/Produtor</button>
+                  )}
                   <button className="btn ghost xs" style={{ marginRight: 6 }} onClick={() => redefinirSenha(u)}>Redefinir senha</button>
                   <button className="btn ghost xs" style={{ marginRight: 6 }} onClick={() => mudarFuncao(u)}>Mudar função</button>
                   <button className="btn sec xs" onClick={() => editar(u)}>Editar</button>
