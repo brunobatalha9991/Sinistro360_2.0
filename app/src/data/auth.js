@@ -58,7 +58,7 @@ export function resolveAllowedRoute(route, currentUser, currentRole) {
   }
   if (currentUser && currentUser.role !== "admin") {
     const perm = userModulos(currentUser);
-    const rotaMod = r === "sinistro" ? "sinistros" : r;
+    const rotaMod = r === "sinistro" ? "sinistros" : r === "oficina" ? "oficinas" : r === "seguradora" ? "seguradoras" : r;
     if (perm.indexOf(rotaMod) < 0) {
       const primeiro = perm[0] || "sinistros";
       r = primeiro === "sinistro" ? "sinistros" : primeiro;

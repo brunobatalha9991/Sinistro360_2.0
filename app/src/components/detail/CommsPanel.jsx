@@ -12,7 +12,7 @@ const CANAL_LABEL = { Cliente: "o Cliente", Oficina: "a Oficina", Seguradora: "a
 const CANAL_BADGE = { Cliente: "green", Oficina: "amber", Seguradora: "purple" };
 
 function blankBox() {
-  return { texto: "", meio: MEIOS[0], aguardandoRetorno: false, avaliacao: 0, motivoAvaliacao: "" };
+  return { texto: "", meio: MEIOS[0], aguardandoRetorno: false, limitacaoComunicacao: false, avaliacao: 0, motivoAvaliacao: "" };
 }
 
 function Star({ filled, onClick, readOnly }) {
@@ -39,7 +39,7 @@ function StarRating({ value, onChange, readOnly }) {
   );
 }
 
-function ComunicacaoBox({ canal, box, onChange, comAvaliacao }) {
+function ComunicacaoBox({ canal, box, onChange, comAvaliacao, comLimitacao }) {
   function set(patch) { onChange({ ...box, ...patch }); }
   return (
     <div style={{ border: "1px solid var(--border)", borderRadius: 8, padding: 12 }}>
@@ -56,10 +56,18 @@ function ComunicacaoBox({ canal, box, onChange, comAvaliacao }) {
           <input placeholder="Motivo da avaliação (opcional)" value={box.motivoAvaliacao} onChange={(e) => set({ motivoAvaliacao: e.target.value })} style={{ flex: 1, minWidth: 160 }} />
         </div>
       )}
-      <label style={{ display: "flex", gap: 6, alignItems: "center", marginTop: 8, fontSize: 12.5, cursor: "pointer" }}>
-        <input type="checkbox" checked={box.aguardandoRetorno} onChange={() => set({ aguardandoRetorno: !box.aguardandoRetorno })} />
-        Aguardando retorno
-      </label>
+      <div style={{ display: "flex", gap: 14, flexWrap: "wrap", marginTop: 8 }}>
+        <label style={{ display: "flex", gap: 6, alignItems: "center", fontSize: 12.5, cursor: "pointer" }}>
+          <input type="checkbox" checked={box.aguardandoRetorno} onChange={() => set({ aguardandoRetorno: !box.aguardandoRetorno })} />
+          Aguardando retorno
+        </label>
+        {comLimitacao && (
+          <label style={{ display: "flex", gap: 6, alignItems: "center", fontSize: 12.5, cursor: "pointer" }} title="Marca essa interação como evidência de limitação de comunicação da oficina — contabilizado no módulo Oficinas">
+            <input type="checkbox" checked={box.limitacaoComunicacao} onChange={() => set({ limitacaoComunicacao: !box.limitacaoComunicacao })} />
+            Limitação de comunicação
+          </label>
+        )}
+      </div>
     </div>
   );
 }
@@ -168,6 +176,7 @@ export function CommsPanel({ c, overrides, actions, canEdit, config }) {
     const novos = candidatos.filter(({ box }) => box.texto.trim()).map(({ canal, box, comAvaliacao }) => ({
       id: "cm_" + Math.random().toString(36).slice(2, 9), titulo: tituloResolvido, canal, meio: box.meio, date: data,
       text: box.texto.trim(), aguardandoRetorno: !!box.aguardandoRetorno,
+      ...(canal === "Oficina" ? { limitacaoComunicacao: !!box.limitacaoComunicacao } : {}),
       ...(comAvaliacao ? { avaliacao: box.avaliacao || 0, motivoAvaliacao: (box.motivoAvaliacao || "").trim() } : {}),
       who: (currentUser && currentUser.nome) || "—", at: new Date().toISOString(),
     }));
@@ -210,7 +219,7 @@ export function CommsPanel({ c, overrides, actions, canEdit, config }) {
 
         <div style={{ display: "flex", flexDirection: "column", gap: 12, marginTop: 4 }}>
           <ComunicacaoBox canal="Cliente" box={boxCliente} onChange={setBoxCliente} comAvaliacao={false} />
-          <ComunicacaoBox canal="Oficina" box={boxOficina} onChange={setBoxOficina} comAvaliacao />
+          <ComunicacaoBox canal="Oficina" box={boxOficina} onChange={setBoxOficina} comAvaliacao comLimitacao />
           <ComunicacaoBox canal="Seguradora" box={boxSeguradora} onChange={setBoxSeguradora} comAvaliacao />
           <SugestaoClienteBox titulo={tituloResolvido} oficinaTexto={boxOficina.texto} seguradoraTexto={boxSeguradora.texto} />
         </div>
@@ -231,6 +240,7 @@ export function CommsPanel({ c, overrides, actions, canEdit, config }) {
                   {m.titulo && <span className="badge blue" style={{ marginRight: 6 }}>{m.titulo}</span>}
                   <span className={"badge " + CANAL_BADGE[m.canal]}>{m.canal}</span>
                   {m.aguardandoRetorno && <span className="badge amber" style={{ marginLeft: 6 }}>Aguardando retorno</span>}
+                  {m.limitacaoComunicacao && <span className="badge red" style={{ marginLeft: 6 }}>Limitação de comunicação</span>}
                   <span className="muted" style={{ marginLeft: 8, fontSize: 12 }}>{m.meio} • {fmtDateBR(m.date)}</span>
                 </div>
                 <button className="btn danger xs" onClick={() => excluir(m.id)}>Excluir</button>

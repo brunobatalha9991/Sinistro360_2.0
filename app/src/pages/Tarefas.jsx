@@ -10,6 +10,8 @@ import { openTaskModal } from "../state/taskModal";
 import { EmptyState } from "../components/EmptyState.jsx";
 import { TaskModal } from "../components/TaskModal.jsx";
 import { visibleClaims } from "../logic/claims";
+import { oficinaNomeFromId } from "../logic/oficinas";
+import { seguradoraNomeFromId } from "../logic/seguradoras";
 import { myTasks, taskIsStale, taskCienteByMe, isTarefaEmergencia, isTarefaArquivada, URG_ORDER, STATUS_ORDER } from "../logic/tasks";
 import { checklistProgresso } from "../logic/checklistMesaAtendimento";
 
@@ -155,6 +157,8 @@ export function Tarefas() {
         const origem = (records.corp_users || []).find((u) => u.id === t.origem) || { nome: "—" };
         const dests = (t.destinatarios || []).map((id) => ((records.corp_users || []).find((u) => u.id === id) || { nome: "?" }).nome).join(", ");
         const proc = t.processo ? claims.find((c) => c.id === t.processo) : null;
+        const oficinaNome = t.oficinaId ? oficinaNomeFromId(claims, records.corp_overrides, t.oficinaId) : "";
+        const seguradoraNome = t.seguradoraId ? seguradoraNomeFromId(claims, records.corp_overrides, t.seguradoraId) : "";
         const emergencia = isTarefaEmergencia(t);
         return (
           <div
@@ -182,7 +186,13 @@ export function Tarefas() {
                 <div style={{ fontSize: 15, fontWeight: 600 }}>{t.titulo}</div>
                 <div className="muted" style={{ fontSize: 12, marginTop: 2 }}>De {origem.nome} → {dests}</div>
                 {t.descricao && <div style={{ fontSize: 13, marginTop: 6, whiteSpace: "pre-wrap" }}>{t.descricao}</div>}
-                {proc && <div style={{ marginTop: 6 }}><a className="badge purple" onClick={() => navigate("sinistro", proc.id)}>🔗 {proc.numsin || "#" + proc.nosnum}</a></div>}
+                {(proc || oficinaNome || seguradoraNome) && (
+                  <div style={{ marginTop: 6, display: "flex", gap: 6, flexWrap: "wrap" }}>
+                    {proc && <a className="badge purple" onClick={() => navigate("sinistro", proc.id)}>🔗 {proc.numsin || "#" + proc.nosnum}</a>}
+                    {oficinaNome && <a className="badge amber" onClick={() => navigate("oficina", t.oficinaId)}>🔧 {oficinaNome}</a>}
+                    {seguradoraNome && <a className="badge blue" onClick={() => navigate("seguradora", t.seguradoraId)}>🏢 {seguradoraNome}</a>}
+                  </div>
+                )}
               </div>
               <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
                 <button className="btn sec xs" onClick={() => openTask(t.id)}>Abrir / editar</button>

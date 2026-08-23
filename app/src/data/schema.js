@@ -53,6 +53,26 @@ export const RECORD_SPECS = {
   // Estado local por e-mail (arquivado ou não) — a pedido do usuário, ver
   // src/pages/Emails.jsx. Chave = id composto "provedor:idDoEmail".
   corp_email_estado: { col: "s360_email_estado", keyed: true },
+  // Módulo Oficinas (Fase 1) — cadastro próprio por oficina (CNPJ,
+  // endereço, contatos, seguradoras referenciadas), chaveado por
+  // oficinaIdFromNome() (src/logic/oficinas.js). Vive fora do fluxo de
+  // sincronização de corp_claims, então uma edição nunca é perdida numa
+  // nova sincronização da API (a API só traz o nome da oficina como texto
+  // livre em cada sinistro, nunca um cadastro rico pra conflitar).
+  corp_oficinas: { col: "s360_oficinas", keyed: true },
+  // Reclamações e feedbacks por oficina (campo "tipo" diferencia os dois),
+  // com vínculo opcional a um processo.
+  corp_oficina_ocorrencias: { col: "s360_oficina_ocorrencias", keyed: false },
+  // Comunicação do gestor com a oficina (Ligação/Reunião/Visita/WhatsApp/
+  // Presencial) — evidência pra alinhar em reuniões, a pedido do usuário.
+  corp_oficina_comunicacoes: { col: "s360_oficina_comunicacoes", keyed: false },
+
+  // Módulo Seguradoras (Fase 2) — mesmo padrão do módulo Oficinas acima,
+  // adaptado: chaveado por seguradoraIdFromNome() (src/logic/seguradoras.js),
+  // usando o campo "cia" em vez de "oficina".
+  corp_seguradoras: { col: "s360_seguradoras", keyed: true },
+  corp_seguradora_ocorrencias: { col: "s360_seguradora_ocorrencias", keyed: false },
+  corp_seguradora_comunicacoes: { col: "s360_seguradora_comunicacoes", keyed: false },
 };
 
 export const CONFIG_COLLECTION = "s360_config";

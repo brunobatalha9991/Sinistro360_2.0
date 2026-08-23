@@ -28,6 +28,13 @@ export function JourneyPanel({ c, overrides, config, actions, canEdit, isAdminUs
     const quem = (currentUser && currentUser.nome) || "—";
     sd.lastInteractionAt = agora;
     sd.lastInteractionBy = quem;
+    // Marca quando a etapa recebeu status pela primeira vez — uma vez só,
+    // nunca sobrescrito (diferente de lastInteractionAt) — usada pelo
+    // módulo Oficinas pra calcular tempo médio de reparo (ver
+    // src/logic/oficinas.js).
+    if (field === "status" && value && !sd.firstSetAt) {
+      sd.firstSetAt = agora;
+    }
     if (field === "status") {
       if (String(value || "").toLowerCase().indexOf("conclu") >= 0) {
         sd.concludedAt = agora;

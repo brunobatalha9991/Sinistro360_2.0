@@ -8,6 +8,8 @@ import { ProcSearch } from "./ProcSearch.jsx";
 import { useStore } from "../hooks/useStore";
 import { taskModalStore, closeTaskModal, takeDemandaPrefill, setPendingTaskLink } from "../state/taskModal";
 import { visibleClaims } from "../logic/claims";
+import { listaOficinas } from "../logic/oficinas";
+import { listaSeguradoras } from "../logic/seguradoras";
 import { txt } from "../logic/format";
 import { isAdmin, canEdit } from "../data/auth";
 import { descreverAlteracoesTarefa } from "../logic/tasks";
@@ -265,6 +267,8 @@ export function TaskModal() {
   const [anexo, setAnexo] = useState("");
   const [obs, setObs] = useState("");
   const [processoId, setProcessoId] = useState("");
+  const [oficinaId, setOficinaId] = useState("");
+  const [seguradoraId, setSeguradoraId] = useState("");
   const [tipoAtendimento, setTipoAtendimento] = useState("");
   const [checklistMesa, setChecklistMesa] = useState(checklistVazio());
   const [solicitacao, setSolicitacao] = useState(null);
@@ -281,6 +285,7 @@ export function TaskModal() {
       const sel = {}; (editing.destinatarios || []).forEach((id) => { sel[id] = true; });
       setDestSel(sel);
       setAnexo(editing.anexo || ""); setObs(editing.obs || ""); setProcessoId(editing.processo || "");
+      setOficinaId(editing.oficinaId || ""); setSeguradoraId(editing.seguradoraId || "");
       setTipoAtendimento(editing.tipoAtendimento || ""); setChecklistMesa(editing.checklistMesa || checklistVazio());
       setSolicitacao(editing.solicitacao || null); setSolicitacaoAberta(false); setChecklistAberto(false);
       setPastaDriveId(editing.id); setComentarioConclusao("");
@@ -293,13 +298,15 @@ export function TaskModal() {
         (records.corp_users || []).forEach((u) => { if (u.role === "analista" || u.role === "atendente") selInicial[u.id] = true; });
       }
       setDestSel(selInicial);
-      setAnexo(""); setObs(""); setProcessoId("");
+      setAnexo(""); setObs(""); setProcessoId(""); setOficinaId(""); setSeguradoraId("");
       setTipoAtendimento(""); setChecklistMesa(checklistVazio());
       setSolicitacao(null); setSolicitacaoAberta(false); setChecklistAberto(false);
       setPastaDriveId("sol_" + Math.random().toString(36).slice(2, 9)); setComentarioConclusao("");
       const prefill = takeDemandaPrefill();
       setTitulo(prefill?.titulo || ""); setDescricao(prefill?.descricao || "");
       if (prefill?.processoId) setProcessoId(prefill.processoId);
+      if (prefill?.oficinaId) setOficinaId(prefill.oficinaId);
+      if (prefill?.seguradoraId) setSeguradoraId(prefill.seguradoraId);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, taskId]);
@@ -318,6 +325,8 @@ export function TaskModal() {
   if (!open) return null;
 
   const procClaim = processoId ? claims.find((c) => c.id === processoId) : null;
+  const oficinas = listaOficinas(claims, records.corp_overrides);
+  const seguradorasLista = listaSeguradoras(claims, records.corp_overrides);
   const isMesaAtendimento = tipo === "Mesa de Atendimento";
   const mostrarChecklist = isMesaAtendimento && tipoAtendimento === "sinistro";
   const isEmergencia = isMesaAtendimento && tipoAtendimento === "assistencia_24h";
@@ -352,7 +361,7 @@ export function TaskModal() {
     let idSalvo;
     if (editing) {
       const atual = {
-        ...editing, tipo, urgencia, status, anexo, obs, processo: processoId, destinatarios: dests, tipoAtendimento,
+        ...editing, tipo, urgencia, status, anexo, obs, processo: processoId, oficinaId, seguradoraId, destinatarios: dests, tipoAtendimento,
         ...(tipo === "Mesa de Atendimento" ? { checklistMesa, solicitacao } : {}),
         ...(souOrigem ? { titulo: t, descricao } : {}),
         ...(concluindoAgora ? { concludedAt: new Date().toISOString(), comments: [...(editing.comments || []), novoComentario] } : {}),
@@ -372,7 +381,7 @@ export function TaskModal() {
       const agora = new Date().toISOString();
       const novo = {
         id: "tsk_" + Math.random().toString(36).slice(2, 9), tipo, titulo: t, origem: currentUser.id, destinatarios: dests,
-        descricao, anexo, obs, status, urgencia, processo: processoId, tipoAtendimento,
+        descricao, anexo, obs, status, urgencia, processo: processoId, oficinaId, seguradoraId, tipoAtendimento,
         ...(tipo === "Mesa de Atendimento" ? { checklistMesa, solicitacao } : {}),
         ...(concluindoAgora ? { concludedAt: new Date().toISOString() } : {}),
         createdAt: agora, updatedAt: agora,
@@ -499,6 +508,23 @@ export function TaskModal() {
         <div className="field">
           <label>Vincular a processo existente</label>
           <ProcSearch value={{ label: procClaim ? (procClaim.numsin || "#" + procClaim.nosnum) + " — " + txt(procClaim.segurado) : "" }} onChange={setProcessoId} claims={claims} />
+        </div>
+
+        <div className="grid c2">
+          <div className="field">
+            <label>Vincular a oficina (opcional)</label>
+            <select value={oficinaId} onChange={(e) => setOficinaId(e.target.value)}>
+              <option value="">— Nenhuma —</option>
+              {oficinas.map((o) => <option key={o.id} value={o.id}>{o.nome}</option>)}
+            </select>
+          </div>
+          <div className="field">
+            <label>Vincular a seguradora (opcional)</label>
+            <select value={seguradoraId} onChange={(e) => setSeguradoraId(e.target.value)}>
+              <option value="">— Nenhuma —</option>
+              {seguradorasLista.map((s) => <option key={s.id} value={s.id}>{s.nome}</option>)}
+            </select>
+          </div>
         </div>
 
         {mostrarChecklist && (

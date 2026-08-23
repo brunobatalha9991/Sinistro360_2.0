@@ -50,7 +50,10 @@ function App() {
   }
 
   const menuItem = MENU.find((m) => m[0] === allowedRoute);
-  const label = allowedRoute === "sinistro" ? "Sinistros / Detalhe" : menuItem ? menuItem[1] : "Dashboard";
+  const label = allowedRoute === "sinistro" ? "Sinistros / Detalhe"
+    : allowedRoute === "oficina" ? "Oficinas / Detalhe"
+    : allowedRoute === "seguradora" ? "Seguradoras / Detalhe"
+    : menuItem ? menuItem[1] : "Dashboard";
   const PageComponent = PAGES[allowedRoute];
 
   return (

@@ -83,6 +83,12 @@ export const MOCK_RESPONSABILIDADE_HISTORICO = [];
 export const MOCK_AI_AUDITORIA = [];
 export const MOCK_AI_MEMORIAS = [];
 export const MOCK_AI_FEEDBACK = [];
+export const MOCK_OFICINAS = {};
+export const MOCK_OFICINA_OCORRENCIAS = [];
+export const MOCK_OFICINA_COMUNICACOES = [];
+export const MOCK_SEGURADORAS = {};
+export const MOCK_SEGURADORA_OCORRENCIAS = [];
+export const MOCK_SEGURADORA_COMUNICACOES = [];
 
 export const MOCK_CONFIG = {
   corp_cfg: {},

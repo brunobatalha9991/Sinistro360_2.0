@@ -64,6 +64,7 @@ export function GeralPanel({ c, claims, overrides, actions, canEdit, config }) {
     ["Código", cell("codigo")],
     ["Situação", <span>{situacaoEfetiva(overrides, c).label}</span>],
     ["Oficina", cell("oficina", { type: "select", options: ofOpts, emptyLabel: "Nenhuma", novoLabel: "+ Nova oficina...", promptMsg: "Nome da nova oficina:" })],
+    ["Vínculo com oficina", cell("vinculoOficina", { type: "select", options: ["Referenciada", "Livre Escolha"], emptyLabel: "Não definido" })],
     ["Dt. Ocorrência", cell("datoco", { type: "date" })],
     ["Dt. Aviso", cell("datavi", { type: "date" })],
     ["Encerramento", cell("datenc", { type: "date" })],
