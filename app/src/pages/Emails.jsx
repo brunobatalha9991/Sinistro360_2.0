@@ -7,7 +7,7 @@ import { EmptyState } from "../components/EmptyState.jsx";
 import { ProcSearch } from "../components/ProcSearch.jsx";
 import { EmailViewerModal } from "../components/EmailViewerModal.jsx";
 import { ReplyEmailModal } from "../components/ReplyEmailModal.jsx";
-import { visibleClaims, isManualClaim, emailAlertaDispensado } from "../logic/claims";
+import { visibleClaims, isManualClaim, emailAlertaDispensado, getEmailAlertas } from "../logic/claims";
 import { fmtDateHoraBR, txt } from "../logic/format";
 import { setDemandaPrefill } from "../state/taskModal";
 import { isGmailConfigured, getGmailAccountEmail, getGmailToken, gmailLogin, saveGmailAccountEmail } from "../gmail/googleAuthClient";
@@ -118,6 +118,20 @@ export function Emails() {
         restantes.push(email);
       }
 
+      // Vínculos já existentes (manuais ou de uma sincronização anterior)
+      // por e-mail — sem isso, "Atualizar caixa de entrada" recalculava a
+      // lista do zero só com a detecção automática, e um vínculo manual
+      // (que não bate por nº de sinistro/placa/nome) desaparecia da Caixa
+      // de entrada mesmo continuando salvo no processo (a pedido do
+      // usuário, corrigido aqui).
+      const vinculosExistentes = new Map();
+      claims.forEach((c) => {
+        getEmailAlertas(overrides, c.id).forEach((a) => {
+          if (!vinculosExistentes.has(a.emailId)) vinculosExistentes.set(a.emailId, []);
+          vinculosExistentes.get(a.emailId).push({ claimId: c.id, motivos: a.motivos || [] });
+        });
+      });
+
       const novosMatches = {};
       restantes.forEach((email) => {
         const texto = `${email.assunto}\n${email.corpoTexto}`;
@@ -126,7 +140,14 @@ export function Emails() {
         // bata de novo numa atualização seguinte da caixa de entrada).
         const achados = encontrarProcessosNoEmail(texto, claims, overrides)
           .filter(({ claimId }) => !emailAlertaDispensado(overrides, claimId, email.id));
-        novosMatches[email.id] = achados;
+
+        const combinados = new Map();
+        [...(vinculosExistentes.get(email.id) || []), ...achados].forEach(({ claimId, motivos }) => {
+          const atual = combinados.get(claimId);
+          combinados.set(claimId, { claimId, motivos: Array.from(new Set([...(atual ? atual.motivos : []), ...motivos])) });
+        });
+        novosMatches[email.id] = Array.from(combinados.values());
+
         achados.forEach(({ claimId, motivos }) => {
           actions.addEmailAlerta(claimId, {
             emailId: email.id, provedor: "gmail", assunto: email.assunto, remetente: email.remetenteNome || email.remetente,
@@ -342,11 +363,16 @@ export function Emails() {
                         <div className="muted" style={{ fontSize: 12, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{txt(email.remetenteNome || email.remetente)} • {fmtDateHoraBR(email.recebidoEm)}</div>
                       </div>
                     </div>
-                    {identificado ? (
-                      <span className="badge green">Identificado</span>
-                    ) : (
-                      <span className="badge amber">Não identificado — revisar manualmente</span>
-                    )}
+                    <div style={{ display: "flex", alignItems: "center", gap: 6, flexShrink: 0 }}>
+                      {!!(email.anexos && email.anexos.length) && (
+                        <span className="badge gray" title={`${email.anexos.length} anexo(s)`}>📎 {email.anexos.length}</span>
+                      )}
+                      {identificado ? (
+                        <span className="badge green">Identificado</span>
+                      ) : (
+                        <span className="badge amber">Não identificado — revisar manualmente</span>
+                      )}
+                    </div>
                   </div>
                   <div style={{ fontSize: 13, marginTop: 6, color: "var(--muted)" }}>{email.resumo}</div>
 

@@ -50,8 +50,13 @@ function EmailAlertBox({ alertas, onVer, onUsar, onDispensar }) {
   const a = alertas[0];
   return (
     <div style={{ minWidth: 0, overflow: "hidden", height: "100%", borderRadius: 8, padding: "10px 12px", background: "rgba(var(--info-rgb),.08)", border: "1px solid rgba(var(--info-rgb),.3)" }}>
-      <div style={{ fontSize: 11, fontWeight: 700, color: "var(--info)", textTransform: "uppercase", letterSpacing: ".5px" }}>
-        ✉ E-mail{alertas.length > 1 ? ` (${alertas.length})` : ""}
+      <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+        <div style={{ fontSize: 11, fontWeight: 700, color: "var(--info)", textTransform: "uppercase", letterSpacing: ".5px" }}>
+          ✉ E-mail{alertas.length > 1 ? ` (${alertas.length})` : ""}
+        </div>
+        {!!(a.anexos && a.anexos.length) && (
+          <span className="badge gray" title={`${a.anexos.length} anexo(s)`} style={{ flexShrink: 0 }}>📎 {a.anexos.length}</span>
+        )}
       </div>
       <div style={{ fontWeight: 600, fontSize: 12, marginTop: 4, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }} title={a.assunto}>{a.assunto}</div>
       <div className="muted" style={{ fontSize: 11 }}>{txt(a.remetente)}</div>
