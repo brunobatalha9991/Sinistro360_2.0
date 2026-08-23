@@ -1,10 +1,42 @@
 import { KvList } from "../KvList.jsx";
 import { EditableCell } from "../EditableCell.jsx";
-import { distinctComputed, campoEfetivo, situacaoEfetiva } from "../../logic/claims";
+import { distinctComputed, campoEfetivo, situacaoEfetiva, isManualClaim } from "../../logic/claims";
 import { txt } from "../../logic/format";
+import { extractProdDocs } from "../../logic/corpApi";
+import { useDocumentoCorp } from "../../hooks/useDocumentoCorp";
+
+// Agente/Produtor vêm de um endpoint separado do CORP (/documento, não faz
+// parte da sincronização normal de sinistros) — busca sob demanda ao abrir
+// a aba, usando o "nosnum" do processo (chave universal no CORP) + codfil.
+// Processos criados manualmente (sem nosnum real da API) não têm o que
+// buscar aqui.
+function AgenteProdutorBox({ c, config }) {
+  const { resp, carregando, erro } = useDocumentoCorp(c, config);
+  const prodDocs = extractProdDocs(resp);
+
+  if (isManualClaim(c)) return null;
+
+  return (
+    <div style={{ marginTop: 16, borderTop: "1px solid var(--line)", paddingTop: 14 }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 8 }}>
+        <label style={{ margin: 0 }}>Agente / Produtor</label>
+        {carregando && <span className="muted" style={{ fontSize: 12 }}>Buscando...</span>}
+      </div>
+      {erro && <div style={{ color: "var(--danger)", fontSize: 12, marginTop: 4 }}>{erro}</div>}
+      {!carregando && !erro && !prodDocs.length && (
+        <div className="muted" style={{ fontSize: 12, marginTop: 4 }}>Nenhum agente/produtor encontrado para este processo.</div>
+      )}
+      {prodDocs.map((p, idx) => (
+        <div key={idx} style={{ fontSize: 13, marginTop: 6 }}>
+          <b>{txt(p.produtor)}</b> <span className="muted">— agente: {txt(p.agente)}</span>
+        </div>
+      ))}
+    </div>
+  );
+}
 
 // Porte 1:1 de geralPanel() do HTML original.
-export function GeralPanel({ c, claims, overrides, actions, canEdit }) {
+export function GeralPanel({ c, claims, overrides, actions, canEdit, config }) {
   const segOpts = distinctComputed(claims, (x) => campoEfetivo(overrides, x, "cia"));
   const ofOpts = distinctComputed(claims, (x) => campoEfetivo(overrides, x, "oficina"));
   function cell(campo, opts) {
@@ -47,6 +79,7 @@ export function GeralPanel({ c, claims, overrides, actions, canEdit }) {
         O valor que você digitar prevalece sobre o dado da API e não se perde ao sincronizar. Nº controle e Tipo (API) não são editáveis. O dado bruto original continua visível na aba "Dados brutos (API)".
       </p>
       <KvList rows={rows} />
+      <AgenteProdutorBox c={c} config={config} />
     </div>
   );
 }

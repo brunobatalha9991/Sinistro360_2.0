@@ -54,6 +54,27 @@ function fetchSinistros(cfg, params) {
 }
 export function testConnection(cfg) { setToken(""); return login(cfg).then(() => true); }
 
+// GET /documento?codfil=&nosnum= — endpoint separado do CORP (não é o mesmo
+// de /sinistros) que traz, entre outras coisas, a lista de agente/produtor
+// vinculada ao documento (apólice/proposta), em body.documento[0].prod_docs.
+// "nosnum" é a chave universal do CORP — o mesmo valor já usado pra
+// identificar o sinistro/processo serve pra buscar aqui.
+export function fetchDocumento(cfg, codfil, nosnum) {
+  const qs = `codfil=${encodeURIComponent(codfil)}&nosnum=${encodeURIComponent(nosnum)}`;
+  return withAuth(cfg, () => request(cfg, "/documento?" + qs, { method: "GET" }));
+}
+// Extrai a lista de {agente, produtor} da resposta de fetchDocumento — pura,
+// tolerante a formato inesperado/ausente (nunca lança, sempre devolve array).
+export function extractProdDocs(resp) {
+  const doc = resp && Array.isArray(resp.documento) && resp.documento[0];
+  return (doc && Array.isArray(doc.prod_docs) && doc.prod_docs) || [];
+}
+// Idem, pra body.acompanhamento.emissao.url_apolice (link assinado do PDF
+// da apólice no S3) — mesma resposta de fetchDocumento, campo diferente.
+export function extractUrlApolice(resp) {
+  return (resp && resp.acompanhamento && resp.acompanhamento.emissao && resp.acompanhamento.emissao.url_apolice) || "";
+}
+
 export function mapCorp(c) {
   return {
     id: "clm_" + (c.codfil || "0") + "_" + String(c.tipo || "?").charAt(0).toUpperCase() + "_" + (c.nosnum || uid("")),

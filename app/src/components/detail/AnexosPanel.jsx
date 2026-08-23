@@ -1,9 +1,32 @@
 import { useState } from "react";
 import { EmptyState } from "../EmptyState.jsx";
-import { campoEfetivo } from "../../logic/claims";
+import { campoEfetivo, isManualClaim } from "../../logic/claims";
 import { txt, uid } from "../../logic/format";
 import { caminhoPastaAnexoProcesso } from "../../logic/anexosProcesso";
 import { isDriveUploadConfigured, uploadArquivoDrive, CONTEXTO_ANEXOS_PROCESSO } from "../../logic/driveUpload";
+import { extractUrlApolice } from "../../logic/corpApi";
+import { useDocumentoCorp } from "../../hooks/useDocumentoCorp";
+
+// Link da apólice (PDF) direto do CORP — endpoint /documento, vinculado por
+// codfil+nosnum (nosnum é a chave universal do CORP), igual ao Agente/
+// Produtor da Visão geral. Processos manuais não têm nosnum real, então não
+// disparam a busca.
+function ApoliceCorpBox({ c, config }) {
+  const { resp, carregando, erro } = useDocumentoCorp(c, config);
+  if (isManualClaim(c)) return null;
+  const url = extractUrlApolice(resp);
+  return (
+    <div style={{ border: "1px solid var(--border)", borderRadius: 8, padding: "8px 12px", marginBottom: 14, display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 8 }}>
+      <div>
+        <b style={{ fontSize: 13 }}>Apólice (CORP)</b>
+        {carregando && <span className="muted" style={{ fontSize: 12, marginLeft: 8 }}>Buscando...</span>}
+        {erro && <div style={{ color: "var(--danger)", fontSize: 12, marginTop: 2 }}>{erro}</div>}
+        {!carregando && !erro && !url && <div className="muted" style={{ fontSize: 12, marginTop: 2 }}>Nenhuma apólice encontrada para este processo.</div>}
+      </div>
+      {url && <a href={url} target="_blank" rel="noreferrer" className="btn sec xs">Abrir apólice (PDF)</a>}
+    </div>
+  );
+}
 
 function fmtDataHora(iso) {
   if (!iso) return "—";
@@ -68,6 +91,8 @@ export function AnexosPanel({ c, overrides, config, actions, canEdit, currentUse
       <p className="muted" style={{ marginTop: 6 }}>
         Proposta de seguro, dados do segurado ou qualquer outro documento do processo. Fica salvo no Google Drive (pasta própria, separada dos anexos da Mesa de Atendimento) — o link abre em uma nova guia.
       </p>
+
+      <ApoliceCorpBox c={c} config={config} />
 
       {!anexos.length ? <EmptyState>Nenhum anexo ainda.</EmptyState> : (
         <div style={{ display: "flex", flexDirection: "column", gap: 8, marginBottom: 14 }}>
