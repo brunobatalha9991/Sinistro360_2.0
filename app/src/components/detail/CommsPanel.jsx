@@ -4,6 +4,7 @@ import { useAuth } from "../../hooks/useAuth";
 import { loadComms, currentStage, allJourneyStages } from "../../logic/claims";
 import { fmtDateBR, todayISO, txt } from "../../logic/format";
 import { generateContent, isGeminiConfigured } from "../../ai/geminiApi.js";
+import { takeComsPrefill } from "../../state/comsPrefill";
 
 const MEIOS = ["Telefone", "WhatsApp", "E-mail", "Presencial", "Outro"];
 const TITULO_AVULSO = "__avulso__";
@@ -143,7 +144,13 @@ export function CommsPanel({ c, overrides, actions, canEdit, config }) {
   const [data, setData] = useState(todayISO());
   const [titulo, setTitulo] = useState(() => etapaAtual);
   const [tituloAvulso, setTituloAvulso] = useState("");
-  const [boxCliente, setBoxCliente] = useState(blankBox);
+  // Vem preenchido quando o usuário clica em "Transformar em atualização"
+  // num alerta de e-mail (ver DetailHeader.jsx) — pega o prefill só se for
+  // deste processo (evita vazar pra outro processo aberto em seguida).
+  const [boxCliente, setBoxCliente] = useState(() => {
+    const prefill = takeComsPrefill();
+    return prefill && prefill.claimId === c.id ? { ...blankBox(), texto: prefill.texto } : blankBox();
+  });
   const [boxOficina, setBoxOficina] = useState(blankBox);
   const [boxSeguradora, setBoxSeguradora] = useState(blankBox);
 

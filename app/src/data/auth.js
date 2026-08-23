@@ -15,6 +15,7 @@ export const MODULOS_DISPONIVEIS = [
   ["seguradoras", "Seguradoras"], ["oficinas", "Oficinas"], ["relatorios", "Relatórios"],
   ["assistente", "Assistente IA"],
   ["desempenho", "Desempenho"],
+  ["emails", "E-mails"],
   ["integracao", "Integração CORP"], ["config", "Configurações"],
 ];
 

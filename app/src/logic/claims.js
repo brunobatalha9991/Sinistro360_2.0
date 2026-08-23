@@ -189,6 +189,11 @@ export function isConstatacaoSemIndeniz(c) {
 export function getAgenteProdutor(overrides, claimId) {
   return getOvr(overrides, claimId).agenteProdutor || null;
 }
+// Alertas de e-mail (Outlook) vinculados a este processo, não dispensados —
+// ver useOverrideActions.addEmailAlerta/dismissEmailAlerta.
+export function getEmailAlertas(overrides, claimId) {
+  return (getOvr(overrides, claimId).emailAlertas || []).filter((a) => !a.dismissed);
+}
 // Vínculo de acesso por Agente/Produtor (a pedido do usuário): um usuário
 // "consulta" com agentes/produtores configurados só enxerga processos
 // ligados a eles. Sem nenhum vínculo configurado, não restringe nada —

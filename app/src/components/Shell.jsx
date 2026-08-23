@@ -20,6 +20,7 @@ export const MENU = [
   ["relatorios", "Relatórios", "relatorios"],
   ["assistente", "Assistente IA", "assistente"],
   ["desempenho", "Desempenho", "desempenho"],
+  ["emails", "E-mails", "emails"],
   ["integracao", "Integração CORP", "integracao"],
   ["config", "Configurações", "config"],
 ];

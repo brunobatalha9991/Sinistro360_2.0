@@ -1,11 +1,13 @@
 import { PartyBadge } from "../PartyBadge.jsx";
 import { useData } from "../../data/DataProvider.jsx";
 import { setDemandaPrefill } from "../../state/taskModal";
+import { setComsPrefill } from "../../state/comsPrefill";
 import {
   getTemp, tempColor, getSitAtend, getUserJourney, isManualClaim, situacaoEfetiva,
   getNextAction, isAtrasado, loadComms, isSemAtualizacao, getResponsavel, campoEfetivo,
+  getEmailAlertas,
 } from "../../logic/claims";
-import { fmtDateBR, txt } from "../../logic/format";
+import { fmtDateBR, fmtDateHoraBR, txt } from "../../logic/format";
 
 const DEFAULT_TEMP_OPTIONS = ["Tranquilo", "Moderado", "Grave", "Em atenção"];
 const DEFAULT_SIT_OPTIONS = ["Aguard. Cliente", "Aguard. Seguradora", "Aguard. Corretora", "Aguard. Oficina"];
@@ -66,6 +68,18 @@ export function DetailHeader({ c, sit, rel, claims, allClaimsRaw, overrides, use
   const last = comms.length ? comms[comms.length - 1] : null;
   const semAtualizacao = isSemAtualizacao(overrides, c);
   const situacaoEfe = situacaoEfetiva(overrides, c);
+  const emailAlertas = getEmailAlertas(overrides, c.id);
+
+  // "Transformar em atualização" (a pedido do usuário): nunca grava nada
+  // sozinho — só pré-preenche a caixa "Comunicação com o Cliente" do
+  // Histórico com o conteúdo do e-mail, pra revisão/edição antes de salvar.
+  function usarEmailComoAtualizacao(alerta) {
+    setComsPrefill({
+      claimId: c.id,
+      texto: `[E-mail de ${alerta.remetente} em ${fmtDateHoraBR(alerta.recebidoEm)}]\nAssunto: ${alerta.assunto}\n\n${alerta.corpoTexto}`,
+    });
+    setDetailTab("historico");
+  }
 
   return (
     <div className="detail-head" style={{ display: "flex", gap: 20, flexWrap: "wrap", alignItems: "flex-start" }}>
@@ -171,6 +185,20 @@ export function DetailHeader({ c, sit, rel, claims, allClaimsRaw, overrides, use
           ) : <div className="muted" style={{ fontSize: 12, marginTop: 2 }}>Nenhum histórico registrado.</div>}
           <button className="btn sec xs" style={{ marginTop: 6 }} onClick={() => setDetailTab("historico")}>Abrir histórico</button>
         </div>
+
+        {emailAlertas.length > 0 && (
+          <div className="neon-alert" style={{ "--neon-rgb": "var(--info-rgb)", background: "rgba(var(--info-rgb),.08)", border: "1px solid rgba(var(--info-rgb),.3)", borderRadius: 8, padding: "10px 12px", marginTop: 8 }}>
+            <div style={{ fontSize: 11, fontWeight: 700, color: "var(--info)", textTransform: "uppercase", letterSpacing: ".5px" }}>
+              ✉ E-mail identificado{emailAlertas.length > 1 ? ` (${emailAlertas.length})` : ""}
+            </div>
+            <div style={{ fontWeight: 700, marginTop: 2, fontSize: 13 }}>{emailAlertas[0].assunto}</div>
+            <div className="muted" style={{ fontSize: 12 }}>{txt(emailAlertas[0].remetente)} • {fmtDateHoraBR(emailAlertas[0].recebidoEm)}</div>
+            <div style={{ display: "flex", gap: 6, marginTop: 6 }}>
+              <button className="btn xs" onClick={() => usarEmailComoAtualizacao(emailAlertas[0])}>Transformar em atualização</button>
+              <button className="btn sec xs" onClick={() => actions.dismissEmailAlerta(c.id, emailAlertas[0].emailId)}>Dispensar</button>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );

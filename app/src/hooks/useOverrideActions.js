@@ -78,6 +78,29 @@ export function useOverrideActions() {
     // importação em lote (Configurações). Alimenta o filtro de Agente/
     // Produtor em Sinistros e o vínculo de acesso de usuários "Consulta".
     saveAgenteProdutor: (claimId, snapshot) => setOvr(claimId, { agenteProdutor: snapshot }),
+
+    // Alertas de e-mail (Outlook) — a pedido do usuário: quando um e-mail
+    // bate com um processo (por nº de sinistro/placa/nome, ou vínculo
+    // manual), fica registrado aqui SEM gravar nada no histórico sozinho —
+    // só um alerta visual (ver DetailHeader.jsx) até o usuário decidir
+    // "Transformar em atualização". Deduplica por emailId, então rodar a
+    // identificação de novo (ex.: reabrir a caixa de entrada) não duplica.
+    addEmailAlerta(claimId, alerta) {
+      saveRecord("corp_overrides", (current) => {
+        const cur = current || {};
+        const existing = cur[claimId] || {};
+        const atuais = existing.emailAlertas || [];
+        if (atuais.some((a) => a.emailId === alerta.emailId)) return cur;
+        return { ...cur, [claimId]: { ...existing, emailAlertas: [...atuais, alerta] } };
+      });
+    },
+    dismissEmailAlerta(claimId, emailId) {
+      saveRecord("corp_overrides", (current) => {
+        const cur = current || {};
+        const existing = cur[claimId] || {};
+        return { ...cur, [claimId]: { ...existing, emailAlertas: (existing.emailAlertas || []).map((a) => (a.emailId === emailId ? { ...a, dismissed: true } : a)) } };
+      });
+    },
     saveUserJourney: (claimId, uj) => setOvr(claimId, { journeyUser: uj }),
     setManualLinks: (claimId, ids) => setOvr(claimId, { links: ids }),
 

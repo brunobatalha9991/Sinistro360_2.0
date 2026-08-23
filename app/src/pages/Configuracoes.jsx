@@ -16,6 +16,7 @@ import { UsersCard } from "../components/config/UsersCard.jsx";
 import { AtendimentoStepsEditor } from "../components/config/AtendimentoStepsEditor.jsx";
 import { AgentesCatalogoCard } from "../components/config/AgentesCatalogoCard.jsx";
 import { ImportarAgenteProdutorCard } from "../components/config/ImportarAgenteProdutorCard.jsx";
+import { OutlookConfigCard } from "../components/config/OutlookConfigCard.jsx";
 import { visibleClaims, ensureRamoTemplateInto, distinctProdutores, distinctGruposProdutores, getAgentesEfetivo } from "../logic/claims";
 import { getToken, setToken } from "../logic/corpApi";
 
@@ -102,6 +103,10 @@ export function Configuracoes() {
             <ChecklistMesaAtendimentoCard config={config} saveConfig={saveConfig} canEdit={admin} />
             <SolicitacaoFormulariosCard config={config} saveConfig={saveConfig} canEdit={admin} />
             <DriveUploadConfigCard config={config} saveConfig={saveConfig} canEdit={admin} />
+          </ConfigGroup>
+
+          <ConfigGroup title="E-mails (Outlook)" subtitle="Login e identificação automática de processos na caixa de entrada — veja docs/outlook-integracao.md.">
+            <OutlookConfigCard config={config} saveConfig={saveConfig} canEdit={admin} />
           </ConfigGroup>
 
           <ConfigGroup title="Dados, Migração & IA" subtitle="Importação de histórico, migração de responsabilidade legada e aprovação de memórias da IA.">

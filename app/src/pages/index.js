@@ -19,6 +19,7 @@ export const PAGES = {
   relatorios: lazy(() => import("./Relatorios.jsx").then((m) => ({ default: m.Relatorios }))),
   assistente: lazy(() => import("./Assistente.jsx").then((m) => ({ default: m.Assistente }))),
   desempenho: lazy(() => import("./Desempenho.jsx").then((m) => ({ default: m.Desempenho }))),
+  emails: lazy(() => import("./Emails.jsx").then((m) => ({ default: m.Emails }))),
   integracao: lazy(() => import("./Integracao.jsx").then((m) => ({ default: m.Integracao }))),
   config: lazy(() => import("./Configuracoes.jsx").then((m) => ({ default: m.Configuracoes }))),
 };
