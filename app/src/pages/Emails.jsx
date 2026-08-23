@@ -344,7 +344,7 @@ export function Emails() {
                 >
                   <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
                     <div style={{ display: "flex", gap: 8, alignItems: "center", minWidth: 0, flex: 1 }}>
-                      <input type="checkbox" style={{ flexShrink: 0 }} checked={!!selecionados[email.id]} onChange={() => toggleSelecionado(email.id)} />
+                      <input type="checkbox" style={{ flexShrink: 0, width: 16, height: 16 }} checked={!!selecionados[email.id]} onChange={() => toggleSelecionado(email.id)} />
                       <div style={{ minWidth: 0, flex: 1 }}>
                         <div style={{ fontWeight: 700, fontSize: 14, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }} title={email.assunto}>{email.assunto}</div>
                         <div className="muted" style={{ fontSize: 12, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{txt(email.remetenteNome || email.remetente)} • {fmtDateHoraBR(email.recebidoEm)}</div>
