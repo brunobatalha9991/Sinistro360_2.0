@@ -11,7 +11,7 @@ import { visibleClaims, isManualClaim, emailAlertaDispensado } from "../logic/cl
 import { fmtDateHoraBR, txt } from "../logic/format";
 import { setDemandaPrefill } from "../state/taskModal";
 import { isGmailConfigured, getGmailAccountEmail, getGmailToken, gmailLogin, saveGmailAccountEmail } from "../gmail/googleAuthClient";
-import { fetchInboxMessages, fetchGmailProfile, trashMessage, sendRawMessage, modifyLabels, fetchAttachmentData } from "../logic/gmailApi";
+import { fetchInboxMessages, fetchGmailProfile, trashMessage, sendRawMessage, modifyLabels, baixarAnexoGmail } from "../logic/gmailApi";
 import { buildRawMessage } from "../logic/gmailCompose";
 import { encontrarProcessosNoEmail, MOTIVO_LABEL } from "../logic/emailMatching";
 import { encontrarRegraAplicavel } from "../logic/emailRules";
@@ -131,6 +131,7 @@ export function Emails() {
           actions.addEmailAlerta(claimId, {
             emailId: email.id, provedor: "gmail", assunto: email.assunto, remetente: email.remetenteNome || email.remetente,
             recebidoEm: email.recebidoEm, resumo: email.resumo, corpoTexto: email.corpoTexto, motivos,
+            anexos: email.anexos || [],
             encontradoEm: new Date().toISOString(), dismissed: false,
           });
         });
@@ -195,17 +196,7 @@ export function Emails() {
     try {
       const token = getGmailToken();
       if (!token) throw new Error("Sessão do Gmail expirada.");
-      const b64url = await fetchAttachmentData(token, email.id, anexo.attachmentId);
-      const norm = b64url.replace(/-/g, "+").replace(/_/g, "/");
-      const bin = atob(norm);
-      const bytes = new Uint8Array(bin.length);
-      for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
-      const blob = new Blob([bytes], { type: anexo.mimeType });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = url; a.download = anexo.filename;
-      document.body.appendChild(a); a.click(); document.body.removeChild(a);
-      URL.revokeObjectURL(url);
+      await baixarAnexoGmail(token, email.id, anexo);
     } catch (e) {
       setErro(e.message || "Falha ao baixar o anexo.");
     }
@@ -216,6 +207,7 @@ export function Emails() {
     actions.addEmailAlerta(claimId, {
       emailId: email.id, provedor: "gmail", assunto: email.assunto, remetente: email.remetenteNome || email.remetente,
       recebidoEm: email.recebidoEm, resumo: email.resumo, corpoTexto: email.corpoTexto, motivos: ["manual"],
+      anexos: email.anexos || [],
       encontradoEm: new Date().toISOString(), dismissed: false,
     });
     setMatches((m) => ({ ...m, [email.id]: [...(m[email.id] || []), { claimId, motivos: ["manual"] }] }));

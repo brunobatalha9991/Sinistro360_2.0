@@ -124,6 +124,24 @@ export async function fetchAttachmentData(token, messageId, attachmentId) {
   return data.data || "";
 }
 
+// Baixa um anexo de verdade (busca o conteúdo na API e dispara o download
+// no navegador) — usado tanto na Caixa de entrada (Emails.jsx) quanto no
+// alerta de e-mail dentro do processo (DetailHeader.jsx/EmailViewerModal),
+// pra não duplicar a decodificação base64url em dois lugares.
+export async function baixarAnexoGmail(token, messageId, anexo) {
+  const b64url = await fetchAttachmentData(token, messageId, anexo.attachmentId);
+  const norm = b64url.replace(/-/g, "+").replace(/_/g, "/");
+  const bin = atob(norm);
+  const bytes = new Uint8Array(bin.length);
+  for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+  const blob = new Blob([bytes], { type: anexo.mimeType });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url; a.download = anexo.filename;
+  document.body.appendChild(a); a.click(); document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+}
+
 // "Pastas" = rótulos do Gmail criados pelo usuário (type "user" — exclui os
 // de sistema como INBOX/SENT/SPAM, que não fazem sentido como destino de
 // uma regra de organização).

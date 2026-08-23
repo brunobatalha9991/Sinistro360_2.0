@@ -5,6 +5,8 @@ import { HeaderLayoutGrid } from "./HeaderLayoutGrid.jsx";
 import { useData } from "../../data/DataProvider.jsx";
 import { setDemandaPrefill } from "../../state/taskModal";
 import { setComsPrefill } from "../../state/comsPrefill";
+import { getGmailToken } from "../../gmail/googleAuthClient";
+import { baixarAnexoGmail } from "../../logic/gmailApi";
 import {
   getTemp, tempColor, getSitAtend, getUserJourney, isManualClaim, situacaoEfetiva,
   getNextAction, isAtrasado, loadComms, isSemAtualizacao, getResponsavel, campoEfetivo,
@@ -185,6 +187,20 @@ export function DetailHeader({ c, sit, rel, claims, allClaimsRaw, overrides, use
     setDetailTab("historico");
   }
 
+  // Anexo do e-mail exibido no modal (a pedido do usuário: precisa dar pra
+  // baixar dali, não só na Caixa de entrada) — usa o mesmo token do Gmail
+  // já salvo no navegador; se a sessão do Gmail expirou, só avisa, sem
+  // travar a tela.
+  async function baixarAnexoDoAlerta(alerta, anexo) {
+    try {
+      const token = getGmailToken();
+      if (!token) throw new Error("Sessão do Gmail expirada. Abra E-mails e conecte de novo pra poder baixar anexos.");
+      await baixarAnexoGmail(token, alerta.emailId, anexo);
+    } catch (e) {
+      alert(e.message || "Falha ao baixar o anexo.");
+    }
+  }
+
   // Layout do cabeçalho (ordem + tamanho de cada caixa) — compartilhado pra
   // todo mundo via config (Firebase), a pedido do usuário. IDs de um layout
   // salvo que não existem mais (ex.: caixa removida numa versão futura) são
@@ -356,6 +372,7 @@ export function DetailHeader({ c, sit, rel, claims, allClaimsRaw, overrides, use
         onNext={() => setEmailModalIndex((i) => Math.min(emailAlertas.length - 1, i + 1))}
         onClose={() => setEmailModalIndex(null)}
         onUsar={() => emailAberto && usarEmailComoAtualizacao(emailAberto)}
+        onBaixarAnexo={(anexo) => emailAberto && baixarAnexoDoAlerta(emailAberto, anexo)}
         onDispensar={() => {
           if (!emailAberto) return;
           const restantes = emailAlertas.length - 1;
