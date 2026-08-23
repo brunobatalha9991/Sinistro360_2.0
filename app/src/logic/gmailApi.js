@@ -85,7 +85,7 @@ export function extractAttachments(payload, out) {
 function mapMessage(m) {
   const headers = m.payload && m.payload.headers;
   const from = headerValue(headers, "From");
-  const assunto = headerValue(headers, "Subject") || "(sem assunto)";
+  const assunto = headerValue(headers, "Subject").trim() || "(sem assunto)";
   const match = from.match(/^(.*?)<(.+)>$/);
   const remetenteNome = match ? match[1].trim().replace(/^"|"$/g, "") : from;
   const remetente = match ? match[2].trim() : from;
