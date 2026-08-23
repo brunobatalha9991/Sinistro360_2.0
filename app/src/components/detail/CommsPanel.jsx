@@ -169,7 +169,7 @@ export function CommsPanel({ c, overrides, actions, canEdit, config }) {
     if (!canEdit) { alert("Seu perfil é apenas de consulta. Você pode visualizar, mas não editar processos."); return; }
     if (!tituloResolvido) { alert("Selecione ou informe um título para o registro."); return; }
     const candidatos = [
-      { canal: "Cliente", box: boxCliente, comAvaliacao: false },
+      { canal: "Cliente", box: boxCliente, comAvaliacao: true },
       { canal: "Oficina", box: boxOficina, comAvaliacao: true },
       { canal: "Seguradora", box: boxSeguradora, comAvaliacao: true },
     ];
@@ -218,7 +218,7 @@ export function CommsPanel({ c, overrides, actions, canEdit, config }) {
         </div>
 
         <div style={{ display: "flex", flexDirection: "column", gap: 12, marginTop: 4 }}>
-          <ComunicacaoBox canal="Cliente" box={boxCliente} onChange={setBoxCliente} comAvaliacao={false} />
+          <ComunicacaoBox canal="Cliente" box={boxCliente} onChange={setBoxCliente} comAvaliacao />
           <ComunicacaoBox canal="Oficina" box={boxOficina} onChange={setBoxOficina} comAvaliacao comLimitacao />
           <ComunicacaoBox canal="Seguradora" box={boxSeguradora} onChange={setBoxSeguradora} comAvaliacao />
           <SugestaoClienteBox titulo={tituloResolvido} oficinaTexto={boxOficina.texto} seguradoraTexto={boxSeguradora.texto} />

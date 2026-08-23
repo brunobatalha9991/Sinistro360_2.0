@@ -53,6 +53,7 @@ function App() {
   const label = allowedRoute === "sinistro" ? "Sinistros / Detalhe"
     : allowedRoute === "oficina" ? "Oficinas / Detalhe"
     : allowedRoute === "seguradora" ? "Seguradoras / Detalhe"
+    : allowedRoute === "cliente" ? "Clientes / Detalhe"
     : menuItem ? menuItem[1] : "Dashboard";
   const PageComponent = PAGES[allowedRoute];
 

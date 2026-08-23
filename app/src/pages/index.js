@@ -14,6 +14,7 @@ export const PAGES = {
   demandas: lazy(() => import("./Demandas.jsx").then((m) => ({ default: m.Demandas }))),
   tarefas: lazy(() => import("./Tarefas.jsx").then((m) => ({ default: m.Tarefas }))),
   clientes: lazy(() => import("./Clientes.jsx").then((m) => ({ default: m.Clientes }))),
+  cliente: lazy(() => import("./Cliente.jsx").then((m) => ({ default: m.Cliente }))),
   seguradoras: lazy(() => import("./Seguradoras.jsx").then((m) => ({ default: m.Seguradoras }))),
   seguradora: lazy(() => import("./Seguradora.jsx").then((m) => ({ default: m.Seguradora }))),
   oficinas: lazy(() => import("./Oficinas.jsx").then((m) => ({ default: m.Oficinas }))),

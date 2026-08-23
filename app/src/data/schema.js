@@ -73,6 +73,13 @@ export const RECORD_SPECS = {
   corp_seguradoras: { col: "s360_seguradoras", keyed: true },
   corp_seguradora_ocorrencias: { col: "s360_seguradora_ocorrencias", keyed: false },
   corp_seguradora_comunicacoes: { col: "s360_seguradora_comunicacoes", keyed: false },
+
+  // Módulo Clientes (Fase 3) — mesmo padrão dos módulos Oficinas/
+  // Seguradoras acima, chaveado por clienteIdFromNome() (src/logic/
+  // clientes.js), usando o campo "segurado" em vez de "oficina"/"cia".
+  corp_clientes: { col: "s360_clientes", keyed: true },
+  corp_cliente_ocorrencias: { col: "s360_cliente_ocorrencias", keyed: false },
+  corp_cliente_comunicacoes: { col: "s360_cliente_comunicacoes", keyed: false },
 };
 
 export const CONFIG_COLLECTION = "s360_config";

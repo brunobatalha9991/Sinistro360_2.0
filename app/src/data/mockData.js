@@ -89,6 +89,9 @@ export const MOCK_OFICINA_COMUNICACOES = [];
 export const MOCK_SEGURADORAS = {};
 export const MOCK_SEGURADORA_OCORRENCIAS = [];
 export const MOCK_SEGURADORA_COMUNICACOES = [];
+export const MOCK_CLIENTES = {};
+export const MOCK_CLIENTE_OCORRENCIAS = [];
+export const MOCK_CLIENTE_COMUNICACOES = [];
 
 export const MOCK_CONFIG = {
   corp_cfg: {},

@@ -8,6 +8,7 @@ import { canEdit as canEditRole } from "../data/auth";
 import { distinctComputed, partyTypeFromTipo, defaultRamoTemplate, visibleClaims } from "../logic/claims";
 import { todayISO } from "../logic/format";
 import { takePendingTaskLink } from "../state/taskModal";
+import { takeAberturaPrefill } from "../state/aberturaPrefill";
 
 const NEW_SENTINEL = "__novo__";
 
@@ -49,7 +50,10 @@ export function Abertura() {
   const oficinaOpts = distinctComputed(claims, (c) => c.oficina);
 
   const [tipoParte, setTipoParte] = useState("Segurado");
-  const [segurado, setSegurado] = useState("");
+  // Capturado uma única vez ao montar: preenchimento vindo do módulo
+  // Clientes ("+ Abrir novo atendimento para este cliente"), se houver.
+  const [aberturaPrefillValue] = useState(() => takeAberturaPrefill());
+  const [segurado, setSegurado] = useState(aberturaPrefillValue?.segurado || "");
   const [placa, setPlaca] = useState("");
   const [numsin, setNumsin] = useState("");
   const [cia, setCia] = useState("");
