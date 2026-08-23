@@ -191,8 +191,13 @@ export function getAgenteProdutor(overrides, claimId) {
 }
 // Alertas de e-mail (Gmail) vinculados a este processo, não dispensados —
 // ver useOverrideActions.addEmailAlerta/dismissEmailAlerta.
+// Mais recente primeiro (a pedido do usuário) — o e-mail em alertas[0] é o
+// que a caixinha compacta do cabeçalho mostra como prévia, então quando o
+// processo tem mais de um vinculado, o mais novo deve aparecer ali.
 export function getEmailAlertas(overrides, claimId) {
-  return (getOvr(overrides, claimId).emailAlertas || []).filter((a) => !a.dismissed);
+  return (getOvr(overrides, claimId).emailAlertas || [])
+    .filter((a) => !a.dismissed)
+    .sort((a, b) => new Date(b.recebidoEm) - new Date(a.recebidoEm));
 }
 // Verifica se um vínculo específico (e-mail x processo) já foi removido
 // manualmente (dismissEmailAlerta) — usado em Emails.jsx pra não voltar a
