@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { distinctAgentes, distinctProdutores, getAgentesEfetivo } from "../../logic/claims";
+import { distinctAgentes, distinctProdutores, distinctGruposProdutores, getAgentesEfetivo } from "../../logic/claims";
 
 // Catálogo de agentes e produtores — a pedido do usuário, "bem parecido com
 // Oficina/Seguradora/Clientes": agentes/produtores já vistos em processos
@@ -14,12 +14,15 @@ import { distinctAgentes, distinctProdutores, getAgentesEfetivo } from "../../lo
 export function AgentesCatalogoCard({ config, saveConfig, overrides, claims, canEdit }) {
   const [buscaAg, setBuscaAg] = useState("");
   const [buscaPr, setBuscaPr] = useState("");
+  const [buscaGr, setBuscaGr] = useState("");
 
   const descobertos = distinctAgentes(overrides, claims);
   const todosAgentes = getAgentesEfetivo(config, overrides, claims);
   const todosProdutores = distinctProdutores(overrides, claims);
+  const todosGrupos = distinctGruposProdutores(overrides, claims);
   const agFiltrados = todosAgentes.filter((a) => a.toLowerCase().indexOf(buscaAg.toLowerCase()) >= 0);
   const prFiltrados = todosProdutores.filter((p) => p.toLowerCase().indexOf(buscaPr.toLowerCase()) >= 0);
+  const grFiltrados = todosGrupos.filter((g) => g.toLowerCase().indexOf(buscaGr.toLowerCase()) >= 0);
 
   function adicionar(v) {
     if (!canEdit) return;
@@ -42,9 +45,9 @@ export function AgentesCatalogoCard({ config, saveConfig, overrides, claims, can
     <div className="card">
       <h3 style={{ marginTop: 0 }}>Agentes e Produtores</h3>
       <p className="muted">
-        Listas usadas pra filtrar Sinistros e vincular usuários "Consulta". Agentes/produtores já encontrados em processos sincronizados aparecem aqui automaticamente — se faltar algum, rode "Importar Agente/Produtor em lote" abaixo. Agentes também podem ser incluídos manualmente.
+        Listas usadas pra filtrar Sinistros e vincular usuários "Consulta". Agentes/produtores já encontrados em processos sincronizados aparecem aqui automaticamente — se faltar algum, rode "Importar Agente/Produtor em lote" abaixo. Agentes também podem ser incluídos manualmente. "Grupo de Produtores" junta produtores que só se diferenciam pelo sufixo de unidade no nome (ex.: "NOME - BATALHA" e "NOME - GRAND ROSA" viram um grupo só).
       </p>
-      <div className="grid c2">
+      <div className="grid c3">
         <div>
           <label style={{ fontWeight: 700 }}>Agentes ({todosAgentes.length})</label>
           <input placeholder="Buscar agente..." value={buscaAg} onChange={(e) => setBuscaAg(e.target.value)} style={{ marginTop: 4, marginBottom: 6 }} />
@@ -81,6 +84,21 @@ export function AgentesCatalogoCard({ config, saveConfig, overrides, claims, can
             ))}
           </div>
           <p className="muted" style={{ fontSize: 11, marginTop: 6 }}>Produtor não tem cadastro manual — só vem de processos já buscados.</p>
+        </div>
+
+        <div>
+          <label style={{ fontWeight: 700 }}>Grupo de Produtores ({todosGrupos.length})</label>
+          <input placeholder="Buscar grupo..." value={buscaGr} onChange={(e) => setBuscaGr(e.target.value)} style={{ marginTop: 4, marginBottom: 6 }} />
+          <div style={{ maxHeight: 260, overflow: "auto", border: "1px solid var(--border)", borderRadius: 8, padding: 8 }}>
+            {!todosGrupos.length ? (
+              <div className="muted" style={{ fontSize: 12 }}>Nenhum grupo ainda — importe Agente/Produtor em lote (abaixo).</div>
+            ) : !grFiltrados.length ? (
+              <div className="muted" style={{ fontSize: 12 }}>Nenhum grupo encontrado para "{buscaGr}".</div>
+            ) : grFiltrados.map((g) => (
+              <div key={g} style={{ padding: "4px 2px", fontSize: 13 }}>{g}</div>
+            ))}
+          </div>
+          <p className="muted" style={{ fontSize: 11, marginTop: 6 }}>Derivado automaticamente dos produtores — sem cadastro manual.</p>
         </div>
       </div>
     </div>

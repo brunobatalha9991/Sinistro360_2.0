@@ -16,7 +16,7 @@ import { UsersCard } from "../components/config/UsersCard.jsx";
 import { AtendimentoStepsEditor } from "../components/config/AtendimentoStepsEditor.jsx";
 import { AgentesCatalogoCard } from "../components/config/AgentesCatalogoCard.jsx";
 import { ImportarAgenteProdutorCard } from "../components/config/ImportarAgenteProdutorCard.jsx";
-import { visibleClaims, ensureRamoTemplateInto, distinctProdutores, getAgentesEfetivo } from "../logic/claims";
+import { visibleClaims, ensureRamoTemplateInto, distinctProdutores, distinctGruposProdutores, getAgentesEfetivo } from "../logic/claims";
 import { getToken, setToken } from "../logic/corpApi";
 
 // Agrupador colapsável — a pedido do usuário: Configurações tinha ~10
@@ -61,6 +61,7 @@ export function Configuracoes() {
   const overrides = records.corp_overrides || {};
   const agentesEfetivo = getAgentesEfetivo(config, overrides, claims);
   const produtoresEfetivo = distinctProdutores(overrides, claims);
+  const gruposProdutoresEfetivo = distinctGruposProdutores(overrides, claims);
 
   return (
     <div className="page-enter">
@@ -82,6 +83,7 @@ export function Configuracoes() {
             <UsersCard
               users={records.corp_users || []} currentUser={currentUser} saveRecord={saveRecord}
               agentesDisponiveis={agentesEfetivo} produtoresDisponiveis={produtoresEfetivo}
+              gruposProdutoresDisponiveis={gruposProdutoresEfetivo}
             />
           </ConfigGroup>
 

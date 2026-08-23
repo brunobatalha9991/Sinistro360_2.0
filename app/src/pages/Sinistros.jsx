@@ -14,7 +14,7 @@ import { exportCSV } from "../logic/exportCsv";
 import {
   visibleClaims, campoEfetivo, situacaoEfetiva, getUserJourney, getNextAction,
   getSitAtend, getTemp, getResponsavel, isAtrasado, isSemAtualizacao, isManualClaim,
-  allJourneyStages, currentStage, getAgenteProdutor, getAgentesEfetivo, distinctProdutores,
+  allJourneyStages, currentStage, getAgenteProdutor, getAgentesEfetivo, distinctGruposProdutores, grupoProdutor,
 } from "../logic/claims";
 
 const DEFAULT_TEMP_OPTIONS = ["Tranquilo", "Moderado", "Grave", "Em atenção"];
@@ -37,7 +37,7 @@ export function Sinistros() {
   // — sem vínculo configurado, não filtra nada.
   const claims = useMemo(() => visibleClaims(records.corp_claims, overrides, currentUser), [records.corp_claims, overrides, currentUser]);
   const agenteOptions = getAgentesEfetivo(config, overrides, claims);
-  const produtorOptions = distinctProdutores(overrides, claims);
+  const grupoProdutorOptions = distinctGruposProdutores(overrides, claims);
 
   function updatePref(next) { setPref(next); saveCols(next); }
 
@@ -83,9 +83,9 @@ export function Sinistros() {
       const ap = getAgenteProdutor(overrides, c.id);
       if (!ap || (ap.agentes || []).indexOf(lf.agente) < 0) return false;
     }
-    if (except !== "produtor" && lf.produtor && lf.produtor !== "todos") {
+    if (except !== "grupoProdutor" && lf.grupoProdutor && lf.grupoProdutor !== "todos") {
       const ap = getAgenteProdutor(overrides, c.id);
-      if (!ap || (ap.produtores || []).indexOf(lf.produtor) < 0) return false;
+      if (!ap || !(ap.produtores || []).some((p) => grupoProdutor(p) === lf.grupoProdutor)) return false;
     }
     if (except !== "texto" && q) {
       const hay = [campoEfetivo(overrides, c, "segurado"), campoEfetivo(overrides, c, "placa"), campoEfetivo(overrides, c, "numsin"), campoEfetivo(overrides, c, "numapo"), campoEfetivo(overrides, c, "cia"), c.partyType, campoEfetivo(overrides, c, "oficina"), campoEfetivo(overrides, c, "ramo")].join(" ").toLowerCase();
@@ -168,9 +168,9 @@ export function Sinistros() {
       const ap = getAgenteProdutor(overrides, c.id);
       if (!ap || (ap.agentes || []).indexOf(lf.agente) < 0) return false;
     }
-    if (lf.produtor && lf.produtor !== "todos") {
+    if (lf.grupoProdutor && lf.grupoProdutor !== "todos") {
       const ap = getAgenteProdutor(overrides, c.id);
-      if (!ap || (ap.produtores || []).indexOf(lf.produtor) < 0) return false;
+      if (!ap || !(ap.produtores || []).some((p) => grupoProdutor(p) === lf.grupoProdutor)) return false;
     }
     if (!q) return true;
     return [campoEfetivo(overrides, c, "segurado"), campoEfetivo(overrides, c, "placa"), campoEfetivo(overrides, c, "numsin"), campoEfetivo(overrides, c, "numapo"), campoEfetivo(overrides, c, "cia"), c.partyType, campoEfetivo(overrides, c, "oficina"), campoEfetivo(overrides, c, "ramo")].join(" ").toLowerCase().indexOf(q) >= 0;
@@ -189,7 +189,7 @@ export function Sinistros() {
   if (lf.aberto) activeCount++;
   if (lf.caminho && lf.caminho !== "todos") activeCount++;
   if (lf.agente && lf.agente !== "todos") activeCount++;
-  if (lf.produtor && lf.produtor !== "todos") activeCount++;
+  if (lf.grupoProdutor && lf.grupoProdutor !== "todos") activeCount++;
 
   const allCols = getAllCols({ overrides, allClaimsRaw, navigate });
 
@@ -306,15 +306,15 @@ export function Sinistros() {
           </div>
 
           <div className="filter-group">
-            <div className="filter-group-title">Agente / Produtor</div>
+            <div className="filter-group-title">Agente / Grupo de Produtores</div>
             <div className="chips" style={{ alignItems: "center" }}>
               <select className="inline" style={{ minWidth: 200 }} value={lf.agente} onChange={(e) => patchListFilter({ agente: e.target.value })}>
                 <option value="todos">Agente: todos</option>
                 {agenteOptions.map((a) => <option key={a} value={a}>{a}</option>)}
               </select>
-              <select className="inline" style={{ minWidth: 200 }} value={lf.produtor} onChange={(e) => patchListFilter({ produtor: e.target.value })}>
-                <option value="todos">Produtor: todos</option>
-                {produtorOptions.map((p) => <option key={p} value={p}>{p}</option>)}
+              <select className="inline" style={{ minWidth: 200 }} value={lf.grupoProdutor} onChange={(e) => patchListFilter({ grupoProdutor: e.target.value })}>
+                <option value="todos">Grupo de Produtores: todos</option>
+                {grupoProdutorOptions.map((g) => <option key={g} value={g}>{g}</option>)}
               </select>
               <span className="muted" style={{ fontSize: 11 }}>(dados de processos já buscados — importe em lote em Configurações se faltar algum)</span>
             </div>

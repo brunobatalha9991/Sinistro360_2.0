@@ -9,7 +9,7 @@ export const listFilter = {
   etapa: "todos", ocoDe: "", ocoAte: "", aviDe: "", aviAte: "",
   pa: "", atrasado: false, semAtu: false, manual: false, aberto: false,
   caminho: "todos", responsavel: "todos", sitatend: "todas", termometro: "todas",
-  agente: "todos", produtor: "todos",
+  agente: "todos", grupoProdutor: "todos",
 };
 
 const listeners = new Set();
@@ -26,7 +26,7 @@ export function resetListFilter() {
     ocoDe: "", ocoAte: "", aviDe: "", aviAte: "",
     pa: "", atrasado: false, semAtu: false,
     manual: false, aberto: false, sitatend: "todas", caminho: "todos", termometro: "todas",
-    agente: "todos", produtor: "todos",
+    agente: "todos", grupoProdutor: "todos",
   });
 }
 

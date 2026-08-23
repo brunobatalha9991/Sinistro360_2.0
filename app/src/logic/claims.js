@@ -199,7 +199,8 @@ export function usuarioTemVinculoRestrito(user) {
   if (!user || user.role !== "consulta") return false;
   const ag = user.agentesVinculados || [];
   const pr = user.produtoresVinculados || [];
-  return ag.length > 0 || pr.length > 0;
+  const gr = user.gruposProdutoresVinculados || [];
+  return ag.length > 0 || pr.length > 0 || gr.length > 0;
 }
 export function claimVisivelParaUsuario(overrides, c, user) {
   if (!usuarioTemVinculoRestrito(user)) return true;
@@ -207,9 +208,14 @@ export function claimVisivelParaUsuario(overrides, c, user) {
   if (!ap) return false;
   const ag = user.agentesVinculados || [];
   const pr = user.produtoresVinculados || [];
+  const gr = user.gruposProdutoresVinculados || [];
+  // Vínculo por agente já libera tudo que estiver debaixo dele (produtores
+  // e grupos de produtores inclusos) — a pedido do usuário, é assim que a
+  // hierarquia funciona no CORP: produtor/grupo pertence a um agente.
   const bateAgente = ag.length > 0 && (ap.agentes || []).some((a) => ag.indexOf(a) >= 0);
   const bateProdutor = pr.length > 0 && (ap.produtores || []).some((p) => pr.indexOf(p) >= 0);
-  return bateAgente || bateProdutor;
+  const bateGrupo = gr.length > 0 && (ap.produtores || []).some((p) => gr.indexOf(grupoProdutor(p)) >= 0);
+  return bateAgente || bateProdutor || bateGrupo;
 }
 
 // `overrides`/`currentUser` são opcionais (retrocompatível com as várias
@@ -237,6 +243,25 @@ export function distinctProdutores(overrides, claims) {
   (claims || []).forEach((c) => {
     const ap = getAgenteProdutor(overrides, c.id);
     (ap && ap.produtores || []).forEach((p) => { if (p && !seen[p]) { seen[p] = true; out.push(p); } });
+  });
+  return out.sort((a, b) => String(a).localeCompare(String(b), "pt-BR"));
+}
+// "Grupo de Produtores" (a pedido do usuário): muitos nomes de produtor
+// vêm com um sufixo de unidade/filial no final (ex.: "NOME - BATALHA",
+// "NOME - GRAND ROSA") — o mesmo produtor cadastrado uma vez por unidade.
+// O grupo é o nome sem esse sufixo final (tudo antes do ÚLTIMO " - "),
+// agrupando essas variações num único produtor "de verdade". Nome sem
+// " - " no meio vira o próprio grupo, sem mudança.
+export function grupoProdutor(nomeProdutor) {
+  const n = String(nomeProdutor || "");
+  const idx = n.lastIndexOf(" - ");
+  return (idx > 0 ? n.slice(0, idx) : n).trim();
+}
+export function distinctGruposProdutores(overrides, claims) {
+  const seen = {}; const out = [];
+  distinctProdutores(overrides, claims).forEach((p) => {
+    const g = grupoProdutor(p);
+    if (g && !seen[g]) { seen[g] = true; out.push(g); }
   });
   return out.sort((a, b) => String(a).localeCompare(String(b), "pt-BR"));
 }

@@ -11,70 +11,71 @@ const ROLE_ORDER = ["atendente", "analista", "consulta", "admin"];
 // consigo visualizar pra poder escolher"). Lista com rolagem + busca pra
 // cada lado, igual ao padrão já usado no checklist/formulários da Mesa de
 // Atendimento.
-function VinculoAgenteProdutorModal({ user, agentesDisponiveis, produtoresDisponiveis, onSave, onClose }) {
+function VinculoAgenteProdutorModal({ user, agentesDisponiveis, produtoresDisponiveis, gruposProdutoresDisponiveis, onSave, onClose }) {
   const [buscaAg, setBuscaAg] = useState("");
   const [buscaPr, setBuscaPr] = useState("");
+  const [buscaGr, setBuscaGr] = useState("");
   const [agSel, setAgSel] = useState(() => {
     const s = {}; (user.agentesVinculados || []).forEach((a) => { s[a] = true; }); return s;
   });
   const [prSel, setPrSel] = useState(() => {
     const s = {}; (user.produtoresVinculados || []).forEach((p) => { s[p] = true; }); return s;
   });
+  const [grSel, setGrSel] = useState(() => {
+    const s = {}; (user.gruposProdutoresVinculados || []).forEach((g) => { s[g] = true; }); return s;
+  });
 
   const agFiltrados = (agentesDisponiveis || []).filter((a) => a.toLowerCase().indexOf(buscaAg.toLowerCase()) >= 0);
   const prFiltrados = (produtoresDisponiveis || []).filter((p) => p.toLowerCase().indexOf(buscaPr.toLowerCase()) >= 0);
+  const grFiltrados = (gruposProdutoresDisponiveis || []).filter((g) => g.toLowerCase().indexOf(buscaGr.toLowerCase()) >= 0);
   const qtdAg = Object.values(agSel).filter(Boolean).length;
   const qtdPr = Object.values(prSel).filter(Boolean).length;
+  const qtdGr = Object.values(grSel).filter(Boolean).length;
 
   function salvar() {
-    onSave(Object.keys(agSel).filter((k) => agSel[k]), Object.keys(prSel).filter((k) => prSel[k]));
+    onSave(
+      Object.keys(agSel).filter((k) => agSel[k]),
+      Object.keys(prSel).filter((k) => prSel[k]),
+      Object.keys(grSel).filter((k) => grSel[k]),
+    );
+  }
+
+  function coluna(titulo, busca, setBusca, disponiveis, filtrados, sel, setSel, vazioMsg) {
+    return (
+      <div>
+        <label style={{ fontWeight: 700 }}>{titulo} ({Object.values(sel).filter(Boolean).length} de {(disponiveis || []).length})</label>
+        <input placeholder={`Buscar ${titulo.toLowerCase()}...`} value={busca} onChange={(e) => setBusca(e.target.value)} style={{ marginTop: 4, marginBottom: 6 }} />
+        <div style={{ maxHeight: 280, overflow: "auto", border: "1px solid var(--border)", borderRadius: 8, padding: 8 }}>
+          {!(disponiveis || []).length ? (
+            <div className="muted" style={{ fontSize: 12 }}>{vazioMsg}</div>
+          ) : !filtrados.length ? (
+            <div className="muted" style={{ fontSize: 12 }}>Nenhum resultado para "{busca}".</div>
+          ) : filtrados.map((v) => (
+            <label key={v} style={{ display: "flex", gap: 8, alignItems: "center", padding: "5px 4px", cursor: "pointer", fontSize: 13 }}>
+              <input type="checkbox" checked={!!sel[v]} onChange={() => setSel((s) => ({ ...s, [v]: !s[v] }))} />
+              <span>{v}</span>
+            </label>
+          ))}
+        </div>
+      </div>
+    );
   }
 
   return createPortal(
     <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,.5)", zIndex: 100, display: "flex", alignItems: "flex-start", justifyContent: "center", padding: 30, overflow: "auto" }}>
-      <div style={{ width: 720, maxWidth: "100%", background: "var(--card-solid)", border: "1px solid var(--border)", borderRadius: 16, padding: 22, boxShadow: "var(--shadow-lg)" }}>
+      <div style={{ width: 960, maxWidth: "100%", background: "var(--card-solid)", border: "1px solid var(--border)", borderRadius: 16, padding: 22, boxShadow: "var(--shadow-lg)" }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
-          <h3 style={{ margin: 0 }}>Agente / Produtor — {user.nome}</h3>
+          <h3 style={{ margin: 0 }}>Agente / Produtor / Grupo — {user.nome}</h3>
           <button className="btn sec xs" onClick={onClose}>✕ Fechar</button>
         </div>
         <p className="muted" style={{ fontSize: 12, marginBottom: 14 }}>
-          Sem nenhum agente/produtor marcado, este usuário continua vendo todos os processos.
+          Vincular a um agente já libera tudo que estiver debaixo dele (produtores e grupos de produtores inclusos). Sem nenhum vínculo marcado, este usuário continua vendo todos os processos. (Qtd. de agentes: {qtdAg}, produtores: {qtdPr}, grupos: {qtdGr})
         </p>
 
-        <div className="grid c2">
-          <div>
-            <label style={{ fontWeight: 700 }}>Agentes ({qtdAg} selecionado(s) de {(agentesDisponiveis || []).length})</label>
-            <input placeholder="Buscar agente..." value={buscaAg} onChange={(e) => setBuscaAg(e.target.value)} style={{ marginTop: 4, marginBottom: 6 }} />
-            <div style={{ maxHeight: 280, overflow: "auto", border: "1px solid var(--border)", borderRadius: 8, padding: 8 }}>
-              {!(agentesDisponiveis || []).length ? (
-                <div className="muted" style={{ fontSize: 12 }}>Nenhum agente cadastrado ainda (Configurações → Agentes e Produtores).</div>
-              ) : !agFiltrados.length ? (
-                <div className="muted" style={{ fontSize: 12 }}>Nenhum agente encontrado para "{buscaAg}".</div>
-              ) : agFiltrados.map((a) => (
-                <label key={a} style={{ display: "flex", gap: 8, alignItems: "center", padding: "5px 4px", cursor: "pointer", fontSize: 13 }}>
-                  <input type="checkbox" checked={!!agSel[a]} onChange={() => setAgSel((s) => ({ ...s, [a]: !s[a] }))} />
-                  <span>{a}</span>
-                </label>
-              ))}
-            </div>
-          </div>
-
-          <div>
-            <label style={{ fontWeight: 700 }}>Produtores ({qtdPr} selecionado(s) de {(produtoresDisponiveis || []).length})</label>
-            <input placeholder="Buscar produtor..." value={buscaPr} onChange={(e) => setBuscaPr(e.target.value)} style={{ marginTop: 4, marginBottom: 6 }} />
-            <div style={{ maxHeight: 280, overflow: "auto", border: "1px solid var(--border)", borderRadius: 8, padding: 8 }}>
-              {!(produtoresDisponiveis || []).length ? (
-                <div className="muted" style={{ fontSize: 12 }}>Nenhum produtor cadastrado ainda (Configurações → Agentes e Produtores).</div>
-              ) : !prFiltrados.length ? (
-                <div className="muted" style={{ fontSize: 12 }}>Nenhum produtor encontrado para "{buscaPr}".</div>
-              ) : prFiltrados.map((p) => (
-                <label key={p} style={{ display: "flex", gap: 8, alignItems: "center", padding: "5px 4px", cursor: "pointer", fontSize: 13 }}>
-                  <input type="checkbox" checked={!!prSel[p]} onChange={() => setPrSel((s) => ({ ...s, [p]: !s[p] }))} />
-                  <span>{p}</span>
-                </label>
-              ))}
-            </div>
-          </div>
+        <div className="grid c3">
+          {coluna("Agentes", buscaAg, setBuscaAg, agentesDisponiveis, agFiltrados, agSel, setAgSel, "Nenhum agente cadastrado ainda (Configurações → Agentes e Produtores).")}
+          {coluna("Produtores", buscaPr, setBuscaPr, produtoresDisponiveis, prFiltrados, prSel, setPrSel, "Nenhum produtor cadastrado ainda (Configurações → Agentes e Produtores).")}
+          {coluna("Grupo de Produtores", buscaGr, setBuscaGr, gruposProdutoresDisponiveis, grFiltrados, grSel, setGrSel, "Nenhum grupo cadastrado ainda (Configurações → Agentes e Produtores).")}
         </div>
 
         <button className="btn" style={{ marginTop: 16 }} onClick={salvar}>Salvar vínculos</button>
@@ -85,7 +86,7 @@ function VinculoAgenteProdutorModal({ user, agentesDisponiveis, produtoresDispon
 }
 
 // Porte 1:1 do card "Usuários do sistema" das Configurações do HTML original.
-export function UsersCard({ users, currentUser, saveRecord, agentesDisponiveis, produtoresDisponiveis }) {
+export function UsersCard({ users, currentUser, saveRecord, agentesDisponiveis, produtoresDisponiveis, gruposProdutoresDisponiveis }) {
   const [vinculoUser, setVinculoUser] = useState(null);
   const [nome, setNome] = useState("");
   const [email, setEmail] = useState("");
@@ -137,8 +138,8 @@ export function UsersCard({ users, currentUser, saveRecord, agentesDisponiveis, 
     if (u.role !== "consulta") { alert('Vínculo de agente/produtor só se aplica a usuários com função "Consulta".'); return; }
     setVinculoUser(u);
   }
-  function salvarVinculo(novosAg, novosPr) {
-    saveUsers((current) => (current || []).map((x) => (x.id === vinculoUser.id ? { ...x, agentesVinculados: novosAg, produtoresVinculados: novosPr } : x)));
+  function salvarVinculo(novosAg, novosPr, novosGr) {
+    saveUsers((current) => (current || []).map((x) => (x.id === vinculoUser.id ? { ...x, agentesVinculados: novosAg, produtoresVinculados: novosPr, gruposProdutoresVinculados: novosGr } : x)));
     setVinculoUser(null);
   }
 
@@ -275,6 +276,7 @@ export function UsersCard({ users, currentUser, saveRecord, agentesDisponiveis, 
       {vinculoUser && (
         <VinculoAgenteProdutorModal
           user={vinculoUser} agentesDisponiveis={agentesDisponiveis} produtoresDisponiveis={produtoresDisponiveis}
+          gruposProdutoresDisponiveis={gruposProdutoresDisponiveis}
           onSave={salvarVinculo} onClose={() => setVinculoUser(null)}
         />
       )}
