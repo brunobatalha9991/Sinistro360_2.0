@@ -115,7 +115,7 @@ export function Configuracoes() {
           </ConfigGroup>
 
           <ConfigGroup title="Dados, Migração & IA" subtitle="Importação de histórico, migração de responsabilidade legada e aprovação de memórias da IA.">
-            <HistoricoImportCard claims={claims} actions={actions} canEdit={admin} />
+            <HistoricoImportCard claims={claims} overrides={overrides} actions={actions} canEdit={admin} />
             <ProximaAcaoImportCard claims={claims} overrides={overrides} actions={actions} canEdit={admin} />
             <ResponsabilidadeBackfillCard claims={claims} records={records} saveRecord={saveRecord} canEdit={admin} />
             <MemoriasIACard users={records.corp_users || []} />

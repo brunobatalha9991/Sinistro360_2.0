@@ -63,14 +63,20 @@ export function findClaimForHistoricoRow(claims, row) {
   ));
 }
 
-// Processa o texto do CSV já lido e devolve {ok, falha, report} — quem chama
-// decide como persistir cada comentário/auditoria (via useOverrideActions).
-export function processHistoricoCsv(text, claims, currentUserName, saveCommentForClaim) {
+// Processa o texto do CSV já lido e devolve {ok, ignorados, falha, report} —
+// quem chama decide como persistir cada comentário/auditoria (via
+// useOverrideActions). Não importa por cima de um histórico registrado por
+// uma pessoa (a pedido do usuário): só acrescenta se o processo ainda não
+// tiver nenhum histórico, ou se o ÚLTIMO registrado também for uma
+// importação anterior (canal "Dados importado") — assim que alguém
+// registra algo manualmente, a importação em lote para de mexer naquele
+// processo.
+export function processHistoricoCsv(text, claims, overrides, loadCommsForClaim, currentUserName, saveCommentForClaim) {
   const rows = parseCSVSemi(text);
   if (!rows.length) return null;
   rows.shift();
   const report = [["Nosso N°", "Tipo", "Segurado/Terceiro", "N° Sinistro", "Últ. Histórico (original)", "Status", "Data registrada", "Descrição registrada"]];
-  let ok = 0, falha = 0;
+  let ok = 0, ignorados = 0, falha = 0;
   rows.forEach((cols) => {
     const row = { nosnum: cols[0], tipo: cols[1], segurado: cols[2], numsin: cols[3] };
     const cel = cols[4] || "";
@@ -93,6 +99,13 @@ export function processHistoricoCsv(text, claims, currentUserName, saveCommentFo
       return;
     }
     const claim = matches[0];
+    const comms = loadCommsForClaim(overrides, claim.id);
+    const ultimo = comms.length ? comms[comms.length - 1] : null;
+    if (ultimo && ultimo.canal !== "Dados importado") {
+      ignorados++;
+      report.push([row.nosnum, row.tipo, row.segurado, row.numsin, cel, "Ignorado — último histórico do processo foi registrado manualmente", "", ""]);
+      return;
+    }
     saveCommentForClaim(claim.id, {
       id: "cm_" + uid(), canal: "Dados importado", meio: "Dados importado", date: parsed.date, text: parsed.text,
       who: currentUserName || "—", at: new Date().toISOString(),
@@ -102,7 +115,7 @@ export function processHistoricoCsv(text, claims, currentUserName, saveCommentFo
       parsed.dataInferida ? "OK — importado (sem data válida na célula: usada a data da importação)" : "OK — importado",
       parsed.dateBR, parsed.text]);
   });
-  return { ok, falha, report };
+  return { ok, ignorados, falha, report };
 }
 
 // Modelo/importação de Próxima ação em lote — mesma lógica de casamento de
