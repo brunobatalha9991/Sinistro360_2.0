@@ -35,7 +35,10 @@ export function NextActionPanel({ c, overrides, actions, canEdit }) {
       </div>
       {atual && atual.title && (
         <div style={{ background: "rgba(var(--brand-rgb),.08)", border: "1px solid rgba(var(--brand-rgb),.28)", borderRadius: 8, padding: 12, margin: "10px 0" }}>
-          <div style={{ fontWeight: 700 }}>{atual.title}</div>
+          <div style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
+            <div style={{ fontWeight: 700 }}>{atual.title}</div>
+            {atual.origem === "importado" && <span className="badge purple" title="Definida via importação em lote, não por uma pessoa">📥 Importado via planilha</span>}
+          </div>
           <div className="muted" style={{ fontSize: 12, margin: "2px 0" }}>{atual.date ? `Prazo: ${fmtDateBR(atual.date)}` : "Sem prazo definido"}</div>
           <div style={{ fontSize: 13, whiteSpace: "pre-wrap", marginTop: 4 }}>{atual.desc || ""}</div>
         </div>

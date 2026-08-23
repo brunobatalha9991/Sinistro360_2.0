@@ -308,7 +308,10 @@ export function DetailHeader({ c, sit, rel, claims, allClaimsRaw, overrides, use
         >
           {na && na.title ? (
             <>
-              <div style={{ fontWeight: 600, fontSize: 12.5, marginTop: 2 }}>{na.title}</div>
+              <div style={{ display: "flex", alignItems: "center", gap: 5, marginTop: 2, flexWrap: "wrap" }}>
+                <div style={{ fontWeight: 600, fontSize: 12.5 }}>{na.title}</div>
+                {na.origem === "importado" && <span className="badge purple" style={{ fontSize: 9.5, padding: "2px 6px" }} title="Definida via importação em lote, não por uma pessoa">📥 Importado</span>}
+              </div>
               <div className="muted" style={{ fontSize: 11.5 }}>{atrasada ? "Prazo era: " + fmtDateBR(na.date) : (na.date ? "Prazo: " + fmtDateBR(na.date) : "Sem prazo")}</div>
             </>
           ) : (

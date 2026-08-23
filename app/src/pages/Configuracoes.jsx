@@ -5,6 +5,7 @@ import { useOverrideActions } from "../hooks/useOverrideActions";
 import { isAdmin } from "../data/auth";
 import { EmptyState } from "../components/EmptyState.jsx";
 import { HistoricoImportCard } from "../components/config/HistoricoImportCard.jsx";
+import { ProximaAcaoImportCard } from "../components/config/ProximaAcaoImportCard.jsx";
 import { ResponsabilidadeBackfillCard } from "../components/config/ResponsabilidadeBackfillCard.jsx";
 import { MemoriasIACard } from "../components/config/MemoriasIACard.jsx";
 import { AtribuirResponsavelEmMassaCard } from "../components/config/AtribuirResponsavelEmMassaCard.jsx";
@@ -115,6 +116,7 @@ export function Configuracoes() {
 
           <ConfigGroup title="Dados, Migração & IA" subtitle="Importação de histórico, migração de responsabilidade legada e aprovação de memórias da IA.">
             <HistoricoImportCard claims={claims} actions={actions} canEdit={admin} />
+            <ProximaAcaoImportCard claims={claims} overrides={overrides} actions={actions} canEdit={admin} />
             <ResponsabilidadeBackfillCard claims={claims} records={records} saveRecord={saveRecord} canEdit={admin} />
             <MemoriasIACard users={records.corp_users || []} />
           </ConfigGroup>
