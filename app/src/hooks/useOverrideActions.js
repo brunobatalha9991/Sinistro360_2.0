@@ -73,6 +73,15 @@ export function useOverrideActions() {
     saveSitAtend: (claimId, v) => setOvr(claimId, { sitAtend: v }),
     saveTemp: (claimId, v) => setOvr(claimId, { temperatura: v }),
     saveJourneyNotes: (claimId, v) => setOvr(claimId, { journeyNotes: v }),
+    // Pesquisa de satisfação (Fase 4 — Oficinas/Seguradoras/Clientes): um
+    // registro por processo, com 3 alvos (corretora/seguradora/oficina),
+    // cada um com nota (estrelas) + comentário OU "não se aplica". Nunca
+    // bloqueia nada — é um registro manual disponibilizado quando o
+    // processo já chegou em Indenizado/Sem Indenização (ver isFinalizado em
+    // claims.js), a pedido do usuário.
+    savePesquisaSatisfacao(claimId, dados) {
+      setOvr(claimId, { pesquisaSatisfacao: { ...dados, respondidoEm: new Date().toISOString(), respondidoPor: (currentUser && currentUser.nome) || "—" } });
+    },
     // Snapshot de Agente/Produtor (endpoint /documento do CORP) — gravado
     // sob demanda (ao abrir Visão geral/Anexos de um processo) ou via
     // importação em lote (Configurações). Alimenta o filtro de Agente/

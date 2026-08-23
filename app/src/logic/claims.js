@@ -87,6 +87,20 @@ export function getUserJourney(overrides, claimId) {
   return ovr.journeyUser || { caminho: "", steps: {} };
 }
 export function getNextAction(overrides, claimId) { return getOvr(overrides, claimId).nextAction || null; }
+// Pesquisa de satisfação (Fase 4 — Oficinas/Seguradoras/Clientes) — ver
+// useOverrideActions.savePesquisaSatisfacao.
+export function getPesquisaSatisfacao(overrides, claimId) { return getOvr(overrides, claimId).pesquisaSatisfacao || null; }
+// Considera "completa" quando os 3 alvos têm uma decisão (nota > 0 OU
+// marcado como não se aplica) — usado pra saber se ainda falta preencher
+// alguma coisa, sem exigir que todos tenham dado nota de verdade.
+export function pesquisaSatisfacaoCompleta(overrides, claimId) {
+  const p = getPesquisaSatisfacao(overrides, claimId);
+  if (!p) return false;
+  return ["corretora", "seguradora", "oficina"].every((alvo) => {
+    const a = p[alvo];
+    return a && (a.naoAplica || Number(a.nota) > 0);
+  });
+}
 export function getResponsavel(overrides, claimId) { return getOvr(overrides, claimId).responsavelUser || null; }
 export function getSitAtend(overrides, claimId) { return getOvr(overrides, claimId).sitAtend || ""; }
 export function getTemp(overrides, claimId) { return getOvr(overrides, claimId).temperatura || ""; }

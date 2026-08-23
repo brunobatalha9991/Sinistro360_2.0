@@ -4,7 +4,7 @@
 // Referenciada/Livre Escolha (não se aplica a cliente); em troca, resume
 // Agente/Produtor vinculados às apólices do cliente (já sincronizados por
 // sinistro via /documento do CORP — ver useDocumentoCorp.js).
-import { campoEfetivo, loadComms, getAgenteProdutor } from "./claims";
+import { campoEfetivo, loadComms, getAgenteProdutor, getPesquisaSatisfacao } from "./claims";
 
 export function clienteIdFromNome(nome) {
   const diacriticos = new RegExp("[\\u0300-\\u036f]", "g");
@@ -50,6 +50,19 @@ export function clienteComsCliente(claims, overrides, clienteNome) {
 
 export function clienteAvaliacaoMedia(coms) {
   const notas = (coms || []).map((m) => Number(m.avaliacao) || 0).filter((n) => n > 0);
+  if (!notas.length) return null;
+  return notas.reduce((a, b) => a + b, 0) / notas.length;
+}
+
+// Média das notas da Pesquisa de satisfação (Fase 4) pro alvo
+// "corretora" (satisfação do cliente com a corretora), entre os sinistros
+// deste cliente.
+export function clienteSatisfacaoCorretoraMedia(claims, overrides, clienteNome) {
+  const cs = clienteClaims(claims, overrides, clienteNome);
+  const notas = cs
+    .map((c) => (getPesquisaSatisfacao(overrides, c.id) || {}).corretora)
+    .filter((a) => a && !a.naoAplica && Number(a.nota) > 0)
+    .map((a) => Number(a.nota));
   if (!notas.length) return null;
   return notas.reduce((a, b) => a + b, 0) / notas.length;
 }

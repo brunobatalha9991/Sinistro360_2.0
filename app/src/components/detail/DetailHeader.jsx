@@ -10,7 +10,7 @@ import { baixarAnexoGmail } from "../../logic/gmailApi";
 import {
   getTemp, tempColor, getSitAtend, getUserJourney, isManualClaim, situacaoEfetiva,
   getNextAction, isAtrasado, loadComms, isSemAtualizacao, getResponsavel, campoEfetivo,
-  campoFoiEditado, getEmailAlertas,
+  campoFoiEditado, getEmailAlertas, isFinalizado, pesquisaSatisfacaoCompleta,
 } from "../../logic/claims";
 import { fmtDateBR, fmtDateHoraBR, txt } from "../../logic/format";
 
@@ -25,6 +25,7 @@ const DEFAULT_SIT_OPTIONS = ["Aguard. Cliente", "Aguard. Seguradora", "Aguard. C
 const DEFAULT_LAYOUT_ORDER = [
   "badges", "situacao", "atendimento", "caminho", "observacoes",
   "email", "responsavel", "criarTarefa", "proximaAcao", "ultimoHistorico",
+  "pesquisaSatisfacao",
 ];
 
 // Linha compacta de um item de acompanhamento (próxima ação, último
@@ -171,6 +172,8 @@ export function DetailHeader({ c, sit, rel, claims, allClaimsRaw, overrides, use
   const last = comms.length ? comms[comms.length - 1] : null;
   const semAtualizacao = isSemAtualizacao(overrides, c);
   const situacaoEfe = situacaoEfetiva(overrides, c);
+  const finalizado = isFinalizado(overrides, c);
+  const pesqCompleta = pesquisaSatisfacaoCompleta(overrides, c.id);
   const emailAlertas = getEmailAlertas(overrides, c.id);
   // Índice do e-mail aberto no modal (não o objeto direto): quando o
   // processo tem mais de um e-mail vinculado, as setas ‹ › do
@@ -340,6 +343,24 @@ export function DetailHeader({ c, sit, rel, claims, allClaimsRaw, overrides, use
         </PainelItem>
       </div>
     ),
+
+    // Só aparece depois que o processo já chegou em Indenizado/Sem
+    // Indenização (vindo da API) — nunca bloqueia nada, é só uma pendência
+    // visível até alguém registrar (ou marcar "Não se aplica" pros 3
+    // alvos) — a pedido do usuário.
+    pesquisaSatisfacao: finalizado ? (
+      <div style={{ minWidth: 0, height: "100%", boxSizing: "border-box", borderRadius: 8, border: "1px solid var(--border)", background: "var(--surface-2)", padding: "10px 12px" }}>
+        <PainelItem
+          cor={pesqCompleta ? "var(--ok)" : "var(--danger)"}
+          titulo={pesqCompleta ? "Pesquisa de satisfação" : "⚠ Pesquisa de satisfação pendente"}
+          acoes={<button className="btn sec xs" onClick={() => setDetailTab("satisfacao")}>{pesqCompleta ? "Ver / editar" : "+ Registrar"}</button>}
+        >
+          <div className="muted" style={{ fontSize: 11.5, marginTop: 2 }}>
+            {pesqCompleta ? "Corretora, seguradora e oficina já registradas." : "Processo já concluído — falta registrar a satisfação do cliente."}
+          </div>
+        </PainelItem>
+      </div>
+    ) : null,
   };
 
   return (

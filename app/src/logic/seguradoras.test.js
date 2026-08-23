@@ -2,7 +2,7 @@ import { describe, it, expect } from "vitest";
 import {
   seguradoraIdFromNome, listaSeguradoras, seguradoraNomeFromId, seguradoraClaims,
   seguradoraComsSeguradora, seguradoraAvaliacaoMedia, seguradoraAguardandoLimitacaoCounts,
-  seguradoraReferenciadaLivreEscolhaPorOficina,
+  seguradoraReferenciadaLivreEscolhaPorOficina, seguradoraSatisfacaoMedia,
 } from "./seguradoras";
 
 describe("seguradoraIdFromNome", () => {
@@ -58,6 +58,20 @@ describe("seguradoraAguardandoLimitacaoCounts", () => {
   it("conta as duas flags", () => {
     const coms = [{ aguardandoRetorno: true }, { limitacaoComunicacao: true, aguardandoRetorno: true }];
     expect(seguradoraAguardandoLimitacaoCounts(coms)).toEqual({ aguardandoRetorno: 2, limitacaoComunicacao: 1 });
+  });
+});
+
+describe("seguradoraSatisfacaoMedia", () => {
+  it("média das notas do alvo seguradora, ignorando não se aplica e sem pesquisa", () => {
+    const overrides = {
+      c1: { pesquisaSatisfacao: { seguradora: { nota: 2 } } },
+      c2: { pesquisaSatisfacao: { seguradora: { nota: 4 } } },
+      c3: { pesquisaSatisfacao: { seguradora: { naoAplica: true } } },
+    };
+    expect(seguradoraSatisfacaoMedia(claims, overrides, "Porto Seguro")).toBe(3);
+  });
+  it("sem nenhuma nota válida, retorna null", () => {
+    expect(seguradoraSatisfacaoMedia(claims, {}, "Porto Seguro")).toBeNull();
   });
 });
 

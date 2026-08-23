@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
 import {
   clienteIdFromNome, listaClientes, clienteNomeFromId, clienteClaims,
-  clienteComsCliente, clienteAvaliacaoMedia, clienteAgentesProdutores,
+  clienteComsCliente, clienteAvaliacaoMedia, clienteAgentesProdutores, clienteSatisfacaoCorretoraMedia,
 } from "./clientes";
 
 describe("clienteIdFromNome", () => {
@@ -64,5 +64,18 @@ describe("clienteAgentesProdutores", () => {
   });
   it("sem cache ainda, retorna listas vazias", () => {
     expect(clienteAgentesProdutores(claims, {}, "Carlos Andrade")).toEqual({ agentes: [], produtores: [] });
+  });
+});
+
+describe("clienteSatisfacaoCorretoraMedia", () => {
+  it("média das notas do alvo corretora, ignorando não se aplica e sem pesquisa", () => {
+    const overrides = {
+      c1: { pesquisaSatisfacao: { corretora: { nota: 5 } } },
+      c2: { pesquisaSatisfacao: { corretora: { naoAplica: true } } },
+    };
+    expect(clienteSatisfacaoCorretoraMedia(claims, overrides, "Carlos Andrade")).toBe(5);
+  });
+  it("sem nenhuma nota válida, retorna null", () => {
+    expect(clienteSatisfacaoCorretoraMedia(claims, {}, "Carlos Andrade")).toBeNull();
   });
 });

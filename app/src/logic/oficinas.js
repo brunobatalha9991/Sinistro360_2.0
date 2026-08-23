@@ -4,7 +4,7 @@
 // sinistro. O cadastro (corp_oficinas) é inteiramente manual, guardado
 // numa coleção própria, então nunca é afetado por uma sincronização de
 // corp_claims.
-import { campoEfetivo, getUserJourney, loadComms } from "./claims";
+import { campoEfetivo, getUserJourney, loadComms, getPesquisaSatisfacao } from "./claims";
 import { diasEntre } from "./format";
 
 // Slug determinístico a partir do nome da oficina — vira o id do registro
@@ -97,6 +97,19 @@ export function oficinaTempoMedioReparo(claims, overrides, oficinaNome) {
   });
   if (!dias.length) return null;
   return dias.reduce((a, b) => a + b, 0) / dias.length;
+}
+
+// Média das notas da Pesquisa de satisfação (Fase 4) pro alvo "oficina",
+// entre os sinistros desta oficina — ignora sinistros sem pesquisa
+// registrada ou marcados como "não se aplica".
+export function oficinaSatisfacaoMedia(claims, overrides, oficinaNome) {
+  const cs = oficinaClaims(claims, overrides, oficinaNome);
+  const notas = cs
+    .map((c) => (getPesquisaSatisfacao(overrides, c.id) || {}).oficina)
+    .filter((a) => a && !a.naoAplica && Number(a.nota) > 0)
+    .map((a) => Number(a.nota));
+  if (!notas.length) return null;
+  return notas.reduce((a, b) => a + b, 0) / notas.length;
 }
 
 // Pra cada seguradora (cia efetiva) associada a sinistros desta oficina,

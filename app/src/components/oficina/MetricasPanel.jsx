@@ -1,6 +1,6 @@
 import {
   oficinaComsOficina, oficinaAvaliacaoMedia, oficinaAguardandoLimitacaoCounts,
-  oficinaTempoMedioReparo, oficinaReferenciadaLivreEscolhaPorSeguradora,
+  oficinaTempoMedioReparo, oficinaReferenciadaLivreEscolhaPorSeguradora, oficinaSatisfacaoMedia,
 } from "../../logic/oficinas";
 
 function Kpi({ label, value, sub }) {
@@ -24,6 +24,7 @@ export function MetricasPanel({ oficinaNome, claims, overrides }) {
   const tempoReparo = oficinaTempoMedioReparo(claims, overrides, oficinaNome);
   const porSeguradora = oficinaReferenciadaLivreEscolhaPorSeguradora(claims, overrides, oficinaNome);
   const seguradorasKeys = Object.keys(porSeguradora).sort();
+  const satisfacao = oficinaSatisfacaoMedia(claims, overrides, oficinaNome);
 
   return (
     <div>
@@ -65,7 +66,12 @@ export function MetricasPanel({ oficinaNome, claims, overrides }) {
 
       <div className="card" style={{ marginTop: 16 }}>
         <h3 style={{ marginTop: 0 }}>Pesquisa de satisfação</h3>
-        <p className="muted">Disponível quando o mecanismo de pesquisa de satisfação (corretora/seguradora/oficina) for implementado — fase futura deste módulo.</p>
+        <p className="muted" style={{ fontSize: 12 }}>Nota que o cliente deu pra esta oficina, registrada na aba "Pesquisa de satisfação" de cada sinistro.</p>
+        {satisfacao != null ? (
+          <div style={{ fontSize: 26, fontWeight: 700 }}>{satisfacao.toFixed(1)} ★</div>
+        ) : (
+          <p className="muted">Nenhuma pesquisa de satisfação registrada ainda pra esta oficina.</p>
+        )}
       </div>
     </div>
   );

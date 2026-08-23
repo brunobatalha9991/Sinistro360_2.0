@@ -4,7 +4,7 @@
 // reparo" (métrica de oficina, não de seguradora) e o cruzamento
 // Referenciada/Livre Escolha é visto do lado inverso — por OFICINA, não
 // por seguradora (já que aqui a entidade central é a própria seguradora).
-import { campoEfetivo, loadComms } from "./claims";
+import { campoEfetivo, loadComms, getPesquisaSatisfacao } from "./claims";
 
 export function seguradoraIdFromNome(nome) {
   const diacriticos = new RegExp("[\\u0300-\\u036f]", "g");
@@ -61,6 +61,18 @@ export function seguradoraAguardandoLimitacaoCounts(coms) {
     if (m.limitacaoComunicacao) limitacaoComunicacao++;
   });
   return { aguardandoRetorno, limitacaoComunicacao };
+}
+
+// Média das notas da Pesquisa de satisfação (Fase 4) pro alvo
+// "seguradora", entre os sinistros desta seguradora.
+export function seguradoraSatisfacaoMedia(claims, overrides, seguradoraNome) {
+  const cs = seguradoraClaims(claims, overrides, seguradoraNome);
+  const notas = cs
+    .map((c) => (getPesquisaSatisfacao(overrides, c.id) || {}).seguradora)
+    .filter((a) => a && !a.naoAplica && Number(a.nota) > 0)
+    .map((a) => Number(a.nota));
+  if (!notas.length) return null;
+  return notas.reduce((a, b) => a + b, 0) / notas.length;
 }
 
 // Pra cada oficina associada a sinistros desta seguradora, quantos foram

@@ -3,6 +3,7 @@ import {
   usuarioTemVinculoRestrito, claimVisivelParaUsuario, visibleClaims,
   distinctAgentes, distinctProdutores, getAgentesEfetivo,
   grupoProdutor, distinctGruposProdutores, emailAlertaDispensado,
+  getPesquisaSatisfacao, pesquisaSatisfacaoCompleta,
 } from "./claims";
 
 const overrides = {
@@ -120,5 +121,30 @@ describe("emailAlertaDispensado", () => {
   it("verdadeiro quando o vínculo foi removido manualmente", () => {
     const ovr = { c1: { emailAlertas: [{ emailId: "gmail:1", dismissed: true }] } };
     expect(emailAlertaDispensado(ovr, "c1", "gmail:1")).toBe(true);
+  });
+});
+
+describe("getPesquisaSatisfacao + pesquisaSatisfacaoCompleta", () => {
+  it("sem pesquisa registrada, retorna null e incompleta", () => {
+    expect(getPesquisaSatisfacao({}, "c1")).toBeNull();
+    expect(pesquisaSatisfacaoCompleta({}, "c1")).toBe(false);
+  });
+  it("incompleta enquanto faltar decisão (nota ou não se aplica) em algum dos 3 alvos", () => {
+    const ovr = { c1: { pesquisaSatisfacao: { corretora: { nota: 5 }, seguradora: { naoAplica: true } } } };
+    expect(pesquisaSatisfacaoCompleta(ovr, "c1")).toBe(false);
+  });
+  it("completa quando os 3 alvos têm nota > 0 ou não se aplica", () => {
+    const ovr = {
+      c1: {
+        pesquisaSatisfacao: {
+          corretora: { nota: 5 }, seguradora: { naoAplica: true }, oficina: { nota: 3 },
+        },
+      },
+    };
+    expect(pesquisaSatisfacaoCompleta(ovr, "c1")).toBe(true);
+  });
+  it("nota zero sem naoAplica não conta como decisão", () => {
+    const ovr = { c1: { pesquisaSatisfacao: { corretora: { nota: 0 }, seguradora: { naoAplica: true }, oficina: { nota: 3 } } } };
+    expect(pesquisaSatisfacaoCompleta(ovr, "c1")).toBe(false);
   });
 });

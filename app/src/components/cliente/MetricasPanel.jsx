@@ -1,5 +1,5 @@
 import {
-  clienteComsCliente, clienteAvaliacaoMedia, clienteAgentesProdutores,
+  clienteComsCliente, clienteAvaliacaoMedia, clienteAgentesProdutores, clienteSatisfacaoCorretoraMedia,
 } from "../../logic/clientes";
 
 function Kpi({ label, value, sub }) {
@@ -20,6 +20,7 @@ export function MetricasPanel({ clienteNome, claims, overrides }) {
   const coms = clienteComsCliente(claims, overrides, clienteNome);
   const media = clienteAvaliacaoMedia(coms);
   const { agentes, produtores } = clienteAgentesProdutores(claims, overrides, clienteNome);
+  const satisfacaoCorretora = clienteSatisfacaoCorretoraMedia(claims, overrides, clienteNome);
 
   return (
     <div>
@@ -49,7 +50,12 @@ export function MetricasPanel({ clienteNome, claims, overrides }) {
 
       <div className="card" style={{ marginTop: 16 }}>
         <h3 style={{ marginTop: 0 }}>Pesquisa de satisfação</h3>
-        <p className="muted">Disponível quando o mecanismo de pesquisa de satisfação (corretora/seguradora/oficina) for implementado — fase futura deste módulo.</p>
+        <p className="muted" style={{ fontSize: 12 }}>Nota que o cliente deu pra corretora, registrada na aba "Pesquisa de satisfação" de cada sinistro.</p>
+        {satisfacaoCorretora != null ? (
+          <div style={{ fontSize: 26, fontWeight: 700 }}>{satisfacaoCorretora.toFixed(1)} ★</div>
+        ) : (
+          <p className="muted">Nenhuma pesquisa de satisfação registrada ainda pra este cliente.</p>
+        )}
       </div>
     </div>
   );

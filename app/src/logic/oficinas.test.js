@@ -2,7 +2,7 @@ import { describe, it, expect } from "vitest";
 import {
   oficinaIdFromNome, oficinaClaims, oficinaComsOficina, oficinaAvaliacaoMedia,
   oficinaAguardandoLimitacaoCounts, oficinaTempoMedioReparo, oficinaReferenciadaLivreEscolhaPorSeguradora,
-  listaOficinas, oficinaNomeFromId,
+  listaOficinas, oficinaNomeFromId, oficinaSatisfacaoMedia,
 } from "./oficinas";
 
 describe("oficinaIdFromNome", () => {
@@ -100,6 +100,20 @@ describe("listaOficinas + oficinaNomeFromId", () => {
   });
   it("id desconhecido retorna string vazia", () => {
     expect(oficinaNomeFromId(claims, {}, "NAO_EXISTE")).toBe("");
+  });
+});
+
+describe("oficinaSatisfacaoMedia", () => {
+  it("média das notas do alvo oficina, ignorando não se aplica e sem pesquisa", () => {
+    const overrides = {
+      c1: { pesquisaSatisfacao: { oficina: { nota: 4 } } },
+      c2: { pesquisaSatisfacao: { oficina: { naoAplica: true } } },
+      // c3 sem pesquisa registrada
+    };
+    expect(oficinaSatisfacaoMedia(claims, overrides, "Oficina Central")).toBe(4);
+  });
+  it("sem nenhuma nota válida, retorna null", () => {
+    expect(oficinaSatisfacaoMedia(claims, {}, "Oficina Central")).toBeNull();
   });
 });
 
