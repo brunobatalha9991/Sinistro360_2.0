@@ -70,7 +70,7 @@ export function Sinistro() {
   function renderPanel() {
     switch (detailTab) {
       case "jornada": return <JourneyPanel c={c} overrides={overrides} config={config} actions={actions} canEdit={canEdit} isAdminUser={isAdminUser} currentUser={currentUser} navigate={navigate} />;
-      case "historico": return <CommsPanel c={c} overrides={overrides} actions={actions} canEdit={canEdit} config={config} />;
+      case "historico": return <CommsPanel c={c} overrides={overrides} actions={actions} canEdit={canEdit} config={config} clientes={records.corp_clientes || {}} />;
       case "proxima": return <NextActionPanel c={c} overrides={overrides} actions={actions} canEdit={canEdit} />;
       case "auditoria": return <AuditPanel c={c} overrides={overrides} records={records} />;
       case "vinculos": return <LinksPanel c={c} claims={claims} allClaimsRaw={allClaimsRaw} overrides={overrides} actions={actions} navigate={navigate} setDetailTab={setDetailTab} />;

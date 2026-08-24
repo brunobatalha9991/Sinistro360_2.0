@@ -17,6 +17,10 @@ export const CONFIG_KEYS = [
   "corp_gmail_cfg",
   "corp_email_assinatura",
   "corp_email_regras",
+  // Templates de mensagem (WhatsApp) vinculados a etapa da jornada — botão
+  // "Mensagem para o cliente" no Histórico do sinistro. Array de
+  // {id, nome, etapaVinculada, texto} — ver src/logic/msgTemplates.js.
+  "corp_msg_templates",
   // Layout (ordem + tamanho de cada caixa) do cabeçalho do detalhe do
   // processo — a pedido do usuário: caixas arrastáveis/redimensionáveis,
   // compartilhadas pra todo mundo que usa o sistema. Ver DetailHeader.jsx.

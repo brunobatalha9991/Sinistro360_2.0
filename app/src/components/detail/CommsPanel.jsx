@@ -6,6 +6,7 @@ import { loadComms, currentStage, allJourneyStages, journeyStageStatusMap, journ
 import { fmtDateBR, todayISO, txt } from "../../logic/format";
 import { generateContent, isGeminiConfigured } from "../../ai/geminiApi.js";
 import { takeComsPrefill } from "../../state/comsPrefill";
+import { MensagemTemplateModal } from "./MensagemTemplateModal.jsx";
 
 const MEIOS = ["Telefone", "WhatsApp", "E-mail", "Presencial", "Outro"];
 const TITULO_AVULSO = "__avulso__";
@@ -118,8 +119,9 @@ function SugestaoClienteBox({ titulo, oficinaTexto, seguradoraTexto }) {
 // e uma quarta caixa com sugestão de mensagem pro cliente via IA. Título e
 // Data ficam compartilhados; um único "Registrar" cria uma entrada no
 // histórico pra cada caixa preenchida naquele momento.
-export function CommsPanel({ c, overrides, actions, canEdit, config }) {
+export function CommsPanel({ c, overrides, actions, canEdit, config, clientes }) {
   const { currentUser } = useAuth();
+  const [msgModalOpen, setMsgModalOpen] = useState(false);
   const list = loadComms(overrides, c.id).slice().reverse();
   const templates = (config && config.corp_journey_templates) || {};
   const atendTemplateCfg = config && config.corp_atendimento_template;
@@ -176,6 +178,18 @@ export function CommsPanel({ c, overrides, actions, canEdit, config }) {
 
   return (
     <div>
+      <div className="card" style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 8 }}>
+        <div>
+          <h3 style={{ margin: 0 }}>Mensagem para o cliente</h3>
+          <p className="muted" style={{ margin: "2px 0 0", fontSize: 12 }}>Templates prontos de WhatsApp, já sugerindo o vinculado à etapa atual da jornada.</p>
+        </div>
+        <button className="btn sec sm" onClick={() => setMsgModalOpen(true)}>✉ Mensagem para o cliente</button>
+      </div>
+
+      {msgModalOpen && (
+        <MensagemTemplateModal c={c} overrides={overrides} config={config} clientes={clientes} actions={actions} onClose={() => setMsgModalOpen(false)} />
+      )}
+
       <div className="card">
         <h3 style={{ marginTop: 0 }}>Registrar comunicação</h3>
         <div className="grid c2">

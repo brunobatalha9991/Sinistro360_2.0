@@ -104,4 +104,5 @@ export const MOCK_CONFIG = {
   corp_drive_upload_endpoint: "",
   corp_solicitacao_formularios: {},
   corp_checklist_mesa_atendimento: {},
+  corp_msg_templates: [],
 };

@@ -13,6 +13,7 @@ import { DriveUploadConfigCard } from "../components/config/DriveUploadConfigCar
 import { SolicitacaoFormulariosCard } from "../components/config/SolicitacaoFormulariosCard.jsx";
 import { ChecklistMesaAtendimentoCard } from "../components/config/ChecklistMesaAtendimentoCard.jsx";
 import { RamoTemplatesEditor } from "../components/config/RamoTemplatesEditor.jsx";
+import { MensagemTemplatesEditor } from "../components/config/MensagemTemplatesEditor.jsx";
 import { UsersCard } from "../components/config/UsersCard.jsx";
 import { AtendimentoStepsEditor } from "../components/config/AtendimentoStepsEditor.jsx";
 import { AgentesCatalogoCard } from "../components/config/AgentesCatalogoCard.jsx";
@@ -95,6 +96,10 @@ export function Configuracoes() {
             <AtendimentoStepsEditor atendTemplateCfg={config.corp_atendimento_template} saveConfig={saveConfig} />
             <RamoTemplatesEditor templates={templates} saveConfig={saveConfig} />
             <AtribuirResponsavelEmMassaCard claims={claims} overrides={overrides} users={records.corp_users || []} actions={actions} canEdit={admin} />
+          </ConfigGroup>
+
+          <ConfigGroup title="Mensagens ao Cliente" subtitle="Templates de WhatsApp por etapa da jornada, usados no botão 'Mensagem para o cliente' do Histórico do sinistro.">
+            <MensagemTemplatesEditor config={config} saveConfig={saveConfig} canEdit={admin} />
           </ConfigGroup>
 
           <ConfigGroup title="Agentes & Produtores" subtitle="Catálogo de agentes e importação em lote de Agente/Produtor da API CORP — usado no filtro de Sinistros e no vínculo de acesso de usuários Consulta.">
