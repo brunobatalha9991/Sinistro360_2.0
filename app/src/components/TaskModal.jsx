@@ -419,7 +419,7 @@ export function TaskModal() {
       };
       actions.createTask(novo);
       const textoNotif = (isEmergencia ? "EMERGÊNCIA — " : "") + `Nova tarefa de ${currentUser.nome}: ${t}`;
-      actions.pushNotif(novo.id, novo.destinatarios, textoNotif, currentUser.id, isEmergencia);
+      actions.pushNotif(novo.id, novo.destinatarios, textoNotif, currentUser.id, isEmergencia, true);
       idSalvo = novo.id;
     }
     closeTaskModal();

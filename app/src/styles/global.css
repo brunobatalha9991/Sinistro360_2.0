@@ -631,53 +631,56 @@ tr:hover td{background:var(--surface-2)}
 .badge.chip-live .btn.xs:hover{ background:rgba(255,255,255,.38); filter:none; }
 
 /* ==========================================================================
-   Alarme de horário (a pedido do usuário: "totalmente perceptível... como se
-   fosse um alarme") — dispara quando a data+hora configurada numa etapa de
-   Atendimento vence e o processo ainda não teve desfecho (ver
-   useHorarioAlarme.js/HorarioAlarmeModal.jsx). Cobre a tela inteira, acima
-   de qualquer outro modal, com fundo e borda piscando em vermelho.
+   Alarme geral em tela cheia (a pedido do usuário: "totalmente
+   perceptível... como se fosse um alarme") — usado tanto pro horário
+   vencido de uma etapa de Atendimento (useHorarioAlarme.js/
+   HorarioAlarmeModal.jsx, sempre vermelho) quanto pra nova tarefa de Mesa
+   de Atendimento (useTarefaAlarme.js/TarefaAlarmeModal.jsx, vermelho pra
+   Assistência 24h e amarelo pros demais tipos). A cor vem de --alarm-rgb,
+   definida inline em cada instância do ".alarme-geral-overlay". Cobre a
+   tela inteira, acima de qualquer outro modal, com fundo e borda piscando.
    ========================================================================== */
 @keyframes alarmeFundoPisca{
-  0%,100%{background:rgba(120,0,10,.55)}
-  50%{background:rgba(225,29,72,.4)}
+  0%,100%{background:rgba(var(--alarm-rgb),.55)}
+  50%{background:rgba(var(--alarm-rgb),.35)}
 }
 @keyframes alarmeIconePisca{
   0%,100%{transform:scale(1); opacity:1}
   50%{transform:scale(1.18); opacity:.7}
 }
-.alarme-hora-overlay{
+.alarme-geral-overlay{
   position:fixed; inset:0; z-index:300;
   display:flex; align-items:center; justify-content:center; padding:24px;
   overflow:auto;
   animation:alarmeFundoPisca .9s ease-in-out infinite;
 }
-.alarme-hora-box{
+.alarme-geral-box{
   width:640px; max-width:100%;
   background:var(--card-solid);
-  border:3px solid var(--danger);
+  border:3px solid rgb(var(--alarm-rgb));
   border-radius:18px;
   padding:28px;
   text-align:center;
   animation:neonPulse 1s ease-in-out infinite;
-  --neon-rgb:var(--danger-rgb);
+  --neon-rgb:var(--alarm-rgb);
   box-shadow:0 20px 60px rgba(0,0,0,.5);
 }
-.alarme-hora-icone{
+.alarme-geral-icone{
   font-size:56px; line-height:1;
   animation:alarmeIconePisca .9s ease-in-out infinite;
 }
-.alarme-hora-titulo{
-  margin:8px 0 4px; color:var(--danger); font-size:26px; letter-spacing:.5px;
+.alarme-geral-titulo{
+  margin:8px 0 4px; color:rgb(var(--alarm-rgb)); font-size:26px; letter-spacing:.5px;
 }
-.alarme-hora-sub{ margin:0 0 14px; font-size:14px; }
-.alarme-hora-lista{ display:flex; flex-direction:column; gap:10px; text-align:left; max-height:40vh; overflow:auto; }
-.alarme-hora-item{
+.alarme-geral-sub{ margin:0 0 14px; font-size:14px; }
+.alarme-geral-lista{ display:flex; flex-direction:column; gap:10px; text-align:left; max-height:40vh; overflow:auto; }
+.alarme-geral-item{
   display:flex; justify-content:space-between; align-items:center; gap:10px; flex-wrap:wrap;
-  border:1px solid rgba(var(--danger-rgb),.35); background:rgba(var(--danger-rgb),.08);
+  border:1px solid rgba(var(--alarm-rgb),.35); background:rgba(var(--alarm-rgb),.08);
   border-radius:10px; padding:10px 12px;
 }
-.alarme-hora-item-titulo{ font-weight:700; font-size:13.5px; }
-.alarme-hora-item-sub{ font-size:12px; color:var(--muted); margin-top:2px; }
+.alarme-geral-item-titulo{ font-weight:700; font-size:13.5px; }
+.alarme-geral-item-sub{ font-size:12px; color:var(--muted); margin-top:2px; }
 
 
 

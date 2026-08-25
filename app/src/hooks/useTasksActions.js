@@ -13,13 +13,17 @@ export function useTasksActions() {
   const { currentUser } = useAuth();
 
   // `emergencia` marca a notificação como Assistência 24h — só diferencial
-  // visual (NotifBell.jsx), não muda o fluxo de leitura/marcação.
-  function pushNotif(taskId, userIds, texto, exceptUserId, emergencia) {
+  // visual (NotifBell.jsx), não muda o fluxo de leitura/marcação. `criacao`
+  // marca que esta notificação é da CRIAÇÃO da tarefa (não de uma edição/
+  // comentário posterior) — usado pelo alarme em tela cheia de Mesa de
+  // Atendimento (useTarefaAlarme.js), que só deve disparar uma vez, na
+  // criação, não a cada interação seguinte na mesma tarefa.
+  function pushNotif(taskId, userIds, texto, exceptUserId, emergencia, criacao) {
     saveRecord("corp_notifs", (current) => {
       const arr = [...(current || [])];
       (userIds || []).forEach((uid) => {
         if (uid === exceptUserId) return;
-        arr.push({ id: "ntf_" + Math.random().toString(36).slice(2, 9), taskId, userId: uid, text: texto, at: new Date().toISOString(), read: false, emergencia: !!emergencia });
+        arr.push({ id: "ntf_" + Math.random().toString(36).slice(2, 9), taskId, userId: uid, text: texto, at: new Date().toISOString(), read: false, emergencia: !!emergencia, criacao: !!criacao });
       });
       return arr;
     });
@@ -75,6 +79,16 @@ export function useTasksActions() {
   function markNotifRead(id) {
     saveRecord("corp_notifs", (current) => (current || []).map((n) => (n.id === id ? { ...n, read: true } : n)));
   }
+  // Dispensa só o ALARME em tela cheia de Mesa de Atendimento
+  // (TarefaAlarmeModal.jsx/useTarefaAlarme.js) — de propósito, um campo
+  // próprio (`alarmeDispensado`), separado de `read`: cada notificação já é
+  // um registro individual por destinatário (ver pushNotif acima), então
+  // isso nunca afeta outros destinatários da mesma tarefa; e como não mexe
+  // em `read`, dispensar o alarme não faz o badge de não lidas do sininho
+  // sumir sozinho — só abrir a tarefa de fato marca como lida.
+  function dismissAlarmeMesa(id) {
+    saveRecord("corp_notifs", (current) => (current || []).map((n) => (n.id === id ? { ...n, alarmeDispensado: true } : n)));
+  }
   function markAllNotifsRead() {
     if (!currentUser) return;
     saveRecord("corp_notifs", (current) => (current || []).map((n) => (n.userId === currentUser.id ? { ...n, read: true } : n)));
@@ -100,5 +114,5 @@ export function useTasksActions() {
     });
   }
 
-  return { pushNotif, saveTask, createTask, taskInteract, arquivarManualmente, markTaskCiente, markNotifRead, markAllNotifsRead, purgeOldTasks };
+  return { pushNotif, saveTask, createTask, taskInteract, arquivarManualmente, markTaskCiente, markNotifRead, dismissAlarmeMesa, markAllNotifsRead, purgeOldTasks };
 }
