@@ -15,10 +15,18 @@ import {
   visibleClaims, campoEfetivo, situacaoEfetiva, getUserJourney, getNextAction,
   getSitAtend, getTemp, getResponsavel, isAtrasado, isSemAtualizacao, isManualClaim,
   allJourneyStages, currentStage, getAgenteProdutor, getAgentesEfetivo, distinctGruposProdutores, grupoProdutor,
-  distinctComputed, claimTemFlagHistorico, claimTemEtapaForaDoPrazo,
+  distinctComputed, claimTemFlagHistorico, claimTemEtapaForaDoPrazo, relatedClaims,
 } from "../logic/claims";
 
 const DEFAULT_TEMP_OPTIONS = ["Tranquilo", "Moderado", "Grave", "Em atenção"];
+
+// "Terceiro" sem nenhum vínculo (automático por linkKey ou manual) com um
+// processo "Segurado" — a pedido do usuário, pra achar terceiros "órfãos"
+// que precisam ser conferidos/vinculados manualmente.
+function terceiroSemVinculoSegurado(overrides, allClaimsRaw, c) {
+  if (c.partyType !== "Terceiro") return false;
+  return !relatedClaims(overrides, allClaimsRaw, c).some((x) => x.partyType === "Segurado");
+}
 
 export function Sinistros() {
   const { records, config } = useData();
@@ -95,6 +103,7 @@ export function Sinistros() {
     if (except !== "aguardandoRetornoHist" && lf.aguardandoRetornoHist && !claimTemFlagHistorico(overrides, c.id, "aguardandoRetorno")) return false;
     if (except !== "limitacaoComunicacaoHist" && lf.limitacaoComunicacaoHist && !claimTemFlagHistorico(overrides, c.id, "limitacaoComunicacao")) return false;
     if (except !== "foraDoPrazo" && lf.foraDoPrazo && !claimTemEtapaForaDoPrazo(overrides, c.id)) return false;
+    if (except !== "terceiroSemVinculo" && lf.terceiroSemVinculo && !terceiroSemVinculoSegurado(overrides, allClaimsRaw, c)) return false;
     if (except !== "texto" && q) {
       const hay = [campoEfetivo(overrides, c, "segurado"), campoEfetivo(overrides, c, "placa"), campoEfetivo(overrides, c, "numsin"), campoEfetivo(overrides, c, "numapo"), campoEfetivo(overrides, c, "cia"), c.partyType, campoEfetivo(overrides, c, "oficina"), campoEfetivo(overrides, c, "ramo")].join(" ").toLowerCase();
       if (hay.indexOf(q) < 0) return false;
@@ -112,6 +121,7 @@ export function Sinistros() {
   const baseAguardHist = claims.filter((c) => passa(c, "aguardandoRetornoHist"));
   const baseLimComHist = claims.filter((c) => passa(c, "limitacaoComunicacaoHist"));
   const baseForaPrazo = claims.filter((c) => passa(c, "foraDoPrazo"));
+  const baseTerceiroSemVinculo = claims.filter((c) => passa(c, "terceiroSemVinculo"));
 
   const cntTipo = {}; let totalNaoFinal = 0;
   baseTipo.forEach((c) => {
@@ -139,6 +149,7 @@ export function Sinistros() {
   const qtdAguardHist = baseAguardHist.filter((c) => claimTemFlagHistorico(overrides, c.id, "aguardandoRetorno")).length;
   const qtdLimComHist = baseLimComHist.filter((c) => claimTemFlagHistorico(overrides, c.id, "limitacaoComunicacao")).length;
   const qtdForaPrazo = baseForaPrazo.filter((c) => claimTemEtapaForaDoPrazo(overrides, c.id)).length;
+  const qtdTerceiroSemVinculo = baseTerceiroSemVinculo.filter((c) => terceiroSemVinculoSegurado(overrides, allClaimsRaw, c)).length;
 
   const stageNames = allJourneyStages(templates, atendTemplate);
   const stageCounts = {}; let stageTotal = 0;
@@ -191,6 +202,7 @@ export function Sinistros() {
     if (lf.aguardandoRetornoHist && !claimTemFlagHistorico(overrides, c.id, "aguardandoRetorno")) return false;
     if (lf.limitacaoComunicacaoHist && !claimTemFlagHistorico(overrides, c.id, "limitacaoComunicacao")) return false;
     if (lf.foraDoPrazo && !claimTemEtapaForaDoPrazo(overrides, c.id)) return false;
+    if (lf.terceiroSemVinculo && !terceiroSemVinculoSegurado(overrides, allClaimsRaw, c)) return false;
     if (!q) return true;
     return [campoEfetivo(overrides, c, "segurado"), campoEfetivo(overrides, c, "placa"), campoEfetivo(overrides, c, "numsin"), campoEfetivo(overrides, c, "numapo"), campoEfetivo(overrides, c, "cia"), c.partyType, campoEfetivo(overrides, c, "oficina"), campoEfetivo(overrides, c, "ramo")].join(" ").toLowerCase().indexOf(q) >= 0;
   });
@@ -213,6 +225,7 @@ export function Sinistros() {
   if (lf.aguardandoRetornoHist) activeCount++;
   if (lf.limitacaoComunicacaoHist) activeCount++;
   if (lf.foraDoPrazo) activeCount++;
+  if (lf.terceiroSemVinculo) activeCount++;
 
   const allCols = getAllCols({ overrides, allClaimsRaw, navigate, atendTemplateCfg: atendTemplate });
 
@@ -253,6 +266,9 @@ export function Sinistros() {
               {tipoChips.map(([k, label]) => (
                 <div key={k} className={"chip-btn" + (lf.tipo === k ? " active" : "")} onClick={() => patchListFilter({ tipo: k })}>{label} ({ct(k)})</div>
               ))}
+              <div className={"chip-btn" + (lf.terceiroSemVinculo ? " active" : "")} onClick={() => patchListFilter({ terceiroSemVinculo: !lf.terceiroSemVinculo })}>
+                ⚠ Terceiro sem vínculo com Segurado ({qtdTerceiroSemVinculo})
+              </div>
             </div>
           </div>
 

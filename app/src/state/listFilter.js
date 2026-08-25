@@ -11,6 +11,7 @@ export const listFilter = {
   caminho: "todos", responsavel: "todos", sitatend: "todas", termometro: "todas",
   agente: "todos", grupoProdutor: "todos", oficina: "todas",
   aguardandoRetornoHist: false, limitacaoComunicacaoHist: false, foraDoPrazo: false,
+  terceiroSemVinculo: false,
 };
 
 const listeners = new Set();
@@ -29,6 +30,7 @@ export function resetListFilter() {
     manual: false, aberto: false, sitatend: "todas", caminho: "todos", termometro: "todas",
     agente: "todos", grupoProdutor: "todos", oficina: "todas",
     aguardandoRetornoHist: false, limitacaoComunicacaoHist: false, foraDoPrazo: false,
+    terceiroSemVinculo: false,
   });
 }
 
