@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { Icon } from "./icons.jsx";
 import { NotifBell } from "./NotifBell.jsx";
-import { ROLE_LABELS, userModulos } from "../data/auth";
+import { ROLE_LABELS, userModulos, isAdmin } from "../data/auth";
 import { useData } from "../data/DataProvider.jsx";
 import { visibleClaims, isAtrasado } from "../logic/claims";
 import { myUnreadCount, demandaUnreadCount } from "../logic/tasks";
@@ -27,10 +27,13 @@ export const MENU = [
 
 function visibleMenu(currentUser, currentRole) {
   let menu = MENU;
-  if (currentRole === "consulta") {
+  // VIP passa direto pelas duas travas abaixo, mesmo com currentRole ainda
+  // mostrando a função original (ex.: "Consulta") — ver isAdmin() em
+  // data/auth.js.
+  if (currentRole === "consulta" && !isAdmin(currentUser)) {
     menu = menu.filter((m) => m[0] === "sinistros" || m[0] === "tarefas");
   }
-  if (currentUser && currentUser.role !== "admin") {
+  if (currentUser && !isAdmin(currentUser)) {
     const perm = userModulos(currentUser);
     menu = menu.filter((m) => perm.indexOf(m[0]) >= 0);
   }
@@ -139,6 +142,7 @@ export function Shell({ route, param, crumb, currentUser, currentRole, onNavigat
               <span className={"badge " + (currentUser?.role === "admin" ? "purple" : currentUser?.role === "consulta" ? "gray" : "blue")}>
                 {currentUser ? `${currentUser.nome} • ${ROLE_LABELS[currentUser.role]}` : "—"}
               </span>
+              {currentUser?.vip && <span className="badge amber" title="Acesso VIP: permissões de Administrador mantendo a função">★ VIP</span>}
               <button className="btn sec sm" onClick={onLogout}>Sair</button>
             </div>
             <div className="avatar">{initials}</div>

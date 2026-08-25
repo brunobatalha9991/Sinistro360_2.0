@@ -92,6 +92,7 @@ export function UsersCard({ users, currentUser, saveRecord, agentesDisponiveis, 
   const [email, setEmail] = useState("");
   const [senha, setSenha] = useState("");
   const [role, setRole] = useState("atendente");
+  const [vip, setVip] = useState(false);
   const [modSel, setModSel] = useState(() => {
     const sel = {};
     MODULOS_DISPONIVEIS.forEach((m) => { sel[m[0]] = true; });
@@ -111,12 +112,20 @@ export function UsersCard({ users, currentUser, saveRecord, agentesDisponiveis, 
     if (findByEmail(users, e)) { alert("Já existe um usuário com este e-mail."); return; }
     const modulos = MODULOS_DISPONIVEIS.map((m) => m[0]).filter((k) => modSel[k]);
     const { senhaSalt, senhaHash } = await hashNewPassword(s);
-    saveUsers((current) => [...(current || []), { id: uid("usr"), nome: n, email: e, senhaSalt, senhaHash, role, modulos }]);
-    setNome(""); setEmail(""); setSenha("");
+    saveUsers((current) => [...(current || []), { id: uid("usr"), nome: n, email: e, senhaSalt, senhaHash, role, modulos, ...(vip ? { vip: true } : {}) }]);
+    setNome(""); setEmail(""); setSenha(""); setVip(false);
+  }
+
+  // VIP (a pedido do usuário): mantém a função exibida (Atendente/Analista/
+  // Consulta) mas passa a ter todos os acessos de um Administrador — ver
+  // isAdmin() em data/auth.js, usado em todo o app pra decidir permissão.
+  function toggleVip(u) {
+    if (u.role === "admin") { alert("Administrador já tem acesso total — VIP não se aplica."); return; }
+    saveUsers((current) => (current || []).map((x) => (x.id === u.id ? { ...x, vip: !x.vip } : x)));
   }
 
   function abrirModulos(u) {
-    if (u.role === "admin") { alert("Administrador tem acesso a todos os módulos."); return; }
+    if (u.role === "admin" || u.vip) { alert("Este usuário tem acesso a todos os módulos (Administrador ou VIP)."); return; }
     const atuais = u.modulos && u.modulos.length ? u.modulos : MODULOS_DISPONIVEIS.map((m) => m[0]);
     const lista = MODULOS_DISPONIVEIS.map((m, i) => `${i + 1} - ${m[1]}${atuais.indexOf(m[0]) >= 0 ? " [ativo]" : ""}`).join("\n");
     const atuaisIdx = atuais.map((k) => MODULOS_DISPONIVEIS.map((m) => m[0]).indexOf(k)).filter((x) => x >= 0).map((x) => x + 1).join(",");
@@ -185,9 +194,13 @@ export function UsersCard({ users, currentUser, saveRecord, agentesDisponiveis, 
     const novaSenha = trimmedSenha ? await hashNewPassword(trimmedSenha) : null;
     saveUsers((current) => (current || []).map((x) => {
       if (x.id !== u.id) return x;
-      const base = { id: u.id, nome: nn.trim(), email: ne.trim(), role: nr, modulos: u.modulos };
+      // NOTA: antes reconstruía o usuário do zero (id/nome/email/role/
+      // modulos), descartando qualquer outro campo (vínculos de agente/
+      // produtor, vip...) sempre que alguém clicava em "Editar". Agora
+      // parte do registro atual e só troca o que este formulário edita.
+      const base = { ...x, nome: nn.trim(), email: ne.trim(), role: nr };
       if (novaSenha) return { ...base, senhaSalt: novaSenha.senhaSalt, senhaHash: novaSenha.senhaHash };
-      return { ...base, senhaSalt: x.senhaSalt, senhaHash: x.senhaHash };
+      return base;
     }));
   }
 
@@ -230,8 +243,13 @@ export function UsersCard({ users, currentUser, saveRecord, agentesDisponiveis, 
         </div>
       </div>
 
+      <label style={{ display: "flex", alignItems: "center", gap: 8, cursor: "pointer", marginBottom: 10 }}>
+        <input type="checkbox" checked={vip} onChange={(e) => setVip(e.target.checked)} />
+        <span>★ Acesso VIP — mantém a função escolhida acima, mas passa a ter todos os acessos de um Administrador</span>
+      </label>
+
       <div className="field">
-        <label>Módulos que este usuário pode acessar (Admin sempre vê tudo)</label>
+        <label>Módulos que este usuário pode acessar (Admin/VIP sempre vê tudo)</label>
         <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
           {MODULOS_DISPONIVEIS.map((m) => (
             <label key={m[0]} className={"chip-btn" + (modSel[m[0]] ? " active" : "")} style={{ cursor: "pointer" }}
@@ -256,7 +274,10 @@ export function UsersCard({ users, currentUser, saveRecord, agentesDisponiveis, 
               <tr key={u.id}>
                 <td>{u.nome}</td>
                 <td className="mono">{u.email}</td>
-                <td><span className={"badge " + (u.role === "admin" ? "purple" : u.role === "consulta" ? "gray" : "blue")}>{ROLE_LABELS[u.role]}</span></td>
+                <td>
+                  <span className={"badge " + (u.role === "admin" ? "purple" : u.role === "consulta" ? "gray" : "blue")}>{ROLE_LABELS[u.role]}</span>
+                  {u.vip && <span className="badge amber" style={{ marginLeft: 4 }} title="Acesso VIP: permissões de Administrador mantendo a função">★ VIP</span>}
+                </td>
                 <td>
                   <button className="btn ghost xs" style={{ marginRight: 6 }} onClick={() => abrirModulos(u)}>Módulos</button>
                   {u.role === "consulta" && (
@@ -264,6 +285,9 @@ export function UsersCard({ users, currentUser, saveRecord, agentesDisponiveis, 
                   )}
                   <button className="btn ghost xs" style={{ marginRight: 6 }} onClick={() => redefinirSenha(u)}>Redefinir senha</button>
                   <button className="btn ghost xs" style={{ marginRight: 6 }} onClick={() => mudarFuncao(u)}>Mudar função</button>
+                  {u.role !== "admin" && (
+                    <button className="btn ghost xs" style={{ marginRight: 6 }} onClick={() => toggleVip(u)}>{u.vip ? "Remover VIP" : "Conceder VIP"}</button>
+                  )}
                   <button className="btn sec xs" onClick={() => editar(u)}>Editar</button>
                   <button className="btn danger xs" style={{ marginLeft: 6 }} onClick={() => remover(u)}>Remover</button>
                 </td>

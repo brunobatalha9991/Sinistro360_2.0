@@ -35,28 +35,35 @@ export function findUserByEmail(users, email) {
   return (users || []).find((u) => String(u.email).trim().toLowerCase() === e) || null;
 }
 
+// "VIP" (a pedido do usuário): um usuário mantém a função exibida
+// (Atendente/Analista/Consulta) mas passa a ter todos os acessos de um
+// Administrador — ver isAdmin(). Concedido/removido em Configurações →
+// Usuários & Acesso (UsersCard.jsx), guardado em u.vip.
 export function userModulos(u) {
   if (!u) return [];
-  if (u.role === "admin") return MODULOS_DISPONIVEIS.map((m) => m[0]);
+  if (isAdmin(u)) return MODULOS_DISPONIVEIS.map((m) => m[0]);
   if (!u.modulos || !u.modulos.length) return MODULOS_DISPONIVEIS.map((m) => m[0]);
   return u.modulos;
 }
 
-export function isAdmin(user) { return user?.role === "admin"; }
+export function isAdmin(user) { return !!(user?.role === "admin" || user?.vip); }
 export function canEdit(user) {
+  if (isAdmin(user)) return true;
   const r = user?.role;
-  return r === "admin" || r === "analista" || r === "atendente";
+  return r === "analista" || r === "atendente";
 }
 
 // Porte 1:1 das guardas de rota do render() original: impede acessar por URL
-// uma tela fora do que o papel/usuário tem permissão de ver.
+// uma tela fora do que o papel/usuário tem permissão de ver. VIP passa por
+// todas essas guardas como se fosse admin, mesmo com currentRole/role
+// exibindo a função original.
 export function resolveAllowedRoute(route, currentUser, currentRole) {
   let r = route;
   if (r === "config" && !isAdmin(currentUser)) r = "dashboard";
-  if (currentRole === "consulta" && r !== "sinistros" && r !== "sinistro" && r !== "tarefas") {
+  if (currentRole === "consulta" && !isAdmin(currentUser) && r !== "sinistros" && r !== "sinistro" && r !== "tarefas") {
     r = "sinistros";
   }
-  if (currentUser && currentUser.role !== "admin") {
+  if (currentUser && !isAdmin(currentUser)) {
     const perm = userModulos(currentUser);
     const rotaMod = r === "sinistro" ? "sinistros" : r === "oficina" ? "oficinas" : r === "seguradora" ? "seguradoras" : r === "cliente" ? "clientes" : r;
     if (perm.indexOf(rotaMod) < 0) {
