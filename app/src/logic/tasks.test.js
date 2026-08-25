@@ -1,5 +1,8 @@
 import { describe, it, expect } from "vitest";
-import { isTarefaEmergencia, isTarefaArquivada, descreverAlteracoesTarefa } from "./tasks";
+import {
+  isTarefaEmergencia, isTarefaArquivada, descreverAlteracoesTarefa,
+  tarefasNoEscopo, tarefaTemPapel, compararTarefasAuto, proximoCI,
+} from "./tasks";
 
 function horasAtras(h) { return new Date(Date.now() - h * 60 * 60 * 1000).toISOString(); }
 
@@ -58,5 +61,72 @@ describe("descreverAlteracoesTarefa", () => {
   });
   it("sem versão anterior (tarefa nova) retorna lista vazia", () => {
     expect(descreverAlteracoesTarefa(null, base)).toEqual([]);
+  });
+  it("detecta sinalizadores marcados e desmarcados", () => {
+    const out = descreverAlteracoesTarefa({ ...base, flags: ["Aguard. cliente"] }, { ...base, flags: ["Aguard. corretora"] });
+    expect(out).toContain("Sinalizador(es) marcado(s): Aguard. corretora");
+    expect(out).toContain("Sinalizador(es) desmarcado(s): Aguard. cliente");
+  });
+});
+
+describe("tarefasNoEscopo", () => {
+  const tasks = [
+    { id: "t1", origem: "u1", destinatarios: ["u2"] },
+    { id: "t2", origem: "u2", destinatarios: ["u3"] },
+  ];
+  it("null/undefined devolve todas (modo 'Todos', admin/VIP)", () => {
+    expect(tarefasNoEscopo(tasks, null)).toHaveLength(2);
+  });
+  it("com um id, só as que ele é origem ou destinatário", () => {
+    expect(tarefasNoEscopo(tasks, "u2").map((t) => t.id)).toEqual(["t1", "t2"]);
+    expect(tarefasNoEscopo(tasks, "u3").map((t) => t.id)).toEqual(["t2"]);
+  });
+});
+
+describe("tarefaTemPapel", () => {
+  const t = { origem: "u1", destinatarios: ["u2", "u3"] };
+  it("'ambos' sempre true", () => {
+    expect(tarefaTemPapel(t, "u1", "ambos")).toBe(true);
+    expect(tarefaTemPapel(t, "u9", "ambos")).toBe(true);
+  });
+  it("'origem' só bate com quem criou", () => {
+    expect(tarefaTemPapel(t, "u1", "origem")).toBe(true);
+    expect(tarefaTemPapel(t, "u2", "origem")).toBe(false);
+  });
+  it("'destinatario' só bate com quem está na lista de destinatários", () => {
+    expect(tarefaTemPapel(t, "u2", "destinatario")).toBe(true);
+    expect(tarefaTemPapel(t, "u1", "destinatario")).toBe(false);
+  });
+});
+
+describe("compararTarefasAuto", () => {
+  it("emergência sempre primeiro, mesmo sobre Urgente comum", () => {
+    const emergencia = { tipo: "Mesa de Atendimento", tipoAtendimento: "assistencia_24h", status: "Pendente", urgencia: "Leve", createdAt: "2026-01-01" };
+    const urgenteComum = { tipo: "Tarefa", urgencia: "Urgente", createdAt: "2026-06-01" };
+    expect(compararTarefasAuto(emergencia, urgenteComum)).toBeLessThan(0);
+  });
+  it("depois, por grau de urgência: Urgente > Moderado > Leve", () => {
+    const u = { urgencia: "Urgente", createdAt: "2026-01-01" };
+    const m = { urgencia: "Moderado", createdAt: "2026-01-01" };
+    const l = { urgencia: "Leve", createdAt: "2026-01-01" };
+    expect(compararTarefasAuto(u, m)).toBeLessThan(0);
+    expect(compararTarefasAuto(m, l)).toBeLessThan(0);
+  });
+  it("mesma urgência: mais recente primeiro", () => {
+    const recente = { urgencia: "Leve", createdAt: "2026-08-20T00:00:00.000Z" };
+    const antiga = { urgencia: "Leve", createdAt: "2026-08-01T00:00:00.000Z" };
+    expect(compararTarefasAuto(recente, antiga)).toBeLessThan(0);
+  });
+});
+
+describe("proximoCI", () => {
+  it("sem nenhuma tarefa ainda, começa em CI-000001", () => {
+    expect(proximoCI([])).toBe("CI-000001");
+  });
+  it("continua do maior número já usado", () => {
+    expect(proximoCI([{ ci: "CI-000003" }, { ci: "CI-000001" }])).toBe("CI-000004");
+  });
+  it("ignora tarefas sem protocolo (dados antigos, de antes desta funcionalidade)", () => {
+    expect(proximoCI([{ ci: "CI-000002" }, {}])).toBe("CI-000003");
   });
 });

@@ -65,6 +65,24 @@ export function useTasksActions() {
     saveTask(next);
   }
 
+  // Exclusão de verdade (admin/VIP) — diferente do arquivamento (que
+  // qualquer envolvido pode fazer e mantém tudo). A pedido do usuário:
+  // "admin/VIP podem excluir também". Remove também as notificações da
+  // tarefa (mesma limpeza que purgeOldTasks já faz).
+  function excluirTarefa(taskId) {
+    saveRecord("corp_tasks", (current) => (current || []).filter((t) => t.id !== taskId));
+    saveRecord("corp_notifs", (current) => (current || []).filter((n) => n.taskId !== taskId));
+  }
+
+  // Grava `ordemManual` (0,1,2...) na ordem em que as tarefas aparecem em
+  // `tasksNaOrdem` — usado ao ligar o modo "Ordem manual" (parte da ordem
+  // automática atual) e a cada ↑/↓ (troca de posição com a vizinha).
+  function definirOrdemManual(tasksNaOrdem) {
+    const mapa = {};
+    (tasksNaOrdem || []).forEach((t, i) => { mapa[t.id] = i; });
+    saveRecord("corp_tasks", (current) => (current || []).map((t) => (mapa[t.id] != null ? { ...t, ordemManual: mapa[t.id] } : t)));
+  }
+
   function markTaskCiente(taskId) {
     if (!currentUser) return;
     saveRecord("corp_tasks", (current) => (current || []).map((t) => {
@@ -114,5 +132,8 @@ export function useTasksActions() {
     });
   }
 
-  return { pushNotif, saveTask, createTask, taskInteract, arquivarManualmente, markTaskCiente, markNotifRead, dismissAlarmeMesa, markAllNotifsRead, purgeOldTasks };
+  return {
+    pushNotif, saveTask, createTask, taskInteract, arquivarManualmente, excluirTarefa, definirOrdemManual,
+    markTaskCiente, markNotifRead, dismissAlarmeMesa, markAllNotifsRead, purgeOldTasks,
+  };
 }

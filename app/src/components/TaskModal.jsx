@@ -13,7 +13,7 @@ import { listaSeguradoras } from "../logic/seguradoras";
 import { listaClientes } from "../logic/clientes";
 import { txt } from "../logic/format";
 import { isAdmin, canEdit } from "../data/auth";
-import { descreverAlteracoesTarefa } from "../logic/tasks";
+import { descreverAlteracoesTarefa, TASK_FLAGS_DEFAULT, proximoCI } from "../logic/tasks";
 import { getChecklistEfetivo, checklistProgresso, checklistVazio, sincronizarComFormulario } from "../logic/checklistMesaAtendimento";
 import { getFormularioEfetivo, formularioDisponivel, caminhoPastaSolicitacao } from "../logic/solicitacaoAtendimento";
 import { isDriveUploadConfigured, uploadArquivoDrive, CONTEXTO_MESA_ATENDIMENTO } from "../logic/driveUpload";
@@ -280,6 +280,7 @@ export function TaskModal() {
   const [titulo, setTitulo] = useState("");
   const [descricao, setDescricao] = useState("");
   const [destSel, setDestSel] = useState({});
+  const [flagSel, setFlagSel] = useState({});
   const [anexo, setAnexo] = useState("");
   const [obs, setObs] = useState("");
   const [processoId, setProcessoId] = useState("");
@@ -301,6 +302,8 @@ export function TaskModal() {
       setTitulo(editing.titulo || ""); setDescricao(editing.descricao || "");
       const sel = {}; (editing.destinatarios || []).forEach((id) => { sel[id] = true; });
       setDestSel(sel);
+      const fsel = {}; (editing.flags || []).forEach((f) => { fsel[f] = true; });
+      setFlagSel(fsel);
       setAnexo(editing.anexo || ""); setObs(editing.obs || ""); setProcessoId(editing.processo || "");
       setOficinaId(editing.oficinaId || ""); setSeguradoraId(editing.seguradoraId || ""); setClienteId(editing.clienteId || "");
       setTipoAtendimento(editing.tipoAtendimento || ""); setChecklistMesa(editing.checklistMesa || checklistVazio());
@@ -308,7 +311,7 @@ export function TaskModal() {
       setPastaDriveId(editing.id); setComentarioConclusao("");
     } else {
       setTipo(taskTypes[0]); setUrgencia("Leve"); setStatus("Pendente");
-      setDestSel({});
+      setDestSel({}); setFlagSel({});
       setAnexo(""); setObs(""); setProcessoId(""); setOficinaId(""); setSeguradoraId(""); setClienteId("");
       setTipoAtendimento(""); setChecklistMesa(checklistVazio());
       setSolicitacao(null); setSolicitacaoAberta(false); setChecklistAberto(false);
@@ -379,6 +382,7 @@ export function TaskModal() {
     if (!t) { alert("Informe o título."); return; }
     const dests = Object.keys(destSel).filter((k) => destSel[k]);
     if (!dests.length) { alert("Selecione ao menos um destinatário."); return; }
+    const flags = Object.keys(flagSel).filter((k) => flagSel[k]);
     if (concluindoAgora && !comentarioConclusao.trim()) {
       alert("Escreva um comentário de conclusão — ele vira o feedback da tarefa para todos os envolvidos.");
       return;
@@ -390,7 +394,7 @@ export function TaskModal() {
     let idSalvo;
     if (editing) {
       const atual = {
-        ...editing, tipo, urgencia, status, anexo, obs, processo: processoId, oficinaId, seguradoraId, clienteId, destinatarios: dests, tipoAtendimento,
+        ...editing, tipo, urgencia, status, anexo, obs, processo: processoId, oficinaId, seguradoraId, clienteId, destinatarios: dests, flags, tipoAtendimento,
         ...(tipo === "Mesa de Atendimento" ? { checklistMesa, solicitacao } : {}),
         ...(souOrigem ? { titulo: t, descricao } : {}),
         ...(concluindoAgora ? { concludedAt: new Date().toISOString(), comments: [...(editing.comments || []), novoComentario] } : {}),
@@ -409,8 +413,8 @@ export function TaskModal() {
     } else {
       const agora = new Date().toISOString();
       const novo = {
-        id: "tsk_" + Math.random().toString(36).slice(2, 9), tipo, titulo: t, origem: currentUser.id, destinatarios: dests,
-        descricao, anexo, obs, status, urgencia, processo: processoId, oficinaId, seguradoraId, clienteId, tipoAtendimento,
+        id: "tsk_" + Math.random().toString(36).slice(2, 9), ci: proximoCI(tasks), tipo, titulo: t, origem: currentUser.id, destinatarios: dests,
+        descricao, anexo, obs, status, urgencia, processo: processoId, oficinaId, seguradoraId, clienteId, flags, tipoAtendimento,
         ...(tipo === "Mesa de Atendimento" ? { checklistMesa, solicitacao } : {}),
         ...(concluindoAgora ? { concludedAt: new Date().toISOString() } : {}),
         createdAt: agora, updatedAt: agora,
@@ -432,7 +436,10 @@ export function TaskModal() {
     >
       <div style={{ width: 640, maxWidth: "100%", background: "var(--card-solid)", border: "1px solid var(--border)", borderRadius: 16, padding: 22, boxShadow: "var(--shadow-lg)" }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14 }}>
-          <h3 style={{ margin: 0 }}>{editing ? "Tarefa" : "Nova tarefa"}</h3>
+          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+            <h3 style={{ margin: 0 }}>{editing ? "Tarefa" : "Nova tarefa"}</h3>
+            {editing?.ci && <span className="badge gray mono" title="Número de protocolo">{editing.ci}</span>}
+          </div>
           <button className="btn sec xs" onClick={closeTaskModal}>✕ Fechar</button>
         </div>
 
@@ -492,7 +499,7 @@ export function TaskModal() {
           <SolicitacaoFields tipoAtendimento={tipoAtendimento} valores={solicitacao} onChange={setSolicitacao} config={config} pastaDrive={caminhoPastaSolicitacao(tipoAtendimento, solicitacao, pastaDriveId)} />
         )}
 
-        <div className="field"><label>Título</label>
+        <div className="field" style={{ marginTop: isMesaAtendimento && tipoAtendimento && solicitacaoAberta ? 14 : 0 }}><label>Título</label>
           {souOrigem
             ? <input placeholder="Título da tarefa" value={titulo} onChange={(e) => setTitulo(e.target.value)} />
             : <div style={{ padding: "9px 11px", border: "1px solid var(--border)", borderRadius: 8, background: "var(--surface-2)", fontWeight: 600 }}>{editing?.titulo || "—"}</div>}
@@ -526,6 +533,18 @@ export function TaskModal() {
         </div>
 
         <div className="field">
+          <label>Sinalizadores</label>
+          <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
+            {(config.corp_task_flags && config.corp_task_flags.length ? config.corp_task_flags : TASK_FLAGS_DEFAULT).map((f) => (
+              <label key={f} className={"chip-btn" + (flagSel[f] ? " active" : "")} style={{ cursor: "pointer" }}
+                onClick={() => setFlagSel((s) => ({ ...s, [f]: !s[f] }))}
+              >{f}</label>
+            ))}
+          </div>
+          {isAdmin(currentUser) && <div className="muted" style={{ fontSize: 11, marginTop: 4 }}>Administra a lista de sinalizadores em Comunicação interna → Sinalizadores.</div>}
+        </div>
+
+        <div className="field">
           <label>Descrição</label>
           {souOrigem
             ? <textarea rows={3} placeholder="Descrição" value={descricao} onChange={(e) => setDescricao(e.target.value)} />
@@ -545,21 +564,21 @@ export function TaskModal() {
 
         <div className="grid c3">
           <div className="field">
-            <label>Vincular a oficina (opcional)</label>
+            <label>V. Oficina</label>
             <select value={oficinaId} onChange={(e) => setOficinaId(e.target.value)}>
               <option value="">— Nenhuma —</option>
               {oficinas.map((o) => <option key={o.id} value={o.id}>{o.nome}</option>)}
             </select>
           </div>
           <div className="field">
-            <label>Vincular a seguradora (opcional)</label>
+            <label>V. Seguradora</label>
             <select value={seguradoraId} onChange={(e) => setSeguradoraId(e.target.value)}>
               <option value="">— Nenhuma —</option>
               {seguradorasLista.map((s) => <option key={s.id} value={s.id}>{s.nome}</option>)}
             </select>
           </div>
           <div className="field">
-            <label>Vincular a cliente (opcional)</label>
+            <label>V. Cliente</label>
             <select value={clienteId} onChange={(e) => setClienteId(e.target.value)}>
               <option value="">— Nenhum —</option>
               {clientesLista.map((c) => <option key={c.id} value={c.id}>{c.nome}</option>)}

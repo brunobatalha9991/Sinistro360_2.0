@@ -5,6 +5,10 @@
 export const CONFIG_KEYS = [
   "corp_cfg",
   "corp_task_types",
+  // Sinalizadores configuráveis das tarefas (ex.: "Aguard. cliente",
+  // "Aguard. corretora") — a pedido do usuário, mesmo padrão de
+  // corp_task_types. Ver TASK_FLAGS_DEFAULT em src/logic/tasks.js.
+  "corp_task_flags",
   "corp_form_endpoints",
   "corp_journey_templates",
   "corp_sit_options",

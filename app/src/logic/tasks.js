@@ -52,6 +52,14 @@ export function descreverAlteracoesTarefa(antes, depois, ctx) {
   if ((antes.processo || "") !== (depois.processo || "")) {
     out.push(depois.processo ? `Vinculada ao processo ${labelClaim(depois.processo)}` : "Vínculo com processo removido");
   }
+  const antesFlags = antes.flags || [];
+  const depoisFlags = depois.flags || [];
+  if (antesFlags.slice().sort().join(",") !== depoisFlags.slice().sort().join(",")) {
+    const add = depoisFlags.filter((f) => antesFlags.indexOf(f) < 0);
+    const rem = antesFlags.filter((f) => depoisFlags.indexOf(f) < 0);
+    if (add.length) out.push(`Sinalizador(es) marcado(s): ${add.join(", ")}`);
+    if (rem.length) out.push(`Sinalizador(es) desmarcado(s): ${rem.join(", ")}`);
+  }
   const antesDest = antes.destinatarios || [];
   const depoisDest = depois.destinatarios || [];
   if (antesDest.slice().sort().join(",") !== depoisDest.slice().sort().join(",")) {
@@ -76,9 +84,24 @@ export function taskParticipants(t) {
   ids.forEach((i) => { if (i && !seen[i]) { seen[i] = true; out.push(i); } });
   return out;
 }
+// `escopoUserId` null/undefined = todas as tarefas (usado por admin/VIP no
+// filtro "Todos") — qualquer id = só as tarefas em que esse usuário é
+// origem OU destinatário (mesmo critério de sempre).
+export function tarefasNoEscopo(tasks, escopoUserId) {
+  if (escopoUserId == null) return tasks || [];
+  return (tasks || []).filter((t) => taskParticipants(t).indexOf(escopoUserId) >= 0);
+}
 export function myTasks(tasks, currentUser) {
   if (!currentUser) return [];
-  return (tasks || []).filter((t) => taskParticipants(t).indexOf(currentUser.id) >= 0);
+  return tarefasNoEscopo(tasks, currentUser.id);
+}
+// Filtro "Origem/Destinatário" (a pedido do usuário) — só faz sentido com
+// um usuário de referência definido (não em "Todos"); "ambos" (padrão) não
+// filtra nada.
+export function tarefaTemPapel(t, userId, papel) {
+  if (papel === "origem") return t.origem === userId;
+  if (papel === "destinatario") return (t.destinatarios || []).indexOf(userId) >= 0;
+  return true;
 }
 export function taskCienteByMe(t, currentUser) {
   if (!currentUser) return false;
@@ -93,6 +116,41 @@ export function taskCienteByMe(t, currentUser) {
 // de algo já resolvido).
 export function isTarefaEmergencia(t) {
   return !!(t && t.tipo === "Mesa de Atendimento" && t.tipoAtendimento === "assistencia_24h" && t.status !== "Concluído");
+}
+
+// Ordenação automática (a pedido do usuário): emergência sempre no topo,
+// depois por grau de urgência, depois por data de criação (mais recente
+// primeiro). Extraída como função pura pra ser testável e reaproveitável
+// entre a ordenação automática e o botão "Reorganizar" (que volta a este
+// critério).
+export function compararTarefasAuto(a, b) {
+  const eA = isTarefaEmergencia(a) ? 0 : 1;
+  const eB = isTarefaEmergencia(b) ? 0 : 1;
+  if (eA !== eB) return eA - eB;
+  const u = (URG_ORDER[a.urgencia] ?? 9) - (URG_ORDER[b.urgencia] ?? 9);
+  if (u !== 0) return u;
+  return String(b.createdAt || "").localeCompare(String(a.createdAt || ""));
+}
+
+// Sinalizadores configuráveis pelo admin (a pedido do usuário) — mesmo
+// padrão de corp_task_types (ver TaskTypeManager em Tarefas.jsx). Várias
+// podem ficar ativas ao mesmo tempo na mesma tarefa.
+export const TASK_FLAGS_DEFAULT = ["Aguard. cliente", "Aguard. corretora"];
+
+// Número de protocolo sequencial (CI-000001, CI-000002...) — a pedido do
+// usuário, pra dar um identificador curto e falável pra cada tarefa. Olha o
+// maior número "CI-NNNNNN" já usado e soma 1; sem nenhum ainda, começa em 1.
+// Time pequeno, criação pouco concorrente — não é um contador atômico
+// (não há backend pra isso), então uma colisão exigiria duas pessoas
+// criando tarefa no exato mesmo instante, sem nenhum refresh entre uma e
+// outra.
+export function proximoCI(tasks) {
+  let maior = 0;
+  (tasks || []).forEach((t) => {
+    const m = /^CI-(\d+)$/.exec(t.ci || "");
+    if (m) { const n = parseInt(m[1], 10); if (n > maior) maior = n; }
+  });
+  return "CI-" + String(maior + 1).padStart(6, "0");
 }
 
 export function taskIsStale(t, currentUser) {
