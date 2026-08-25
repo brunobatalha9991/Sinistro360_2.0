@@ -3,7 +3,7 @@ import {
   getAtendTemplate, getRamoTemplate, getComunsSteps, getUserJourney, isAtendimento, STATUS_DEFAULT, getJourneyNotes,
   stepStatusEhConcluida, stepStatusEhNegativa, stepStatusResolvida, stepDateConfig,
 } from "../../logic/claims";
-import { fmtDateBR, fmtDateHoraBR } from "../../logic/format";
+import { fmtDateHoraBR } from "../../logic/format";
 
 // Porte 1:1 de journeyPanel() do HTML original, com registro automático
 // (a pedido do usuário) de data/hora/usuário da última interação de cada
@@ -176,11 +176,7 @@ export function JourneyPanel({ c, overrides, config, actions, canEdit, isAdminUs
               <div className={"jbody" + (done ? " done" : negativo ? " negativo" : "")}>
                 <div className="jhead">
                   <h4>{step.title}</h4>
-                  <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
-                    {!open && sd.status && <span className={"badge " + (done ? "green" : negativo ? "red" : "blue")}>{sd.status}</span>}
-                    {!open && dateCfg.show && sd.date && <span className="muted" style={{ fontSize: 11 }}>{fmtDateBR(sd.date)}</span>}
-                    <button type="button" className="btn sec xs" onClick={() => toggle(step.id)}>{open ? "▾ Ocultar detalhes" : "▸ Ver detalhes"}</button>
-                  </div>
+                  <button type="button" className="btn sec xs" onClick={() => toggle(step.id)}>{open ? "▾ Ocultar detalhes" : "▸ Ver detalhes"}</button>
                 </div>
                 {open && (
                   <>
