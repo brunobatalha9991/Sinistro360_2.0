@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { getNextAction } from "../../logic/claims";
 import { fmtDateBR } from "../../logic/format";
+import { EmptyState } from "../EmptyState.jsx";
 
 // Porte 1:1 de nextActionPanel() do HTML original.
 export function NextActionPanel({ c, overrides, actions, canEdit }) {
@@ -43,13 +44,18 @@ export function NextActionPanel({ c, overrides, actions, canEdit }) {
           <div style={{ fontSize: 13, whiteSpace: "pre-wrap", marginTop: 4 }}>{atual.desc || ""}</div>
         </div>
       )}
-      <div className="field"><label>Título da próxima ação</label><input placeholder="Título da próxima ação" value={titulo} onChange={(e) => setTitulo(e.target.value)} /></div>
-      <div className="field"><label>Descrição da próxima ação</label><textarea rows={3} placeholder="Descrição da próxima ação" value={desc} onChange={(e) => setDesc(e.target.value)} /></div>
-      <div className="field"><label>Data da próxima ação</label><input type="date" value={data} onChange={(e) => setData(e.target.value)} /></div>
-      <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-        <button className="btn" onClick={salvar}>Salvar próxima ação</button>
-        {atual && <button className="btn sec" onClick={concluir}>Concluir / limpar</button>}
-      </div>
+      {!canEdit && !(atual && atual.title) && <EmptyState>Nenhuma próxima ação registrada.</EmptyState>}
+      {canEdit && (
+        <>
+          <div className="field"><label>Título da próxima ação</label><input placeholder="Título da próxima ação" value={titulo} onChange={(e) => setTitulo(e.target.value)} /></div>
+          <div className="field"><label>Descrição da próxima ação</label><textarea rows={3} placeholder="Descrição da próxima ação" value={desc} onChange={(e) => setDesc(e.target.value)} /></div>
+          <div className="field"><label>Data da próxima ação</label><input type="date" value={data} onChange={(e) => setData(e.target.value)} /></div>
+          <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+            <button className="btn" onClick={salvar}>Salvar próxima ação</button>
+            {atual && <button className="btn sec" onClick={concluir}>Concluir / limpar</button>}
+          </div>
+        </>
+      )}
     </div>
   );
 }

@@ -178,45 +178,49 @@ export function CommsPanel({ c, overrides, actions, canEdit, config, clientes })
 
   return (
     <div>
-      <div className="card" style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 8 }}>
-        <div>
-          <h3 style={{ margin: 0 }}>Mensagem para o cliente</h3>
-          <p className="muted" style={{ margin: "2px 0 0", fontSize: 12 }}>Templates prontos de WhatsApp, já sugerindo o vinculado à etapa atual da jornada.</p>
-        </div>
-        <button className="btn sec sm" onClick={() => setMsgModalOpen(true)}>✉ Mensagem para o cliente</button>
-      </div>
+      {canEdit && (
+        <>
+          <div className="card" style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 8 }}>
+            <div>
+              <h3 style={{ margin: 0 }}>Mensagem para o cliente</h3>
+              <p className="muted" style={{ margin: "2px 0 0", fontSize: 12 }}>Templates prontos de WhatsApp, já sugerindo o vinculado à etapa atual da jornada.</p>
+            </div>
+            <button className="btn sec sm" onClick={() => setMsgModalOpen(true)}>✉ Mensagem para o cliente</button>
+          </div>
 
-      {msgModalOpen && (
-        <MensagemTemplateModal c={c} overrides={overrides} config={config} clientes={clientes} actions={actions} onClose={() => setMsgModalOpen(false)} />
+          {msgModalOpen && (
+            <MensagemTemplateModal c={c} overrides={overrides} config={config} clientes={clientes} actions={actions} onClose={() => setMsgModalOpen(false)} />
+          )}
+
+          <div className="card">
+            <h3 style={{ marginTop: 0 }}>Registrar comunicação</h3>
+            <div className="grid c2">
+              <div className="field"><label>Título</label>
+                <select value={titulo} onChange={(e) => setTitulo(e.target.value)}>
+                  <option value="">— Selecione —</option>
+                  {titulosEtapas.map((et) => <option key={et} value={et}>{et}</option>)}
+                  <option value={TITULO_AVULSO}>+ Título avulso...</option>
+                </select>
+                {titulo === TITULO_AVULSO && (
+                  <input style={{ marginTop: 6 }} placeholder="Digite o título para esta situação" value={tituloAvulso} onChange={(e) => setTituloAvulso(e.target.value)} />
+                )}
+              </div>
+              <div className="field"><label>Data</label>
+                <input type="date" value={data} onChange={(e) => setData(e.target.value)} />
+              </div>
+            </div>
+
+            <div style={{ display: "flex", flexDirection: "column", gap: 12, marginTop: 4 }}>
+              <ComunicacaoBox canal="Cliente" box={boxCliente} onChange={setBoxCliente} comAvaliacao />
+              <ComunicacaoBox canal="Oficina" box={boxOficina} onChange={setBoxOficina} comAvaliacao comLimitacao />
+              <ComunicacaoBox canal="Seguradora" box={boxSeguradora} onChange={setBoxSeguradora} comAvaliacao />
+              <SugestaoClienteBox titulo={tituloResolvido} oficinaTexto={boxOficina.texto} seguradoraTexto={boxSeguradora.texto} />
+            </div>
+
+            <button className="btn" style={{ marginTop: 14 }} onClick={registrar}>Registrar comunicação</button>
+          </div>
+        </>
       )}
-
-      <div className="card">
-        <h3 style={{ marginTop: 0 }}>Registrar comunicação</h3>
-        <div className="grid c2">
-          <div className="field"><label>Título</label>
-            <select value={titulo} onChange={(e) => setTitulo(e.target.value)}>
-              <option value="">— Selecione —</option>
-              {titulosEtapas.map((et) => <option key={et} value={et}>{et}</option>)}
-              <option value={TITULO_AVULSO}>+ Título avulso...</option>
-            </select>
-            {titulo === TITULO_AVULSO && (
-              <input style={{ marginTop: 6 }} placeholder="Digite o título para esta situação" value={tituloAvulso} onChange={(e) => setTituloAvulso(e.target.value)} />
-            )}
-          </div>
-          <div className="field"><label>Data</label>
-            <input type="date" value={data} onChange={(e) => setData(e.target.value)} />
-          </div>
-        </div>
-
-        <div style={{ display: "flex", flexDirection: "column", gap: 12, marginTop: 4 }}>
-          <ComunicacaoBox canal="Cliente" box={boxCliente} onChange={setBoxCliente} comAvaliacao />
-          <ComunicacaoBox canal="Oficina" box={boxOficina} onChange={setBoxOficina} comAvaliacao comLimitacao />
-          <ComunicacaoBox canal="Seguradora" box={boxSeguradora} onChange={setBoxSeguradora} comAvaliacao />
-          <SugestaoClienteBox titulo={tituloResolvido} oficinaTexto={boxOficina.texto} seguradoraTexto={boxSeguradora.texto} />
-        </div>
-
-        <button className="btn" style={{ marginTop: 14 }} onClick={registrar}>Registrar comunicação</button>
-      </div>
 
       <div className="card">
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 8 }}>
@@ -234,7 +238,7 @@ export function CommsPanel({ c, overrides, actions, canEdit, config, clientes })
                   {m.limitacaoComunicacao && <span className="badge red" style={{ marginLeft: 6 }}>Limitação de comunicação</span>}
                   <span className="muted" style={{ marginLeft: 8, fontSize: 12 }}>{m.meio} • {fmtDateBR(m.date)}</span>
                 </div>
-                <button className="btn danger xs" onClick={() => excluir(m.id)}>Excluir</button>
+                {canEdit && <button className="btn danger xs" onClick={() => excluir(m.id)}>Excluir</button>}
               </div>
               {typeof m.avaliacao === "number" && m.avaliacao > 0 && (
                 <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 6 }}>
