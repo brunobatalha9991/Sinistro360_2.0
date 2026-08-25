@@ -52,9 +52,12 @@ export function JourneyPanel({ c, overrides, config, actions, canEdit, isAdminUs
       if (stepStatusEhConcluida(step, value)) {
         sd.concludedAt = agora;
         sd.concludedBy = quem;
-        // Só minimiza sozinha (ver stepResolvida) quando a data de
-        // conclusão for preenchida — avisa na hora pra não ficar esquecida.
-        alert("Etapa concluída — preencha a data de conclusão. A etapa só minimiza automaticamente depois que a data for informada.");
+        // Só exige (e avisa sobre) a data quando este status realmente tem
+        // campo de data configurado (ver stepDateConfig) — etapa sem esse
+        // campo resolve/minimiza na hora, sem alerta nenhum.
+        if (stepDateConfig(step, value).show) {
+          alert("Etapa concluída — preencha a data de conclusão. A etapa só minimiza automaticamente depois que a data for informada.");
+        }
       } else {
         delete sd.concludedAt;
         delete sd.concludedBy;
@@ -103,13 +106,17 @@ export function JourneyPanel({ c, overrides, config, actions, canEdit, isAdminUs
   // (branch) conta como resolvida assim que qualquer opção for escolhida,
   // independente de bater com status "concluída" configurado. Etapa com
   // status "concluída" (verde) só conta como resolvida (e só minimiza
-  // sozinha) depois que a data de conclusão for preenchida — encerramento
-  // negativo (vermelho) não exige data, resolve na hora, igual antes.
+  // sozinha) depois que a data de conclusão for preenchida — MAS só quando
+  // esse status realmente tem campo de data configurado (stepDateConfig);
+  // sem campo de data, resolve na hora, igual encerramento negativo
+  // (vermelho), que nunca exige data.
   function stepResolvida(step) {
     if (step.type === "caminho") return !!uj.caminho;
     const sd = steps[step.id] || {};
     if (step.branch) return !!sd.status;
-    if (stepStatusEhConcluida(step, sd.status)) return !!(sd.date && sd.date.trim());
+    if (stepStatusEhConcluida(step, sd.status)) {
+      return !stepDateConfig(step, sd.status).show || !!(sd.date && sd.date.trim());
+    }
     return stepStatusEhNegativa(step, sd.status);
   }
   let currentIdx = lista.findIndex((step) => !stepResolvida(step));

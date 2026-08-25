@@ -34,16 +34,21 @@ export function stepStatusResolvida(step, status) {
 }
 // Configuração de data por status (Configurações → Jornadas): se mostra o
 // campo de data e o título dele. Sem configuração pra aquele status, mantém
-// o campo "Data" sempre visível — comportamento de antes.
+// o campo "Data" sempre visível — comportamento de antes. Sem status
+// selecionado (padrão, "— Status —"), nunca mostra data — não há status
+// nenhum ainda pra basear a configuração.
 export function stepDateConfig(step, status) {
+  if (!status) return { show: false, label: "Data" };
   const cfg = step && step.dateByStatus && step.dateByStatus[status];
   if (!cfg) return { show: true, label: "Data" };
   return { show: cfg.show !== false, label: cfg.label || "Data" };
 }
 // Campo de horário por status — só existe nas Etapas de Atendimento
 // (Configurações → Jornadas), opt-in (ao contrário da data, que vem
-// visível por padrão): sem configurar, não mostra hora nenhuma.
+// visível por padrão): sem configurar, não mostra hora nenhuma. Sem status
+// selecionado, idem — nunca mostra.
 export function stepHoraConfig(step, status) {
+  if (!status) return { show: false, label: "Horário" };
   const cfg = step && step.horaByStatus && step.horaByStatus[status];
   if (!cfg || !cfg.show) return { show: false, label: "Horário" };
   return { show: true, label: cfg.label || "Horário" };
