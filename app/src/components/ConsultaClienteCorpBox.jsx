@@ -231,37 +231,49 @@ export function ConsultaClienteCorpBox({ config, clienteActions, navigate, claim
                           {imp && navigate && <a style={{ marginLeft: 6, fontSize: 12 }} onClick={() => navigate("cliente", imp.clienteId)}>Ver cliente</a>}
                         </td>
                       </tr>
-                      {det && det.aberto && det.dados && (
+                      {det && det.aberto && (
                         <tr>
                           <td colSpan={8} style={{ padding: "6px 0 14px" }}>
                             <div style={{ padding: 12, border: "1px solid var(--border)", borderRadius: 8, background: "var(--surface-2)", fontSize: 12.5 }}>
-                              <div className="grid c3" style={{ gap: 8 }}>
-                                <div><b>Pessoa:</b> {det.dados.pessoa === "F" ? "Física" : det.dados.pessoa === "J" ? "Jurídica" : (det.dados.pessoa || "—")}</div>
-                                <div><b>Sexo:</b> {det.dados.sexo || "—"}</div>
-                                <div><b>Data nasc.:</b> {det.dados.datanas || "—"}</div>
-                                <div><b>Profissão:</b> {det.dados.profissao || "—"}</div>
-                                <div><b>Estado civil:</b> {det.dados.estado_civil || "—"}</div>
-                                <div><b>Escolaridade:</b> {det.dados.escolaridade || "—"}</div>
-                              </div>
-                              {det.dados.observacoes && (
-                                <div style={{ marginTop: 8 }}><b>Observações:</b> {det.dados.observacoes}</div>
-                              )}
-                              {Array.isArray(det.dados.enderecos) && det.dados.enderecos.length > 0 && (
-                                <div style={{ marginTop: 8 }}>
-                                  <b>Endereços</b>
-                                  {det.dados.enderecos.map((e, idx) => (
-                                    <div key={idx} className="muted">{[e.logradouro, e.numero, e.bairro, e.cidade, e.estado, e.cep].filter(Boolean).join(", ")}</div>
-                                  ))}
-                                </div>
-                              )}
-                              {Array.isArray(det.dados.telefones) && det.dados.telefones.length > 0 && (
-                                <div style={{ marginTop: 6 }}><b>Telefones:</b> {det.dados.telefones.map(textoDe).filter(Boolean).join(", ") || "—"}</div>
-                              )}
-                              {Array.isArray(det.dados.emails) && det.dados.emails.length > 0 && (
-                                <div style={{ marginTop: 6 }}><b>E-mails:</b> {det.dados.emails.map(textoDe).filter(Boolean).join(", ") || "—"}</div>
-                              )}
-                              {Array.isArray(det.dados.contatos) && det.dados.contatos.length > 0 && (
-                                <div style={{ marginTop: 6 }}><b>Contatos:</b> {det.dados.contatos.map(textoDe).filter(Boolean).join(", ") || "—"}</div>
+                              {/* Perfil (pessoa/endereço/contatos) depende de /cliente — se essa
+                                  chamada falhar (ex.: erro passageiro do CORP), mostra só o erro
+                                  aqui, mas as apólices abaixo continuam (vêm de chamadas separadas
+                                  e não podem ficar escondidas por causa de uma falha no perfil). */}
+                              {det.dados ? (
+                                <>
+                                  <div className="grid c3" style={{ gap: 8 }}>
+                                    <div><b>Pessoa:</b> {det.dados.pessoa === "F" ? "Física" : det.dados.pessoa === "J" ? "Jurídica" : (det.dados.pessoa || "—")}</div>
+                                    <div><b>Sexo:</b> {det.dados.sexo || "—"}</div>
+                                    <div><b>Data nasc.:</b> {det.dados.datanas || "—"}</div>
+                                    <div><b>Profissão:</b> {det.dados.profissao || "—"}</div>
+                                    <div><b>Estado civil:</b> {det.dados.estado_civil || "—"}</div>
+                                    <div><b>Escolaridade:</b> {det.dados.escolaridade || "—"}</div>
+                                  </div>
+                                  {det.dados.observacoes && (
+                                    <div style={{ marginTop: 8 }}><b>Observações:</b> {det.dados.observacoes}</div>
+                                  )}
+                                  {Array.isArray(det.dados.enderecos) && det.dados.enderecos.length > 0 && (
+                                    <div style={{ marginTop: 8 }}>
+                                      <b>Endereços</b>
+                                      {det.dados.enderecos.map((e, idx) => (
+                                        <div key={idx} className="muted">{[e.logradouro, e.numero, e.bairro, e.cidade, e.estado, e.cep].filter(Boolean).join(", ")}</div>
+                                      ))}
+                                    </div>
+                                  )}
+                                  {Array.isArray(det.dados.telefones) && det.dados.telefones.length > 0 && (
+                                    <div style={{ marginTop: 6 }}><b>Telefones:</b> {det.dados.telefones.map(textoDe).filter(Boolean).join(", ") || "—"}</div>
+                                  )}
+                                  {Array.isArray(det.dados.emails) && det.dados.emails.length > 0 && (
+                                    <div style={{ marginTop: 6 }}><b>E-mails:</b> {det.dados.emails.map(textoDe).filter(Boolean).join(", ") || "—"}</div>
+                                  )}
+                                  {Array.isArray(det.dados.contatos) && det.dados.contatos.length > 0 && (
+                                    <div style={{ marginTop: 6 }}><b>Contatos:</b> {det.dados.contatos.map(textoDe).filter(Boolean).join(", ") || "—"}</div>
+                                  )}
+                                </>
+                              ) : det.carregando ? (
+                                <div className="muted">Buscando perfil do cliente...</div>
+                              ) : (
+                                <div style={{ color: "var(--danger)" }}>{det.erro || "Não foi possível carregar o perfil do cliente."}</div>
                               )}
 
                               <div style={{ marginTop: 10, borderTop: "1px solid var(--border)", paddingTop: 8 }}>
