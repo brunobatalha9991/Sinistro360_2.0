@@ -24,6 +24,21 @@ const ATENDIMENTO_OPCOES = [
   ["assistencia_vidros", "Assistência de vidros e pequenos reparos"],
 ];
 
+// Cor do chip-live de Grau de urgência/Status (mesmo padrão de chip
+// colorido já usado no cabeçalho do processo — DetailHeader.jsx — e nos
+// badges dos cards de Comunicação — Tarefas.jsx).
+function urgenciaCor(u) {
+  if (u === "Leve") return "green";
+  if (u === "Moderado") return "orange";
+  if (u === "Urgente") return "red";
+  return "gray";
+}
+function statusCor(s) {
+  if (s === "Concluído") return "green";
+  if (s === "Em andamento") return "amber";
+  return "blue";
+}
+
 // Linha de item de checklist — grid com coluna fixa pro checkbox e coluna
 // flexível (com limite mínimo em 0) pro texto, que é o jeito confiável de
 // garantir "checkbox + texto numa linha só, alinhado à esquerda" sem o
@@ -293,13 +308,7 @@ export function TaskModal() {
       setPastaDriveId(editing.id); setComentarioConclusao("");
     } else {
       setTipo(taskTypes[0]); setUrgencia("Leve"); setStatus("Pendente");
-      // Usuário "consulta" já sai com todos os analistas/atendentes marcados
-      // como destinatário — ele pode desmarcar quem quiser antes de criar.
-      const selInicial = {};
-      if (currentUser && currentUser.role === "consulta") {
-        (records.corp_users || []).forEach((u) => { if (u.role === "analista" || u.role === "atendente") selInicial[u.id] = true; });
-      }
-      setDestSel(selInicial);
+      setDestSel({});
       setAnexo(""); setObs(""); setProcessoId(""); setOficinaId(""); setSeguradoraId(""); setClienteId("");
       setTipoAtendimento(""); setChecklistMesa(checklistVazio());
       setSolicitacao(null); setSolicitacaoAberta(false); setChecklistAberto(false);
@@ -313,6 +322,20 @@ export function TaskModal() {
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, taskId]);
+
+  // Usuário "consulta" não escolhe destinatário pra Mesa de Atendimento —
+  // ao selecionar esse tipo, marca sozinho todo mundo que não é consulta
+  // (inclusive administradores). Continua livre pra desmarcar quem quiser
+  // antes de criar/salvar.
+  useEffect(() => {
+    if (!open || !(currentUser && currentUser.role === "consulta") || tipo !== "Mesa de Atendimento") return;
+    setDestSel((s) => {
+      const next = { ...s };
+      (records.corp_users || []).forEach((u) => { if (u.role !== "consulta") next[u.id] = true; });
+      return next;
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, tipo, currentUser]);
 
   // Vínculo checklist ↔ formulário de Solicitação (Sinistro): assim que um
   // campo vinculado é preenchido pela primeira vez, o item correspondente é
@@ -332,7 +355,9 @@ export function TaskModal() {
   const seguradorasLista = listaSeguradoras(claims, records.corp_overrides);
   const clientesLista = listaClientes(claims, records.corp_overrides);
   const isMesaAtendimento = tipo === "Mesa de Atendimento";
-  const mostrarChecklist = isMesaAtendimento && tipoAtendimento === "sinistro";
+  // Checklist de abertura é ferramenta de quem atende o processo — usuário
+  // "consulta" não vê o botão nem o checklist em si.
+  const mostrarChecklist = isMesaAtendimento && tipoAtendimento === "sinistro" && canEdit(currentUser);
   const isEmergencia = isMesaAtendimento && tipoAtendimento === "assistencia_24h";
   const progresso = checklistProgresso(checklistMesa, config);
   const { segurado: checklistSegurado, terceiro: checklistTerceiro } = getChecklistEfetivo(config);
@@ -416,7 +441,9 @@ export function TaskModal() {
             <select value={tipo} onChange={(e) => setTipo(e.target.value)}>{taskTypes.map((tp) => <option key={tp} value={tp}>{tp}</option>)}</select>
           </div>
           <div className="field"><label>Grau de urgência</label>
-            <select value={urgencia} onChange={(e) => setUrgencia(e.target.value)}>{["Leve", "Moderado", "Urgente"].map((s) => <option key={s} value={s}>{s}</option>)}</select>
+            <span className={"badge chip-live " + urgenciaCor(urgencia)}>
+              <select className="inline" value={urgencia} onChange={(e) => setUrgencia(e.target.value)}>{["Leve", "Moderado", "Urgente"].map((s) => <option key={s} value={s}>{s}</option>)}</select>
+            </span>
           </div>
         </div>
 
@@ -474,13 +501,15 @@ export function TaskModal() {
         <div className="grid c2">
           <div className="field"><label>Usuário origem</label><input value={(editing ? users.find((u) => u.id === editing.origem)?.nome : currentUser.nome) || ""} disabled /></div>
           <div className="field"><label>Status</label>
-            <select value={status} onChange={(e) => setStatus(e.target.value)}>{["Pendente", "Em andamento", "Concluído"].map((s) => <option key={s} value={s}>{s}</option>)}</select>
+            <span className={"badge chip-live " + statusCor(status)}>
+              <select className="inline" value={status} onChange={(e) => setStatus(e.target.value)}>{["Pendente", "Em andamento", "Concluído"].map((s) => <option key={s} value={s}>{s}</option>)}</select>
+            </span>
           </div>
         </div>
 
         {concluindoAgora && (
-          <div className="field">
-            <label>Comentário de conclusão (obrigatório)</label>
+          <div className="field" style={{ background: "rgba(var(--ok-rgb),.08)", border: "1px solid rgba(var(--ok-rgb),.32)", borderRadius: 8, padding: 12 }}>
+            <label style={{ color: "var(--ok)" }}>Comentário de conclusão (obrigatório)</label>
             <textarea rows={3} placeholder="O que foi feito / resultado final — vira o feedback desta tarefa para todos os envolvidos." value={comentarioConclusao} onChange={(e) => setComentarioConclusao(e.target.value)} />
           </div>
         )}
