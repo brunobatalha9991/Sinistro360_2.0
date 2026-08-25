@@ -172,9 +172,9 @@ export function DetailHeader({ c, sit, rel, claims, allClaimsRaw, overrides, use
   const atrasada = isAtrasado(overrides, c);
   const comms = loadComms(overrides, c.id);
   const last = comms.length ? comms[comms.length - 1] : null;
-  const semAtualizacao = isSemAtualizacao(overrides, c);
-  const situacaoEfe = situacaoEfetiva(overrides, c);
-  const finalizado = isFinalizado(overrides, c);
+  const semAtualizacao = isSemAtualizacao(overrides, c, config.corp_atendimento_template);
+  const situacaoEfe = situacaoEfetiva(overrides, c, config.corp_atendimento_template);
+  const finalizado = isFinalizado(overrides, c, config.corp_atendimento_template);
   const pesqCompleta = pesquisaSatisfacaoCompleta(overrides, c.id);
   const emailAlertas = getEmailAlertas(overrides, c.id);
   // Índice do e-mail aberto no modal (não o objeto direto): quando o
@@ -276,7 +276,7 @@ export function DetailHeader({ c, sit, rel, claims, allClaimsRaw, overrides, use
     ),
 
     caminho: caminho
-      ? <span className={"badge " + (caminho === "integral" ? "red" : "blue")}>{caminho === "integral" ? "Perda Integral" : "Perda Parcial"}</span>
+      ? <span className={"badge " + (caminho === "integral" ? "red" : caminho === "outros" ? "purple" : "blue")}>{caminho === "integral" ? "Perda Integral" : caminho === "outros" ? "Outros" : "Perda Parcial"}</span>
       : <span className="badge gray">Caminho não definido</span>,
 
     observacoes: <ObservacoesBox c={c} overrides={overrides} actions={actions} canEdit={canEdit} />,

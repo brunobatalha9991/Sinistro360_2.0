@@ -14,7 +14,7 @@ function fmtDiasMedia(n) { return n == null ? "—" : n.toLocaleString("pt-BR", 
 // real confirmada (até 5 usuários ativos) e sem SLA formal (usa a mesma
 // regra de "Próxima ação" já existente). Ver docs/ia-sinistros/metricas-desempenho.md.
 export function Desempenho() {
-  const { records } = useData();
+  const { records, config } = useData();
   const { navigate } = useHashRoute();
   const [periodoDe, setPeriodoDe] = useState(diasAtras(30));
   const [periodoAte, setPeriodoAte] = useState(todayISO());
@@ -27,10 +27,11 @@ export function Desempenho() {
   const inicioISO = periodoDe ? periodoDe + "T00:00:00.000Z" : null;
   const fimISO = periodoAte ? periodoAte + "T23:59:59.999Z" : null;
 
+  const atendTemplateCfg = config.corp_atendimento_template;
   const metricas = useMemo(
-    () => calcularMetricasTodosUsuarios({ users, claims, overrides, historico, periodoInicioISO: inicioISO, periodoFimISO: fimISO }),
+    () => calcularMetricasTodosUsuarios({ users, claims, overrides, historico, periodoInicioISO: inicioISO, periodoFimISO: fimISO, atendTemplateCfg }),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [users, claims, overrides, historico, inicioISO, fimISO]
+    [users, claims, overrides, historico, inicioISO, fimISO, atendTemplateCfg]
   );
 
   function verSinistrosDoUsuario(usuarioId) {

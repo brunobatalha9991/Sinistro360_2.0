@@ -17,8 +17,9 @@ export const reportClaimsTool = {
   },
   requiresConfirmation: false,
   run(args, ctx) {
-    const { records } = ctx;
+    const { records, config } = ctx;
     const overrides = records.corp_overrides || {};
+    const atendTemplateCfg = config && config.corp_atendimento_template;
     const groupBy = args.groupBy === "cia" || args.groupBy === "temperatura" ? args.groupBy : "situacao";
     const filtroCia = String(args.filterCia || "").trim().toLowerCase();
 
@@ -32,7 +33,7 @@ export const reportClaimsTool = {
       let chave;
       if (groupBy === "cia") chave = campoEfetivo(overrides, c, "cia") || "Sem seguradora";
       else if (groupBy === "temperatura") chave = getTemp(overrides, c.id) || "Não definida";
-      else chave = situacaoEfetiva(overrides, c).label;
+      else chave = situacaoEfetiva(overrides, c, atendTemplateCfg).label;
       grupos[chave] = (grupos[chave] || 0) + 1;
     });
 

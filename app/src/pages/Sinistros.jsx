@@ -49,17 +49,17 @@ export function Sinistros() {
   function passa(c, except) {
     const q = (lf.q || "").toLowerCase();
     if (except !== "tipo" && lf.tipo !== "todos" && c.partyType !== lf.tipo) return false;
-    if (except !== "status" && lf.status !== "todos" && situacaoEfetiva(overrides, c).label !== lf.status) return false;
+    if (except !== "status" && lf.status !== "todos" && situacaoEfetiva(overrides, c, atendTemplate).label !== lf.status) return false;
     if (except !== "etapa" && lf.etapa !== "todos" && currentStage(overrides, templates, atendTemplate, c) !== lf.etapa) return false;
     if (except !== "especial") {
       if (lf.pa) { const na = getNextAction(overrides, c.id); if (!na || !na.date || na.date > lf.pa) return false; }
       if (lf.atrasado && !isAtrasado(overrides, c)) return false;
-      if (lf.semAtu && !isSemAtualizacao(overrides, c)) return false;
+      if (lf.semAtu && !isSemAtualizacao(overrides, c, atendTemplate)) return false;
     }
     if (except !== "manual" && lf.manual && !isManualClaim(c)) return false;
     if (except !== "caminho" && lf.caminho && lf.caminho !== "todos" && (getUserJourney(overrides, c.id) || {}).caminho !== lf.caminho) return false;
     if (except !== "aberto" && lf.aberto) {
-      const sl = situacaoEfetiva(overrides, c).label;
+      const sl = situacaoEfetiva(overrides, c, atendTemplate).label;
       if (sl !== "Pendente" && sl !== "Em andamento") return false;
     }
     if (lf.ocoDe && (!c.datoco || c.datoco < lf.ocoDe)) return false;
@@ -67,7 +67,7 @@ export function Sinistros() {
     if (lf.aviDe && (!c.datavi || c.datavi < lf.aviDe)) return false;
     if (lf.aviAte && (!c.datavi || c.datavi > lf.aviAte)) return false;
     if (except !== "responsavel" && lf.responsavel && lf.responsavel !== "todos") {
-      const sitR = situacaoEfetiva(overrides, c).label;
+      const sitR = situacaoEfetiva(overrides, c, atendTemplate).label;
       if (sitR !== "Pendente" && sitR !== "Em andamento") return false;
       const rP = getResponsavel(overrides, c.id);
       if (lf.responsavel === "__sem__") { if (rP) return false; }
@@ -115,7 +115,7 @@ export function Sinistros() {
 
   const cntTipo = {}; let totalNaoFinal = 0;
   baseTipo.forEach((c) => {
-    if (situacaoEfetiva(overrides, c).label !== "Indenizado" && situacaoEfetiva(overrides, c).label !== "Encerrado sem Indenização") {
+    if (situacaoEfetiva(overrides, c, atendTemplate).label !== "Indenizado" && situacaoEfetiva(overrides, c, atendTemplate).label !== "Encerrado sem Indenização") {
       cntTipo[c.partyType] = (cntTipo[c.partyType] || 0) + 1;
       totalNaoFinal++;
     }
@@ -123,7 +123,7 @@ export function Sinistros() {
   const ct = (key) => (key === "todos" ? totalNaoFinal : cntTipo[key] || 0);
 
   const cntStatus = {};
-  baseStatus.forEach((c) => { const lb = situacaoEfetiva(overrides, c).label; cntStatus[lb] = (cntStatus[lb] || 0) + 1; });
+  baseStatus.forEach((c) => { const lb = situacaoEfetiva(overrides, c, atendTemplate).label; cntStatus[lb] = (cntStatus[lb] || 0) + 1; });
   const cs = (key) => (key === "todos" ? baseStatus.length : cntStatus[key] || 0);
 
   const statusChips = [["todos", "Todos"], ["Em andamento", "Em andamento"], ["Pendente", "Pendentes"], ["Indenizado", "Indenizados"], ["Encerrado sem Indenização", "Sem indenização"]];
@@ -131,10 +131,11 @@ export function Sinistros() {
 
   const qtdParcial = baseCaminho.filter((c) => (getUserJourney(overrides, c.id) || {}).caminho === "parcial").length;
   const qtdIntegral = baseCaminho.filter((c) => (getUserJourney(overrides, c.id) || {}).caminho === "integral").length;
+  const qtdOutros = baseCaminho.filter((c) => (getUserJourney(overrides, c.id) || {}).caminho === "outros").length;
   const qtdAtrasado = baseEspec.filter((c) => isAtrasado(overrides, c)).length;
-  const qtdSemAtu = baseEspec.filter((c) => isSemAtualizacao(overrides, c)).length;
+  const qtdSemAtu = baseEspec.filter((c) => isSemAtualizacao(overrides, c, atendTemplate)).length;
   const qtdManual = baseManual.filter(isManualClaim).length;
-  const qtdAberto = baseAberto.filter((c) => { const l = situacaoEfetiva(overrides, c).label; return l === "Pendente" || l === "Em andamento"; }).length;
+  const qtdAberto = baseAberto.filter((c) => { const l = situacaoEfetiva(overrides, c, atendTemplate).label; return l === "Pendente" || l === "Em andamento"; }).length;
   const qtdAguardHist = baseAguardHist.filter((c) => claimTemFlagHistorico(overrides, c.id, "aguardandoRetorno")).length;
   const qtdLimComHist = baseLimComHist.filter((c) => claimTemFlagHistorico(overrides, c.id, "limitacaoComunicacao")).length;
   const qtdForaPrazo = baseForaPrazo.filter((c) => claimTemEtapaForaDoPrazo(overrides, c.id)).length;
@@ -147,16 +148,16 @@ export function Sinistros() {
   // filtro final exibido na tabela (mesma lógica de renderList() do original)
   const q = (lf.q || "").toLowerCase();
   const rows = claims.filter((c) => {
-    if (lf.status !== "todos" && situacaoEfetiva(overrides, c).label !== lf.status) return false;
+    if (lf.status !== "todos" && situacaoEfetiva(overrides, c, atendTemplate).label !== lf.status) return false;
     if (lf.tipo !== "todos" && c.partyType !== lf.tipo) return false;
     if (lf.etapa !== "todos" && currentStage(overrides, templates, atendTemplate, c) !== lf.etapa) return false;
     if (lf.pa) { const na = getNextAction(overrides, c.id); if (!na || !na.date || na.date > lf.pa) return false; }
     if (lf.atrasado && !isAtrasado(overrides, c)) return false;
-    if (lf.semAtu && !isSemAtualizacao(overrides, c)) return false;
+    if (lf.semAtu && !isSemAtualizacao(overrides, c, atendTemplate)) return false;
     if (lf.manual && !isManualClaim(c)) return false;
     if (lf.caminho && lf.caminho !== "todos" && (getUserJourney(overrides, c.id) || {}).caminho !== lf.caminho) return false;
     if (lf.aberto) {
-      const sl = situacaoEfetiva(overrides, c).label;
+      const sl = situacaoEfetiva(overrides, c, atendTemplate).label;
       if (sl !== "Pendente" && sl !== "Em andamento") return false;
     }
     if (lf.ocoDe && (!c.datoco || c.datoco < lf.ocoDe)) return false;
@@ -164,7 +165,7 @@ export function Sinistros() {
     if (lf.aviDe && (!c.datavi || c.datavi < lf.aviDe)) return false;
     if (lf.aviAte && (!c.datavi || c.datavi > lf.aviAte)) return false;
     if (lf.responsavel && lf.responsavel !== "todos") {
-      const sL = situacaoEfetiva(overrides, c).label;
+      const sL = situacaoEfetiva(overrides, c, atendTemplate).label;
       if (sL !== "Pendente" && sL !== "Em andamento") return false;
       const rL = getResponsavel(overrides, c.id);
       if (lf.responsavel === "__sem__") { if (rL) return false; }
@@ -213,7 +214,7 @@ export function Sinistros() {
   if (lf.limitacaoComunicacaoHist) activeCount++;
   if (lf.foraDoPrazo) activeCount++;
 
-  const allCols = getAllCols({ overrides, allClaimsRaw, navigate });
+  const allCols = getAllCols({ overrides, allClaimsRaw, navigate, atendTemplateCfg: atendTemplate });
 
   function dtField(label, keyDe, keyAte) {
     return (
@@ -277,6 +278,7 @@ export function Sinistros() {
               <div className={"chip-btn" + (lf.caminho === "todos" ? " active" : "")} onClick={() => patchListFilter({ caminho: "todos" })}>Todos</div>
               <div className={"chip-btn" + (lf.caminho === "parcial" ? " active" : "")} onClick={() => patchListFilter({ caminho: "parcial" })}>Perda Parcial ({qtdParcial})</div>
               <div className={"chip-btn" + (lf.caminho === "integral" ? " active" : "")} onClick={() => patchListFilter({ caminho: "integral" })}>Perda Integral ({qtdIntegral})</div>
+              <div className={"chip-btn" + (lf.caminho === "outros" ? " active" : "")} onClick={() => patchListFilter({ caminho: "outros" })}>Outros ({qtdOutros})</div>
             </div>
             <div className="chips">
               {etapaChips.map(([k, label]) => (

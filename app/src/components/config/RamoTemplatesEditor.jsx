@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { StepsEditor } from "./StepsEditor.jsx";
-import { defaultRamoTemplate, getComunsSteps } from "../../logic/claims";
+import { defaultRamoTemplate, getComunsSteps, getOutrosSteps } from "../../logic/claims";
 import { EmptyState } from "../EmptyState.jsx";
 
 // Porte 1:1 do editor "Jornadas por ramo" das Configurações do HTML original,
@@ -25,26 +25,26 @@ export function RamoTemplatesEditor({ templates, saveConfig }) {
   function adicionarRamo() {
     const r = novoRamo.trim().toUpperCase();
     if (!r) return;
-    patch(r, (tpl) => ({ ...tpl, comuns: getComunsSteps(tpl) }));
+    patch(r, (tpl) => ({ ...tpl, comuns: getComunsSteps(tpl), outros: getOutrosSteps(tpl) }));
     setNovoRamo("");
   }
-  // Replica a jornada inteira (etapas comuns, Perda Parcial e Perda
-  // Integral, com status, config de data e marcação verde/vermelho de
-  // cada um) de um ramo pra outro — a pedido do usuário, pra não ter que
+  // Replica a jornada inteira (etapas comuns, Perda Parcial, Perda Integral
+  // e Outros, com status, config de data e marcação verde/vermelho de cada
+  // um) de um ramo pra outro — a pedido do usuário, pra não ter que
   // recriar tudo manualmente quando dois ramos usam o mesmo fluxo.
   // Substitui por completo a configuração do ramo de destino.
   function replicar() {
     if (!origemRepl || !destinoRepl || origemRepl === destinoRepl) return;
     if (!confirm(`Isso vai substituir toda a configuração de jornada do ramo "${destinoRepl}" pela do ramo "${origemRepl}". Continuar?`)) return;
     const origemTpl = templates[origemRepl] || defaultRamoTemplate();
-    patch(destinoRepl, () => JSON.parse(JSON.stringify({ ...origemTpl, comuns: getComunsSteps(origemTpl) })));
+    patch(destinoRepl, () => JSON.parse(JSON.stringify({ ...origemTpl, comuns: getComunsSteps(origemTpl), outros: getOutrosSteps(origemTpl) })));
     setOrigemRepl(""); setDestinoRepl("");
   }
 
   return (
     <div className="card">
       <h3 style={{ marginTop: 0 }}>Jornadas por ramo</h3>
-      <p className="muted">Defina as etapas e os status de cada caminho (Perda Parcial / Perda Integral). Use as setas para reordenar — inclusive mover etapas para antes da Vistoria. Mudanças aparecem automaticamente em todos os sinistros do ramo.</p>
+      <p className="muted">Defina as etapas e os status de cada caminho (Perda Parcial / Perda Integral / Outros). Use as setas para reordenar — inclusive mover etapas para antes da Vistoria. Mudanças aparecem automaticamente em todos os sinistros do ramo.</p>
 
       <div style={{ display: "flex", gap: 8, alignItems: "center", marginBottom: 14 }}>
         <input className="inline" placeholder="Ex.: RESI, VIDA..." style={{ minWidth: 160 }} value={novoRamo} onChange={(e) => setNovoRamo(e.target.value)} />
@@ -89,6 +89,11 @@ export function RamoTemplatesEditor({ templates, saveConfig }) {
                 label={caminho === "parcial" ? "➤ Perda Parcial" : "➤ Perda Integral"}
               />
             ))}
+            <StepsEditor
+              steps={getOutrosSteps(tpl)}
+              onChange={(next) => patch(ramo, (t) => ({ ...t, outros: next }))}
+              label="➤ Outros"
+            />
           </div>
         );
       })}

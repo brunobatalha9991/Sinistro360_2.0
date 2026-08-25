@@ -7,7 +7,7 @@ import { txt, val, fmtDateBR } from "./format";
 // células dependem de dados derivados e de navegação para o detalhe.
 // `sortValue` devolve um valor comparável (string ou número) pra ordenação
 // por clique no cabeçalho; colunas sem sortValue (ex.: Ações) não ordenam.
-export function getAllCols({ overrides, allClaimsRaw, navigate }) {
+export function getAllCols({ overrides, allClaimsRaw, navigate, atendTemplateCfg }) {
   return [
     { key: "tipo", label: "Tipo", cell: (c) => <PartyBadge pt={c.partyType} />, sortValue: (c) => c.partyType || "" },
     {
@@ -28,8 +28,8 @@ export function getAllCols({ overrides, allClaimsRaw, navigate }) {
     { key: "ramo", label: "Ramo", cell: (c) => txt(campoEfetivo(overrides, c, "ramo")), sortValue: (c) => campoEfetivo(overrides, c, "ramo") || "" },
     {
       key: "situacao", label: "Situação",
-      cell: (c) => { const s = situacaoEfetiva(overrides, c); return <span className={"badge " + s.cls}>{s.label}</span>; },
-      sortValue: (c) => situacaoEfetiva(overrides, c).label || "",
+      cell: (c) => { const s = situacaoEfetiva(overrides, c, atendTemplateCfg); return <span className={"badge " + s.cls}>{s.label}</span>; },
+      sortValue: (c) => situacaoEfetiva(overrides, c, atendTemplateCfg).label || "",
     },
     {
       key: "sitatend", label: "Situação atend.",

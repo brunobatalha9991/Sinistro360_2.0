@@ -21,10 +21,10 @@ export function intervalosDoUsuarioNoPeriodo(historico, usuarioId, inicioISO, fi
   return (historico || []).filter((h) => h.usuarioResponsavelId === usuarioId && sobrepoe(h, inicioISO, fimISO));
 }
 
-export function estoqueAtualDoUsuario(claims, overrides, usuarioId) {
+export function estoqueAtualDoUsuario(claims, overrides, usuarioId, atendTemplateCfg) {
   return visibleClaims(claims).filter((c) => {
     const r = getResponsavel(overrides, c.id);
-    return r && r.id === usuarioId && !isFinalizado(overrides, c);
+    return r && r.id === usuarioId && !isFinalizado(overrides, c, atendTemplateCfg);
   });
 }
 
@@ -33,7 +33,7 @@ function duracaoDias(inicioISO, fimISO) {
   return ms / 86400000;
 }
 
-export function calcularMetricasUsuario({ claims, overrides, historico, usuarioId, periodoInicioISO, periodoFimISO }) {
+export function calcularMetricasUsuario({ claims, overrides, historico, usuarioId, periodoInicioISO, periodoFimISO, atendTemplateCfg }) {
   const intervalos = intervalosDoUsuarioNoPeriodo(historico, usuarioId, periodoInicioISO, periodoFimISO);
   const assumidos = intervalos.filter((h) => (
     (!periodoInicioISO || String(h.inicioResponsabilidadeEm) >= periodoInicioISO) &&
@@ -41,7 +41,7 @@ export function calcularMetricasUsuario({ claims, overrides, historico, usuarioI
   ));
   const claimIdsNoPeriodo = [...new Set(intervalos.map((h) => h.claimId))];
 
-  const estoqueAtual = estoqueAtualDoUsuario(claims, overrides, usuarioId);
+  const estoqueAtual = estoqueAtualDoUsuario(claims, overrides, usuarioId, atendTemplateCfg);
   const atrasadosAtual = estoqueAtual.filter((c) => isAtrasado(overrides, c));
   const semHistorico = estoqueAtual.filter((c) => !getHistoricoDoProcesso(historico, c.id).length);
 
@@ -64,9 +64,9 @@ export function calcularMetricasUsuario({ claims, overrides, historico, usuarioI
   };
 }
 
-export function calcularMetricasTodosUsuarios({ users, claims, overrides, historico, periodoInicioISO, periodoFimISO }) {
+export function calcularMetricasTodosUsuarios({ users, claims, overrides, historico, periodoInicioISO, periodoFimISO, atendTemplateCfg }) {
   return (users || []).map((u) => ({
     usuarioId: u.id, usuarioNome: u.nome,
-    ...calcularMetricasUsuario({ claims, overrides, historico, usuarioId: u.id, periodoInicioISO, periodoFimISO }),
+    ...calcularMetricasUsuario({ claims, overrides, historico, usuarioId: u.id, periodoInicioISO, periodoFimISO, atendTemplateCfg }),
   }));
 }

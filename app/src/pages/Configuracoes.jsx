@@ -95,7 +95,7 @@ export function Configuracoes() {
           <ConfigGroup title="Processos & Jornada" subtitle="Etapas por ramo, jornadas de atendimento e atribuição de responsável em massa.">
             <AtendimentoStepsEditor atendTemplateCfg={config.corp_atendimento_template} saveConfig={saveConfig} />
             <RamoTemplatesEditor templates={templates} saveConfig={saveConfig} />
-            <AtribuirResponsavelEmMassaCard claims={claims} overrides={overrides} users={records.corp_users || []} actions={actions} canEdit={admin} />
+            <AtribuirResponsavelEmMassaCard claims={claims} overrides={overrides} users={records.corp_users || []} actions={actions} canEdit={admin} atendTemplateCfg={config.corp_atendimento_template} />
           </ConfigGroup>
 
           <ConfigGroup title="Mensagens ao Cliente" subtitle="Templates de WhatsApp por etapa da jornada, usados no botão 'Mensagem para o cliente' do Histórico do sinistro.">

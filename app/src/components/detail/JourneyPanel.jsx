@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import {
-  getAtendTemplate, getRamoTemplate, getComunsSteps, getUserJourney, isAtendimento, STATUS_DEFAULT, getJourneyNotes,
+  getAtendTemplate, getRamoTemplate, getComunsSteps, getOutrosSteps, getUserJourney, isAtendimento, STATUS_DEFAULT, getJourneyNotes,
   stepStatusEhConcluida, stepStatusEhNegativa, stepDateConfig, stepHoraConfig,
 } from "../../logic/claims";
 import { fmtDateHoraBR } from "../../logic/format";
@@ -87,16 +87,18 @@ export function JourneyPanel({ c, overrides, config, actions, canEdit, isAdminUs
       }
     }
     if (!temBranch) {
-      lista.push({ id: "caminho", title: "Definir caminho (Perda Parcial / Perda Integral)", type: "caminho" });
+      lista.push({ id: "caminho", title: "Definir caminho (Perda Parcial / Perda Integral / Outros)", type: "caminho" });
       const tplRamoAt = getRamoTemplate(templates, c.ramo);
       if (uj.caminho === "parcial") lista = lista.concat(tplRamoAt.parcial);
       else if (uj.caminho === "integral") lista = lista.concat(tplRamoAt.integral);
+      else if (uj.caminho === "outros") lista = lista.concat(getOutrosSteps(tplRamoAt));
     }
   } else {
     lista = getComunsSteps(tpl).map((s) => ({ ...s, type: "status" }));
-    lista.push({ id: "caminho", title: "Definir caminho (Perda Parcial / Perda Integral)", type: "caminho" });
+    lista.push({ id: "caminho", title: "Definir caminho (Perda Parcial / Perda Integral / Outros)", type: "caminho" });
     if (uj.caminho === "parcial") lista = lista.concat(tpl.parcial);
     else if (uj.caminho === "integral") lista = lista.concat(tpl.integral);
+    else if (uj.caminho === "outros") lista = lista.concat(getOutrosSteps(tpl));
   }
 
   // Etapa atual = a primeira ainda sem desfecho (mesmo critério de
@@ -172,6 +174,7 @@ export function JourneyPanel({ c, overrides, config, actions, canEdit, isAdminUs
                           <option value="">— Selecione —</option>
                           <option value="parcial">Perda Parcial</option>
                           <option value="integral">Perda Integral</option>
+                          <option value="outros">Outros</option>
                         </select>
                       </div>
                     </div>

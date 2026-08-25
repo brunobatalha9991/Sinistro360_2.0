@@ -19,12 +19,14 @@ export function stepStatusEhConcluida(step, status) {
   if (step && Array.isArray(step.doneStatuses)) return step.doneStatuses.indexOf(status) >= 0;
   return String(status).toLowerCase().indexOf("conclu") >= 0;
 }
-// Encerramento negativo (vermelho) — só existe quando o admin configura
-// explicitamente essa lista; sem configuração, nunca marca negativo (esse
-// conceito não existia antes).
+// Encerramento negativo (vermelho) — mesmo critério de stepStatusEhConcluida:
+// com a lista configurada pelo admin, usa ela; sem configurar ainda, cai no
+// texto ("cancel...") — assim um status "Cancelado" já é reconhecido como
+// negativo sem precisar configurar nada, igual "Concluído" já era pra verde.
 export function stepStatusEhNegativa(step, status) {
-  if (!status || !step || !Array.isArray(step.negativoStatuses)) return false;
-  return step.negativoStatuses.indexOf(status) >= 0;
+  if (!status) return false;
+  if (step && Array.isArray(step.negativoStatuses)) return step.negativoStatuses.indexOf(status) >= 0;
+  return String(status).toLowerCase().indexOf("cancel") >= 0;
 }
 // "Resolvida" = a etapa já teve um desfecho, positivo (verde) ou negativo
 // (vermelho) — usada pra achar a etapa atual (a primeira ainda sem
@@ -69,6 +71,7 @@ export function defaultRamoTemplate() {
       { id: "analise_final", title: "Análise final", statusOptions: [...STATUS_DEFAULT] },
       { id: "conclusao", title: "Conclusão", statusOptions: [...CONCLUSAO_STATUS] },
     ],
+    outros: [{ id: "doc_inicial", title: "Documentação Inicial", statusOptions: [...STATUS_DEFAULT] }],
   };
 }
 export function defaultAtendTemplate() {
@@ -94,16 +97,24 @@ export function getComunsSteps(tpl) {
   if (tpl && Array.isArray(tpl.comuns)) return tpl.comuns;
   return [{ id: "vistoria", title: "Vistoria", statusOptions: (tpl && tpl.vistoriaStatus) || [...STATUS_DEFAULT] }];
 }
+// Terceiro caminho "Outros" (a pedido do usuário), ao lado de Perda Parcial/
+// Integral — ramos já salvos antes dessa opção existir não têm tpl.outros
+// ainda; o padrão em todos eles (novos ou já existentes) é uma única etapa
+// "Documentação Inicial", igual ao padrão de Vistoria em getComunsSteps.
+export function getOutrosSteps(tpl) {
+  if (tpl && Array.isArray(tpl.outros)) return tpl.outros;
+  return [{ id: "doc_inicial", title: "Documentação Inicial", statusOptions: [...STATUS_DEFAULT] }];
+}
 // Porte 1:1 de ensureRamoTemplate() do HTML original, mas puro: devolve um
 // NOVO objeto de templates com o ramo garantido (template padrão + etapas
-// comuns), ou o MESMO objeto (por referência) se já não faltava nada —
-// assim quem chama sabe se precisa salvar ou não.
+// comuns + etapas de "Outros"), ou o MESMO objeto (por referência) se já
+// não faltava nada — assim quem chama sabe se precisa salvar ou não.
 export function ensureRamoTemplateInto(templates, ramo) {
   if (!ramo) return templates;
   const t = templates || {};
-  if (t[ramo] && Array.isArray(t[ramo].comuns)) return t;
+  if (t[ramo] && Array.isArray(t[ramo].comuns) && Array.isArray(t[ramo].outros)) return t;
   const existing = t[ramo] || defaultRamoTemplate();
-  const withComuns = { ...existing, comuns: getComunsSteps(existing) };
+  const withComuns = { ...existing, comuns: getComunsSteps(existing), outros: getOutrosSteps(existing) };
   return { ...t, [ramo]: withComuns };
 }
 export function getAtendTemplate(atendTemplateCfg) {
@@ -251,40 +262,41 @@ function conclusaoStatus(uj) {
   const steps = (uj && uj.steps) || {};
   return String((steps["conclusao"] || {}).status || "");
 }
-// Acha o status de uma etapa pelo TÍTULO (não pelo id) — usado pra Atendimento,
-// onde a etapa pode estar em qualquer lugar da jornada (etapas fixas ou dentro
-// da trilha de um "caminho por tipo"). Depende do título ter sido gravado
-// junto do status (setStepField em JourneyPanel.jsx).
-function findStepStatusByTitle(uj, title) {
-  const steps = (uj && uj.steps) || {};
-  const alvo = title.trim().toLowerCase();
-  for (const k in steps) {
-    const s = steps[k] || {};
-    if (s.title && String(s.title).trim().toLowerCase() === alvo && s.status) return String(s.status);
-  }
-  return "";
+// Situação efetiva de um Atendimento — a pedido do usuário, baseada na
+// ÚLTIMA etapa efetiva do fluxo (já resolvendo a trilha por tipo escolhida,
+// ver atendimentoStepsList) e nas marcações verde/vermelho configuradas
+// pelo admin (doneStatuses/negativoStatuses — ver stepStatusEhConcluida/
+// stepStatusEhNegativa), não mais no NOME fixo da etapa ("Encerramento"/
+// "Status da assistência"): última etapa concluída (verde) → Indenizado;
+// última etapa negativa (vermelho) → Encerrado sem Indenização; sem
+// nenhuma das duas ainda, mas a primeira etapa já concluída → Em
+// andamento; senão, Pendente. Funciona mesmo sem `atendTemplateCfg` (ou
+// ainda não configurado): atendimentoStepsList cai no template padrão.
+function situacaoEfetivaAtendimento(uj, atendTemplateCfg) {
+  const lista = atendimentoStepsList(atendTemplateCfg, uj);
+  if (!lista.length) return { label: "Pendente", cls: "amber" };
+  const steps = uj.steps || {};
+  const ultima = lista[lista.length - 1];
+  const sdUltima = steps[ultima.id] || {};
+  if (stepStatusEhConcluida(ultima, sdUltima.status)) return { label: "Indenizado", cls: "green" };
+  if (stepStatusEhNegativa(ultima, sdUltima.status)) return { label: "Encerrado sem Indenização", cls: "gray" };
+  const primeira = lista[0];
+  const sdPrimeira = steps[primeira.id] || {};
+  if (stepStatusEhConcluida(primeira, sdPrimeira.status)) return { label: "Em andamento", cls: "amber" };
+  return { label: "Pendente", cls: "amber" };
 }
-export function situacaoEfetiva(overrides, c) {
+export function situacaoEfetiva(overrides, c, atendTemplateCfg) {
   const uj = getUserJourney(overrides, c.id) || {};
   if (!journeyTouched(uj)) return mapSituacao(c.situacao);
-  if (isAtendimento(c)) {
-    const encerramento = findStepStatusByTitle(uj, "Encerramento").toLowerCase();
-    if (encerramento.indexOf("sem indeniz") >= 0) return { label: "Encerrado sem Indenização", cls: "gray" };
-    if (encerramento.indexOf("indeniz") >= 0) return { label: "Indenizado", cls: "green" };
-    const statusAssist = findStepStatusByTitle(uj, "Status da assistência").toLowerCase();
-    if (statusAssist.indexOf("cancel") >= 0) return { label: "Encerrado sem Indenização", cls: "gray" };
-    if (statusAssist.indexOf("conclu") >= 0) return { label: "Indenizado", cls: "green" };
-    if (statusAssist.indexOf("andamento") >= 0) return { label: "Em andamento", cls: "amber" };
-    return { label: "Pendente", cls: "amber" };
-  }
+  if (isAtendimento(c)) return situacaoEfetivaAtendimento(uj, atendTemplateCfg);
   if (!uj.caminho) return { label: "Pendente", cls: "amber" };
   const cs = conclusaoStatus(uj).toLowerCase();
   if (cs.indexOf("sem indeniz") >= 0) return { label: "Encerrado sem Indenização", cls: "gray" };
   if (cs.indexOf("indeniz") >= 0) return { label: "Indenizado", cls: "green" };
   return { label: "Em andamento", cls: "amber" };
 }
-export function isFinalizado(overrides, c) {
-  const s = situacaoEfetiva(overrides, c).label;
+export function isFinalizado(overrides, c, atendTemplateCfg) {
+  const s = situacaoEfetiva(overrides, c, atendTemplateCfg).label;
   return s === "Indenizado" || s === "Encerrado sem Indenização";
 }
 export function isAtrasado(overrides, c) {
@@ -292,8 +304,8 @@ export function isAtrasado(overrides, c) {
   if (!na || !na.date) return false;
   return na.date < new Date().toISOString().slice(0, 10);
 }
-export function isSemAtualizacao(overrides, c) {
-  if (isFinalizado(overrides, c)) return false;
+export function isSemAtualizacao(overrides, c, atendTemplateCfg) {
+  if (isFinalizado(overrides, c, atendTemplateCfg)) return false;
   const comms = loadComms(overrides, c.id);
   if (!comms.length) return true;
   const ultimo = comms[comms.length - 1];
@@ -445,6 +457,7 @@ export function allJourneyStages(templates, atendTemplateCfg) {
     const t = templates[ramo] || {};
     (t.parcial || []).forEach((s) => add(s.title));
     (t.integral || []).forEach((s) => add(s.title));
+    getOutrosSteps(t).forEach((s) => add(s.title));
   });
   (getAtendTemplate(atendTemplateCfg).steps || []).forEach((s) => {
     add(s.title);
@@ -476,7 +489,7 @@ export function journeyStageLabel(title, statusMap) {
 }
 
 export function currentStage(overrides, templates, atendTemplateCfg, c) {
-  const sit = situacaoEfetiva(overrides, c).label;
+  const sit = situacaoEfetiva(overrides, c, atendTemplateCfg).label;
   if (sit === "Indenizado" || sit === "Encerrado sem Indenização") return "";
   const uj = getUserJourney(overrides, c.id) || {};
   const steps = uj.steps || {};
@@ -501,7 +514,7 @@ export function currentStage(overrides, templates, atendTemplateCfg, c) {
     }
     if (!uj.caminho) return "Definir caminho";
     const tplAt = getRamoTemplate(templates, c.ramo);
-    const listaCam = uj.caminho === "parcial" ? (tplAt.parcial || []) : uj.caminho === "integral" ? (tplAt.integral || []) : [];
+    const listaCam = uj.caminho === "parcial" ? (tplAt.parcial || []) : uj.caminho === "integral" ? (tplAt.integral || []) : uj.caminho === "outros" ? getOutrosSteps(tplAt) : [];
     for (let k = 0; k < listaCam.length; k++) {
       const sdC = steps[listaCam[k].id] || {};
       if (!stepStatusResolvida(listaCam[k], sdC.status)) return listaCam[k].title;
@@ -516,7 +529,7 @@ export function currentStage(overrides, templates, atendTemplateCfg, c) {
     if (!stepStatusResolvida(comuns[m], sdC.status)) return comuns[m].title;
   }
   if (!uj.caminho) return "Definir caminho";
-  const lista = uj.caminho === "parcial" ? (tpl.parcial || []) : uj.caminho === "integral" ? (tpl.integral || []) : [];
+  const lista = uj.caminho === "parcial" ? (tpl.parcial || []) : uj.caminho === "integral" ? (tpl.integral || []) : uj.caminho === "outros" ? getOutrosSteps(tpl) : [];
   for (let i = 0; i < lista.length; i++) {
     const sd = steps[lista[i].id] || {};
     if (!stepStatusResolvida(lista[i], sd.status)) return lista[i].title;
@@ -555,7 +568,7 @@ export function dashOficinaKey(overrides, oficina) {
 }
 export function tipoPartyLabel(v) { return v === "Aviso" ? "Atendimento" : v; }
 
-export function buildAggregation(overrides, rows, keyFn) {
+export function buildAggregation(overrides, rows, keyFn, atendTemplateCfg) {
   const map = {};
   rows.forEach((c) => {
     const k = keyFn(c);
@@ -571,8 +584,8 @@ export function buildAggregation(overrides, rows, keyFn) {
       const tmr = diasEntre(c.datavi, uj.steps.conclusao.date); if (tmr != null && tmr >= 0) g.tmrArr.push(tmr);
     }
     if (isAtrasado(overrides, c)) g.atrasados++;
-    if (isSemAtualizacao(overrides, c)) g.semAtu++;
-    if (situacaoEfetiva(overrides, c).label === "Indenizado") g.indenizados++;
+    if (isSemAtualizacao(overrides, c, atendTemplateCfg)) g.semAtu++;
+    if (situacaoEfetiva(overrides, c, atendTemplateCfg).label === "Indenizado") g.indenizados++;
   });
   return Object.keys(map).map((k) => {
     const g = map[k];

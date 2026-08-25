@@ -13,11 +13,12 @@ export const analisarDesempenhoTool = {
   },
   requiresConfirmation: false,
   run(args, ctx) {
-    const { records } = ctx;
+    const { records, config } = ctx;
     const users = records.corp_users || [];
     const claims = records.corp_claims || [];
     const overrides = records.corp_overrides || {};
     const historico = records.corp_responsabilidade_historico || [];
+    const atendTemplateCfg = config && config.corp_atendimento_template;
 
     const inicioISO = args.periodoInicio ? args.periodoInicio + "T00:00:00.000Z" : null;
     const fimISO = args.periodoFim ? args.periodoFim + "T23:59:59.999Z" : null;
@@ -27,14 +28,14 @@ export const analisarDesempenhoTool = {
       const q = String(args.usuarioNome).trim().toLowerCase();
       const usuario = users.find((u) => u.nome.toLowerCase().indexOf(q) >= 0);
       if (!usuario) return { error: `Usuário "${args.usuarioNome}" não encontrado.` };
-      const m = calcularMetricasUsuario({ claims, overrides, historico, usuarioId: usuario.id, periodoInicioISO: inicioISO, periodoFimISO: fimISO });
+      const m = calcularMetricasUsuario({ claims, overrides, historico, usuarioId: usuario.id, periodoInicioISO: inicioISO, periodoFimISO: fimISO, atendTemplateCfg });
       return {
         usuario: usuario.nome, metricas: m, metodologia,
         fontes: [{ tipo: "regra", id: "analise_desempenho:" + usuario.id, descricao: `Métricas de desempenho de ${usuario.nome}`, data_hora: new Date().toISOString(), url_interna: "#/desempenho" }],
       };
     }
 
-    const todos = calcularMetricasTodosUsuarios({ users, claims, overrides, historico, periodoInicioISO: inicioISO, periodoFimISO: fimISO });
+    const todos = calcularMetricasTodosUsuarios({ users, claims, overrides, historico, periodoInicioISO: inicioISO, periodoFimISO: fimISO, atendTemplateCfg });
     return {
       usuarios: todos, metodologia,
       fontes: [{ tipo: "regra", id: "analise_desempenho:todos", descricao: "Métricas de desempenho de todos os usuários", data_hora: new Date().toISOString(), url_interna: "#/desempenho" }],
