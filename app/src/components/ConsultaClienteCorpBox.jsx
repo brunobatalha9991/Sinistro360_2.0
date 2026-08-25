@@ -1,5 +1,5 @@
 import { Fragment, useState } from "react";
-import { buscarClientes, buscarClienteDetalhado } from "../logic/corpApi";
+import { buscarClientes, buscarClienteDetalhado, buscarLigacoesCliente, fetchDocumento, extractUrlApolice } from "../logic/corpApi";
 import { clienteIdFromNome } from "../logic/clientes";
 import { uid } from "../logic/format";
 
@@ -16,6 +16,8 @@ export function ConsultaClienteCorpBox({ config, clienteActions, navigate }) {
   const [erro, setErro] = useState(null);
   const [resultados, setResultados] = useState(null);
   const [detalhes, setDetalhes] = useState({});
+  const [ligacoes, setLigacoes] = useState({});
+  const [apolices, setApolices] = useState({});
   const [importados, setImportados] = useState({});
 
   function buscar() {
@@ -42,6 +44,41 @@ export function ConsultaClienteCorpBox({ config, clienteActions, navigate }) {
     buscarClienteDetalhado(cfg, c.codfil, c.codigo)
       .then((dados) => setDetalhes((s) => ({ ...s, [chave]: { carregando: false, aberto: true, dados, erro: dados ? null : "Cliente não encontrado." } })))
       .catch((e) => setDetalhes((s) => ({ ...s, [chave]: { carregando: false, aberto: true, erro: e.message } })));
+    // Apólices/documentos vinculados ao cliente (a pedido do usuário) —
+    // GET /cliente_ligacoes?codigo= traz codfil+nosnum de cada documento;
+    // a URL assinada do PDF em si só vem chamando /documento por item (ver
+    // verApolice), então busca só a lista aqui.
+    setLigacoes((s) => ({ ...s, [chave]: { carregando: true } }));
+    buscarLigacoesCliente(cfg, c.codigo)
+      .then((docs) => setLigacoes((s) => ({ ...s, [chave]: { carregando: false, docs } })))
+      .catch((e) => setLigacoes((s) => ({ ...s, [chave]: { carregando: false, erro: e.message } })));
+  }
+
+  // Busca a URL assinada do PDF (fetchDocumento, mesmo usado na consulta
+  // por sinistro) pra 1 documento da lista de ligações, abre numa aba nova
+  // e já anexa no cadastro do cliente (não precisa ter clicado "Importar"
+  // antes — o clienteId é derivado só do nome).
+  function verApolice(c, doc) {
+    const chaveDoc = `${doc.codfil}|${doc.nosnum}`;
+    setApolices((s) => ({ ...s, [chaveDoc]: { carregando: true } }));
+    fetchDocumento(cfg, doc.codfil, doc.nosnum)
+      .then((resp) => {
+        const url = extractUrlApolice(resp);
+        setApolices((s) => ({ ...s, [chaveDoc]: { carregando: false, url: url || null, erro: url ? null : "Nenhuma apólice encontrada para este documento." } }));
+        if (url) {
+          window.open(url, "_blank", "noreferrer");
+          const nome = String(c.nome || "").trim();
+          if (nome) {
+            const clienteId = clienteIdFromNome(nome);
+            const jaTem = ((clienteActions.clientes[clienteId] || {}).anexos || []).some((a) => a.url === url);
+            if (!jaTem) {
+              const nomeAnexo = "Apólice" + (doc.numapo ? ` ${doc.numapo}` : "") + (doc.seguradora ? ` — ${doc.seguradora}` : "");
+              clienteActions.addAnexo(clienteId, { id: uid("anx"), nome: nomeAnexo, url, adicionadoEm: new Date().toISOString() });
+            }
+          }
+        }
+      })
+      .catch((e) => setApolices((s) => ({ ...s, [chaveDoc]: { carregando: false, erro: e.message } })));
   }
 
   // Importa nome + CPF/CNPJ + contato (telefone/e-mail) pro cadastro do
@@ -142,6 +179,41 @@ export function ConsultaClienteCorpBox({ config, clienteActions, navigate }) {
                               {Array.isArray(det.dados.emails) && det.dados.emails.length > 0 && (
                                 <div style={{ marginTop: 6 }}><b>E-mails:</b> {det.dados.emails.join(", ")}</div>
                               )}
+
+                              <div style={{ marginTop: 10, borderTop: "1px solid var(--border)", paddingTop: 8 }}>
+                                <b>Apólices / documentos do cliente</b>
+                                {(!ligacoes[chave] || ligacoes[chave].carregando) && <div className="muted">Buscando...</div>}
+                                {ligacoes[chave] && ligacoes[chave].erro && <div style={{ color: "var(--danger)" }}>{ligacoes[chave].erro}</div>}
+                                {ligacoes[chave] && ligacoes[chave].docs && !ligacoes[chave].docs.length && (
+                                  <div className="muted">Nenhuma apólice/documento encontrado pra este cliente.</div>
+                                )}
+                                {ligacoes[chave] && ligacoes[chave].docs && ligacoes[chave].docs.length > 0 && (
+                                  <table style={{ marginTop: 6 }}>
+                                    <thead><tr><th>Apólice</th><th>Seguradora</th><th>Ramo</th><th>Vigência</th><th>Situação</th><th>PDF</th></tr></thead>
+                                    <tbody>
+                                      {ligacoes[chave].docs.map((doc, di) => {
+                                        const chaveDoc = `${doc.codfil}|${doc.nosnum}`;
+                                        const ap = apolices[chaveDoc];
+                                        return (
+                                          <tr key={chaveDoc + di}>
+                                            <td className="mono">{doc.numapo || "—"}</td>
+                                            <td>{doc.seguradora || "—"}</td>
+                                            <td>{doc.ramo || "—"}</td>
+                                            <td>{doc.inivig || "—"} a {doc.fimvig || "—"}</td>
+                                            <td>{doc.sit_acompanhamento_txt || "—"}</td>
+                                            <td>
+                                              {ap && ap.carregando ? "Buscando..." : ap && ap.url ? <a href={ap.url} target="_blank" rel="noreferrer">Abrir</a> : (
+                                                <button className="btn ghost xs" onClick={() => verApolice(c, doc)}>Ver</button>
+                                              )}
+                                              {ap && ap.erro && <div className="muted" style={{ fontSize: 10.5 }}>{ap.erro}</div>}
+                                            </td>
+                                          </tr>
+                                        );
+                                      })}
+                                    </tbody>
+                                  </table>
+                                )}
+                              </div>
                             </div>
                           </td>
                         </tr>

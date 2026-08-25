@@ -81,6 +81,19 @@ export function buscarClienteDetalhado(cfg, codfil, codigo) {
     .catch((e) => { if (e.status === 404) return null; throw e; });
 }
 
+// Documentos/apólices vinculados a um cliente (GET /cliente_ligacoes?codigo=)
+// — a pedido do usuário: achar a apólice de um cliente sem precisar já ter
+// um sinistro aqui. Devolve os mesmos campos de fetchDocumento (seguradora,
+// ramo, vigência, parcelas, numapo...), um item por documento vinculado ao
+// cliente — mas SEM a URL assinada do PDF (essa só vem de fetchDocumento/
+// extractUrlApolice, chamado à parte pra cada `codfil`+`nosnum` daqui).
+export function buscarLigacoesCliente(cfg, codigo) {
+  const qs = `codigo=${encodeURIComponent(codigo)}`;
+  return withAuth(cfg, () => request(cfg, "/cliente_ligacoes?" + qs, { method: "GET" }))
+    .then((resp) => (resp && Array.isArray(resp.documento) && resp.documento) || [])
+    .catch((e) => { if (e.status === 404) return []; throw e; });
+}
+
 // Consulta AO VIVO no CORP por nome/placa, sem gravar nada aqui (a pedido
 // do usuário: trazer a base inteira de clientes pra sincronizar ficaria
 // pesado sem necessidade — a maior parte nunca seria usada; melhor buscar
