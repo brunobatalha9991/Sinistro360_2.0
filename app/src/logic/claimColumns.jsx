@@ -22,7 +22,7 @@ export function getAllCols({ overrides, allClaimsRaw, navigate, atendTemplateCfg
       cell: (c) => <a className="mono" onClick={() => navigate("sinistro", c.id)}>{campoEfetivo(overrides, c, "numsin") || "#" + c.nosnum}</a>,
       sortValue: (c) => campoEfetivo(overrides, c, "numsin") || "#" + c.nosnum,
     },
-    { key: "segurado", label: "Nome", cell: (c) => txt(campoEfetivo(overrides, c, "segurado")), sortValue: (c) => campoEfetivo(overrides, c, "segurado") || "" },
+    { key: "segurado", label: "Nome", cell: (c) => <span className="nome-cliente">{txt(campoEfetivo(overrides, c, "segurado"))}</span>, sortValue: (c) => campoEfetivo(overrides, c, "segurado") || "" },
     { key: "placa", label: "Placa", cell: (c) => <span className="mono">{txt(campoEfetivo(overrides, c, "placa"))}</span>, sortValue: (c) => campoEfetivo(overrides, c, "placa") || "" },
     { key: "cia", label: "Seguradora", cell: (c) => txt(campoEfetivo(overrides, c, "cia")), sortValue: (c) => campoEfetivo(overrides, c, "cia") || "" },
     { key: "ramo", label: "Ramo", cell: (c) => txt(campoEfetivo(overrides, c, "ramo")), sortValue: (c) => campoEfetivo(overrides, c, "ramo") || "" },

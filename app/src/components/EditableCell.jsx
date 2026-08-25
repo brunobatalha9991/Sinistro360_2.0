@@ -4,7 +4,7 @@ import { campoEfetivo, campoFoiEditado } from "../logic/claims";
 // Porte 1:1 de editableCell() do HTML original: clique no valor ou no lápis
 // abre um input/select; salva ao sair do campo (ou ao trocar, no caso do
 // select); Escape cancela sem salvar.
-export function EditableCell({ c, campo, overrides, canEdit, onCommit, type, options, emptyLabel, novoLabel, promptMsg }) {
+export function EditableCell({ c, campo, overrides, canEdit, onCommit, type, options, emptyLabel, novoLabel, promptMsg, className }) {
   const [editing, setEditing] = useState(false);
   const valAtual = campoEfetivo(overrides, c, campo);
   const edited = campoFoiEditado(overrides, c, campo);
@@ -19,7 +19,7 @@ export function EditableCell({ c, campo, overrides, canEdit, onCommit, type, opt
     return (
       <span style={{ display: "inline-flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
         {edited && <span className="tag-manual">editado</span>}
-        <span style={{ cursor: "pointer" }} onClick={openEditor}>
+        <span className={className} style={{ cursor: "pointer" }} onClick={openEditor}>
           {valAtual == null || String(valAtual).trim() === "" ? "—" : String(valAtual)}
         </span>
         <a title="Editar" style={{ opacity: 0.6, cursor: "pointer" }} onClick={openEditor}>✎</a>

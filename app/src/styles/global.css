@@ -124,7 +124,11 @@ body{
   transition:background-color .4s ease,color .3s ease;
 }
 a{color:var(--brand);text-decoration:none;cursor:pointer;transition:color .15s ease}
-h1,h2,h3,h4{font-family:var(--font-display);letter-spacing:-.01em;color:var(--ink)}
+h1,h2,h3,h4{font-family:var(--font-display);letter-spacing:-.01em;color:var(--ink);text-transform:uppercase}
+/* Nome de cliente (a pedido do usuário: caixa alta em todo título e nome de
+   cliente, pra ficar padrão) — só o visual muda, o dado gravado continua
+   com a grafia original (ex.: campoEfetivo/segurado). */
+.nome-cliente{text-transform:uppercase}
 ::selection{background:var(--brand);color:#fff}
 ::-webkit-scrollbar{width:10px;height:10px}
 ::-webkit-scrollbar-track{background:transparent}

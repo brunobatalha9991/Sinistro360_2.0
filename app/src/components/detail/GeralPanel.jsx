@@ -86,7 +86,7 @@ export function GeralPanel({ c, claims, overrides, actions, canEdit, config, nav
     ["Tipo de parte", <span>{c.partyType}</span>],
     ["Nº do sinistro", cell("numsin")],
     ["Tipo (API)", <span>{txt(c.tipo)}</span>],
-    ["Nome", cell("segurado")],
+    ["Nome", cell("segurado", { className: "nome-cliente" })],
     ["Placa", cell("placa")],
     ["Seguradora", cell("cia", { type: "select", options: segOpts, emptyLabel: "Nenhuma", novoLabel: "+ Nova seguradora...", promptMsg: "Nome da nova seguradora:" })],
     ["Ramo", cell("ramo")],
