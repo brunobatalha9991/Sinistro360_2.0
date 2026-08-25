@@ -365,9 +365,24 @@ export function DetailHeader({ c, sit, rel, claims, allClaimsRaw, overrides, use
     ) : null,
   };
 
+  // Exclusão definitiva do processo (a pedido do usuário) — só Administrador,
+  // Atendente e Analista (mesmo perfil de canEdit; Consulta não vê o botão).
+  function excluirProcesso() {
+    if (!canEdit) return;
+    const aviso = isManualClaim(c)
+      ? "Esta ação não pode ser desfeita."
+      : "Esta ação não pode ser desfeita. Se o período sincronizado ainda incluir este processo, ele pode voltar numa próxima sincronização com a API.";
+    if (!confirm(`Excluir definitivamente o processo ${numsinEf || "#" + c.nosnum} — ${txt(seguradoEf)}? ${aviso}`)) return;
+    actions.excluirProcesso(c.id);
+    navigate("sinistros");
+  }
+
   return (
     <div className="detail-head">
-      <button className="btn sec sm" style={{ marginBottom: 12 }} onClick={() => navigate("sinistros")}>← Voltar aos sinistros</button>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 8, marginBottom: 12 }}>
+        <button className="btn sec sm" onClick={() => navigate("sinistros")}>← Voltar aos sinistros</button>
+        {canEdit && <button className="btn danger sm" onClick={excluirProcesso}>🗑 Excluir processo</button>}
+      </div>
       <h1>{(numsinEf ? "Sinistro " + numsinEf : "Registro #" + c.nosnum) + " — " + txt(seguradoEf)}</h1>
       <div className="sub">Placa {txt(placaEf)} • {txt(ciaEf)} • Ramo {txt(ramoEf)} • Apólice {txt(numapoEf)} • Oficina {txt(oficinaEf)}</div>
 

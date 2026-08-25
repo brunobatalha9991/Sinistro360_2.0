@@ -165,5 +165,21 @@ export function useOverrideActions() {
         return { ...cur, [claimId]: { ...existing, audit: [...(existing.audit || []), entry] } };
       });
     },
+    // Exclusão definitiva do processo (a pedido do usuário) — remove de
+    // corp_claims e limpa o override associado (jornada, histórico,
+    // financeiro, auditoria...). Só disponível pra Administrador, Atendente
+    // e Analista (mesmo perfil de canEdit — ver DetailHeader.jsx). Um
+    // processo vindo da API pode voltar numa próxima sincronização se o
+    // período consultado incluir ele de novo — só é definitivo mesmo pra
+    // processos criados manualmente.
+    excluirProcesso(claimId) {
+      saveRecord("corp_claims", (current) => (current || []).filter((c) => c.id !== claimId));
+      saveRecord("corp_overrides", (current) => {
+        const cur = current || {};
+        if (!cur[claimId]) return cur;
+        const { [claimId]: _drop, ...rest } = cur;
+        return rest;
+      });
+    },
   };
 }
