@@ -11,6 +11,8 @@ import { EmptyState } from "../EmptyState.jsx";
 export function RamoTemplatesEditor({ templates, saveConfig }) {
   const [novoRamo, setNovoRamo] = useState("");
   const ramos = Object.keys(templates).sort();
+  const [origemRepl, setOrigemRepl] = useState("");
+  const [destinoRepl, setDestinoRepl] = useState("");
 
   function patch(ramo, patchFn) {
     saveConfig("corp_journey_templates", (current) => {
@@ -26,6 +28,18 @@ export function RamoTemplatesEditor({ templates, saveConfig }) {
     patch(r, (tpl) => ({ ...tpl, comuns: getComunsSteps(tpl) }));
     setNovoRamo("");
   }
+  // Replica a jornada inteira (etapas comuns, Perda Parcial e Perda
+  // Integral, com status, config de data e marcação verde/vermelho de
+  // cada um) de um ramo pra outro — a pedido do usuário, pra não ter que
+  // recriar tudo manualmente quando dois ramos usam o mesmo fluxo.
+  // Substitui por completo a configuração do ramo de destino.
+  function replicar() {
+    if (!origemRepl || !destinoRepl || origemRepl === destinoRepl) return;
+    if (!confirm(`Isso vai substituir toda a configuração de jornada do ramo "${destinoRepl}" pela do ramo "${origemRepl}". Continuar?`)) return;
+    const origemTpl = templates[origemRepl] || defaultRamoTemplate();
+    patch(destinoRepl, () => JSON.parse(JSON.stringify({ ...origemTpl, comuns: getComunsSteps(origemTpl) })));
+    setOrigemRepl(""); setDestinoRepl("");
+  }
 
   return (
     <div className="card">
@@ -36,6 +50,22 @@ export function RamoTemplatesEditor({ templates, saveConfig }) {
         <input className="inline" placeholder="Ex.: RESI, VIDA..." style={{ minWidth: 160 }} value={novoRamo} onChange={(e) => setNovoRamo(e.target.value)} />
         <button className="btn sec sm" onClick={adicionarRamo}>+ Adicionar ramo</button>
       </div>
+
+      {ramos.length > 1 && (
+        <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap", marginBottom: 14, padding: 10, border: "1px solid var(--border)", borderRadius: 8, background: "var(--surface-2)" }}>
+          <span className="muted" style={{ fontSize: 12.5 }}>Replicar configuração:</span>
+          <select className="inline" value={origemRepl} onChange={(e) => setOrigemRepl(e.target.value)}>
+            <option value="">Do ramo...</option>
+            {ramos.map((r) => <option key={r} value={r}>{r}</option>)}
+          </select>
+          <span className="muted" style={{ fontSize: 12.5 }}>para</span>
+          <select className="inline" value={destinoRepl} onChange={(e) => setDestinoRepl(e.target.value)}>
+            <option value="">o ramo...</option>
+            {ramos.filter((r) => r !== origemRepl).map((r) => <option key={r} value={r}>{r}</option>)}
+          </select>
+          <button className="btn sec sm" disabled={!origemRepl || !destinoRepl} onClick={replicar}>Replicar</button>
+        </div>
+      )}
 
       {!ramos.length && <EmptyState>Nenhum ramo ainda. Sincronize os sinistros ou adicione um ramo manualmente.</EmptyState>}
 
