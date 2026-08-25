@@ -158,10 +158,12 @@ export function DetailHeader({ c, sit, rel, claims, allClaimsRaw, overrides, use
   const oficinaEf = campoEfetivo(overrides, c, "oficina");
 
   function changeTemp(v) {
+    if (!canEdit) return;
     actions.saveTemp(c.id, v);
     actions.logAudit(c.id, "Temperatura alterada", v || "(sem)");
   }
   function changeSit(v) {
+    if (!canEdit) return;
     actions.saveSitAtend(c.id, v);
     actions.logAudit(c.id, "Situação de atendimento", v || "(sem)");
   }
@@ -243,7 +245,7 @@ export function DetailHeader({ c, sit, rel, claims, allClaimsRaw, overrides, use
 
     situacao: (
       <span className="badge chip-live blue" style={{ gap: 6 }}>
-        <select className="inline" value={sitAt} onChange={(e) => changeSit(e.target.value)}>
+        <select className="inline" value={sitAt} disabled={!canEdit} onChange={(e) => changeSit(e.target.value)}>
           <option value="">Situação...</option>
           {sitOpts.map((op) => <option key={op} value={op}>{op}</option>)}
         </select>
@@ -259,7 +261,7 @@ export function DetailHeader({ c, sit, rel, claims, allClaimsRaw, overrides, use
 
     atendimento: (
       <span className={"badge chip-live " + tempClr + (tempUrgente ? " neon-alert" : "")} style={{ gap: 6, ...(tempUrgente ? { "--neon-rgb": "var(--danger-rgb)" } : {}) }} title={tempUrgente ? "Atendimento requer atenção" : ""}>
-        <select className="inline" value={temp} onChange={(e) => changeTemp(e.target.value)}>
+        <select className="inline" value={temp} disabled={!canEdit} onChange={(e) => changeTemp(e.target.value)}>
           <option value="">🌡 Atendimento...</option>
           {tempOpts.map((op) => <option key={op} value={op}>{op}</option>)}
         </select>
