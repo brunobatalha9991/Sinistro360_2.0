@@ -143,6 +143,67 @@ export function atendimentoStepsList(atendTemplateCfg, uj) {
   }
   return lista;
 }
+// Última etapa efetiva de um processo (ramo ou Atendimento), já resolvendo
+// caminho/trilha escolhida — mesmo critério de situacaoEfetivaAtendimento,
+// generalizado aqui pra também servir o caminho por ramo (Perda Parcial/
+// Integral/Outros). Usado pelo módulo Desempenho pra saber a data do
+// desfecho (sd.concludedAt) de um processo, pra atribuir "finalizado em
+// tal dia" a quem era responsável naquele instante.
+export function ultimaEtapaEfetiva(overrides, templates, atendTemplateCfg, c) {
+  const uj = getUserJourney(overrides, c.id) || {};
+  if (isAtendimento(c)) {
+    const lista = atendimentoStepsList(atendTemplateCfg, uj);
+    return lista.length ? lista[lista.length - 1] : null;
+  }
+  const tpl = getRamoTemplate(templates, c.ramo);
+  const lista = uj.caminho === "parcial" ? (tpl.parcial || [])
+    : uj.caminho === "integral" ? (tpl.integral || [])
+    : uj.caminho === "outros" ? getOutrosSteps(tpl) : [];
+  return lista.length ? lista[lista.length - 1] : null;
+}
+// Instante em que o processo deixou de ser "Pendente" e passou a "Em
+// andamento" — mesmo critério de situacaoEfetiva/situacaoEfetivaAtendimento,
+// mas devolvendo O INSTANTE da transição em vez do rótulo atual. Usado pelo
+// módulo Desempenho pra cruzar com o histórico de responsabilidade e saber
+// quanto tempo cada processo ficou Pendente/Em andamento sob cada usuário.
+// - Atendimento: é quando a primeira etapa efetiva foi concluída
+//   (sd.concludedAt) — dado que já existe, nada aproximado aqui.
+// - Por ramo: é quando o caminho (Perda Parcial/Integral/Outros) foi
+//   escolhido (uj.caminhoDefinidoEm, gravado a partir de agora em
+//   JourneyPanel.setCaminho). Processo cujo caminho já estava escolhido
+//   ANTES dessa gravação existir não tem essa data — aproxima pela data mais
+//   antiga encontrada nas etapas do caminho escolhido (`aproximado: true`).
+//   Sem nenhuma evidência nem assim, `indeterminado: true` — quem chama não
+//   deve tratar isso como "ainda Pendente", só não tem como saber quando.
+export function inicioAndamentoEm(overrides, templates, atendTemplateCfg, c) {
+  const uj = getUserJourney(overrides, c.id) || {};
+  if (isAtendimento(c)) {
+    const lista = atendimentoStepsList(atendTemplateCfg, uj);
+    if (!lista.length) return { em: null, aproximado: false, indeterminado: false };
+    const primeira = lista[0];
+    const sd = (uj.steps || {})[primeira.id] || {};
+    if (!stepStatusEhConcluida(primeira, sd.status)) return { em: null, aproximado: false, indeterminado: false };
+    return sd.concludedAt
+      ? { em: sd.concludedAt, aproximado: false, indeterminado: false }
+      : { em: null, aproximado: false, indeterminado: true };
+  }
+  if (!uj.caminho) return { em: null, aproximado: false, indeterminado: false };
+  if (uj.caminhoDefinidoEm) return { em: uj.caminhoDefinidoEm, aproximado: false, indeterminado: false };
+  const tpl = getRamoTemplate(templates, c.ramo);
+  const passos = uj.caminho === "parcial" ? (tpl.parcial || [])
+    : uj.caminho === "integral" ? (tpl.integral || [])
+    : uj.caminho === "outros" ? getOutrosSteps(tpl) : [];
+  const datas = [];
+  passos.forEach((step) => {
+    const sd = (uj.steps || {})[step.id];
+    if (!sd) return;
+    if (sd.firstSetAt) datas.push(sd.firstSetAt);
+    if (sd.concludedAt) datas.push(sd.concludedAt);
+  });
+  if (!datas.length) return { em: null, aproximado: true, indeterminado: true };
+  datas.sort();
+  return { em: datas[0], aproximado: true, indeterminado: false };
+}
 // Etapas de Atendimento deste processo com horário configurado (ver
 // stepHoraConfig), data+hora já no passado e ainda sem desfecho — o
 // alarme visual (useHorarioAlarme.js) dispara pra cada uma dessas.

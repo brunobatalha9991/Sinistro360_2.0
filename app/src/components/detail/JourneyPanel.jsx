@@ -21,7 +21,15 @@ export function JourneyPanel({ c, overrides, config, actions, canEdit, isAdminUs
     if (!canEdit) return;
     actions.saveUserJourney(c.id, nextUj);
   }
-  function setCaminho(v) { persist({ ...uj, caminho: v, steps }); }
+  // caminhoDefinidoEm: grava (uma vez só, nunca sobrescrito) quando o
+  // caminho foi de fato escolhido — usado pelo módulo Desempenho pra saber
+  // o instante em que o processo deixou de ser "Pendente" (ver
+  // inicioAndamentoEm em logic/claims.js).
+  function setCaminho(v) {
+    const next = { ...uj, caminho: v, steps };
+    if (v && !uj.caminhoDefinidoEm) next.caminhoDefinidoEm = new Date().toISOString();
+    persist(next);
+  }
   // Grava o título da etapa junto com o status — situacaoEfetiva() usa isso
   // pra reconhecer etapas como "Encerramento" e "Status da assistência" em
   // processos de Atendimento sem precisar carregar o template inteiro.
@@ -49,13 +57,20 @@ export function JourneyPanel({ c, overrides, config, actions, canEdit, isAdminUs
       // atual.
       sd.date = "";
       sd.hora = "";
-      if (stepStatusEhConcluida(step, value)) {
+      const concluida = stepStatusEhConcluida(step, value);
+      const negativa = !concluida && stepStatusEhNegativa(step, value);
+      if (concluida || negativa) {
+        // concludedAt marca quando a etapa teve UM desfecho, positivo ou
+        // negativo — usado pelo módulo Oficinas (tempo médio de reparo) e
+        // pelo módulo Desempenho (data do desfecho do processo, ver
+        // ultimaEtapaEfetiva em logic/claims.js).
         sd.concludedAt = agora;
         sd.concludedBy = quem;
         // Só exige (e avisa sobre) a data quando este status realmente tem
         // campo de data configurado (ver stepDateConfig) — etapa sem esse
-        // campo resolve/minimiza na hora, sem alerta nenhum.
-        if (stepDateConfig(step, value).show) {
+        // campo resolve/minimiza na hora, sem alerta nenhum. O aviso só faz
+        // sentido pro desfecho positivo (a redação já assume "concluída").
+        if (concluida && stepDateConfig(step, value).show) {
           alert("Etapa concluída — preencha a data de conclusão. A etapa só minimiza automaticamente depois que a data for informada.");
         }
       } else {

@@ -15,6 +15,9 @@
 // escolhido pelo campo `contexto`, nunca pelo usuário final.
 export const CONTEXTO_MESA_ATENDIMENTO = "mesa_atendimento";
 export const CONTEXTO_ANEXOS_PROCESSO = "processo";
+// Foto de perfil no módulo Desempenho (a pedido do usuário) — reaproveita
+// o mesmo endpoint/Apps Script, só numa pasta-contexto própria.
+export const CONTEXTO_PERFIL_USUARIO = "perfil_usuario";
 
 export function isDriveUploadConfigured(config) {
   return !!String((config && config.corp_drive_upload_endpoint) || "").trim();
