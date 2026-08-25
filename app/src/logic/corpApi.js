@@ -77,8 +77,10 @@ export function buscarClientes(cfg, { texto, qtdPag, pag, vigentes } = {}) {
 export function buscarClienteDetalhado(cfg, codfil, codigo) {
   const qs = `codfil=${encodeURIComponent(codfil)}&codigo=${encodeURIComponent(codigo)}`;
   return withAuth(cfg, () => request(cfg, "/cliente?" + qs, { method: "GET" }))
-    .then((resp) => (resp && Array.isArray(resp.cliente) && resp.cliente[0]) || null)
-    .catch((e) => { if (e.status === 404) return null; throw e; });
+    .then((resp) => (resp && Array.isArray(resp.cliente) && resp.cliente[0]) || null);
+  // Não engole 404 aqui — se o CORP recusar por motivo diferente de "não
+  // achou" (parâmetro errado, permissão, etc.), o erro real precisa
+  // aparecer na tela em vez de virar silenciosamente "não encontrado".
 }
 
 // Documentos/apólices vinculados a um cliente (GET /cliente_ligacoes?codigo=)
@@ -90,8 +92,9 @@ export function buscarClienteDetalhado(cfg, codfil, codigo) {
 export function buscarLigacoesCliente(cfg, codigo) {
   const qs = `codigo=${encodeURIComponent(codigo)}`;
   return withAuth(cfg, () => request(cfg, "/cliente_ligacoes?" + qs, { method: "GET" }))
-    .then((resp) => (resp && Array.isArray(resp.documento) && resp.documento) || [])
-    .catch((e) => { if (e.status === 404) return []; throw e; });
+    .then((resp) => (resp && Array.isArray(resp.documento) && resp.documento) || []);
+  // Idem: não engole 404 — deixa o erro real (ou a mensagem "sem
+  // documentos" que o próprio CORP manda) chegar na tela.
 }
 
 // Consulta AO VIVO no CORP por nome/placa, sem gravar nada aqui (a pedido
