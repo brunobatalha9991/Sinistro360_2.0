@@ -2,7 +2,9 @@ import { useCallback, useEffect, useState } from "react";
 
 function parseHash() {
   const h = location.hash.replace(/^#\//, "").split("/");
-  return { route: h[0] || "dashboard", param: h[1] || null };
+  // Módulo padrão ao abrir o sistema sem nenhum hash ainda (a pedido do
+  // usuário): Sinistros, não mais o Dashboard.
+  return { route: h[0] || "sinistros", param: h[1] || null };
 }
 
 export function useHashRoute() {

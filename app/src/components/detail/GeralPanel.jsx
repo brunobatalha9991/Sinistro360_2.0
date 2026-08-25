@@ -1,9 +1,7 @@
 import { useState } from "react";
-import { createPortal } from "react-dom";
+import { KvList } from "../KvList.jsx";
 import { EditableCell } from "../EditableCell.jsx";
 import { OficinaModal } from "./OficinaModal.jsx";
-import { FinancePanel } from "./FinancePanel.jsx";
-import { AtendimentoPanel } from "./AtendimentoPanel.jsx";
 import { distinctComputed, campoEfetivo, campoFoiEditado, situacaoEfetiva, isManualClaim } from "../../logic/claims";
 import { txt } from "../../logic/format";
 import { extractProdDocs } from "../../logic/corpApi";
@@ -70,41 +68,11 @@ function OficinaCell({ c, overrides, ofOpts, actions, canEdit, navigate }) {
   );
 }
 
-// Cabeçalho de seção (mesmo estilo já usado no formulário de Solicitação de
-// atendimento — SolicitacaoFields em TaskModal.jsx) — a pedido do usuário,
-// pra organizar a Visão geral em blocos em vez de uma lista única.
-function Secao({ titulo, children }) {
-  return (
-    <div style={{ marginTop: 14 }}>
-      <div className="muted" style={{ fontSize: 11.5, fontWeight: 700, textTransform: "uppercase", letterSpacing: ".4px", marginBottom: 6 }}>{titulo}</div>
-      {children}
-    </div>
-  );
-}
-
-// Financeiro e Atendimento deixaram de ser abas próprias (a pedido do
-// usuário) e passam a abrir num diálogo a partir de um botão aqui — mesmo
-// componente/lógica de antes, só a apresentação muda.
-function PanelModal({ onClose, children }) {
-  return createPortal(
-    <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,.5)", zIndex: 100, display: "flex", alignItems: "flex-start", justifyContent: "center", padding: 30, overflow: "auto" }}>
-      <div style={{ width: 640, maxWidth: "100%", position: "relative" }}>
-        <button className="btn sec xs" style={{ position: "absolute", top: -14, right: -8 }} onClick={onClose}>✕ Fechar</button>
-        {children}
-      </div>
-    </div>,
-    document.body,
-  );
-}
-
-// Porte 1:1 de geralPanel() do HTML original, reorganizado em seções (a
-// pedido do usuário: a lista única estava ficando extensa demais).
+// Porte 1:1 de geralPanel() do HTML original — a pedido do usuário, de
+// volta pro layout em lista única (a versão em seções/grade não agradou).
 export function GeralPanel({ c, claims, overrides, actions, canEdit, config, navigate }) {
   const segOpts = distinctComputed(claims, (x) => campoEfetivo(overrides, x, "cia"));
   const ofOpts = distinctComputed(claims, (x) => campoEfetivo(overrides, x, "oficina"));
-  const [financeiroAberto, setFinanceiroAberto] = useState(false);
-  const [atendimentoAberto, setAtendimentoAberto] = useState(false);
-
   function cell(campo, opts) {
     return (
       <EditableCell
@@ -114,80 +82,39 @@ export function GeralPanel({ c, claims, overrides, actions, canEdit, config, nav
       />
     );
   }
-  function field(label, node) {
-    return <div className="field" key={label}><label>{label}</label>{node}</div>;
-  }
-
+  const rows = [
+    ["Tipo de parte", <span>{c.partyType}</span>],
+    ["Nº do sinistro", cell("numsin")],
+    ["Tipo (API)", <span>{txt(c.tipo)}</span>],
+    ["Nome", cell("segurado")],
+    ["Placa", cell("placa")],
+    ["Seguradora", cell("cia", { type: "select", options: segOpts, emptyLabel: "Nenhuma", novoLabel: "+ Nova seguradora...", promptMsg: "Nome da nova seguradora:" })],
+    ["Ramo", cell("ramo")],
+    ["Apólice", cell("numapo")],
+    ["Endosso", cell("numend")],
+    ["Item", cell("item")],
+    ["Filial", cell("codfil")],
+    ["Nº controle", <span>{txt(c.nosnum)}</span>],
+    ["Código", cell("codigo")],
+    ["Situação", <span>{situacaoEfetiva(overrides, c, config.corp_atendimento_template).label}</span>],
+    ["Oficina", <OficinaCell c={c} overrides={overrides} ofOpts={ofOpts} actions={actions} canEdit={canEdit} navigate={navigate} />],
+    ["Vínculo com oficina", cell("vinculoOficina", { type: "select", options: ["Referenciada", "Livre Escolha"], emptyLabel: "Não definido" })],
+    ["Dt. Ocorrência", cell("datoco", { type: "date" })],
+    ["Dt. Aviso", cell("datavi", { type: "date" })],
+    ["Encerramento", cell("datenc", { type: "date" })],
+    ["Observações", cell("observacoes")],
+  ];
   return (
     <div className="card">
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 8 }}>
-        <div>
-          <h3 style={{ margin: 0 }}>Informações gerais</h3>
-          <p className="muted" style={{ margin: "2px 0 0", fontSize: 12 }}>
-            Clique num campo para editar • O valor digitado prevalece sobre o dado da API e não se perde ao sincronizar.
-          </p>
-        </div>
-        <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-          <button className="btn sec sm" onClick={() => setFinanceiroAberto(true)}>💰 Financeiro</button>
-          <button className="btn sec sm" onClick={() => setAtendimentoAberto(true)}>📞 Atendimento</button>
-        </div>
+        <h3 style={{ margin: 0 }}>Informações gerais</h3>
+        <span className="tag-manual">Clique num campo para editar • edições preservadas na sincronização</span>
       </div>
-
-      <Secao titulo="Identificação">
-        <div className="grid c3">
-          {field("Tipo de parte", <span>{c.partyType}</span>)}
-          {field("Nº do sinistro", cell("numsin"))}
-          {field("Situação", <span>{situacaoEfetiva(overrides, c, config.corp_atendimento_template).label}</span>)}
-          {field("Nome", cell("segurado"))}
-          {field("Placa", cell("placa"))}
-          {field("Tipo (API)", <span>{txt(c.tipo)}</span>)}
-        </div>
-      </Secao>
-
-      <Secao titulo="Seguro">
-        <div className="grid c3">
-          {field("Seguradora", cell("cia", { type: "select", options: segOpts, emptyLabel: "Nenhuma", novoLabel: "+ Nova seguradora...", promptMsg: "Nome da nova seguradora:" }))}
-          {field("Ramo", cell("ramo"))}
-          {field("Apólice", cell("numapo"))}
-          {field("Endosso", cell("numend"))}
-          {field("Item", cell("item"))}
-          {field("Filial", cell("codfil"))}
-          {field("Código", cell("codigo"))}
-          {field("Nº controle", <span>{txt(c.nosnum)}</span>)}
-        </div>
-      </Secao>
-
-      <Secao titulo="Oficina">
-        <div className="grid c2">
-          {field("Oficina", <OficinaCell c={c} overrides={overrides} ofOpts={ofOpts} actions={actions} canEdit={canEdit} navigate={navigate} />)}
-          {field("Vínculo com oficina", cell("vinculoOficina", { type: "select", options: ["Referenciada", "Livre Escolha"], emptyLabel: "Não definido" }))}
-        </div>
-      </Secao>
-
-      <Secao titulo="Datas">
-        <div className="grid c3">
-          {field("Dt. Ocorrência", cell("datoco", { type: "date" }))}
-          {field("Dt. Aviso", cell("datavi", { type: "date" }))}
-          {field("Encerramento", cell("datenc", { type: "date" }))}
-        </div>
-      </Secao>
-
-      <Secao titulo="Observações">
-        {cell("observacoes")}
-      </Secao>
-
+      <p className="muted" style={{ marginTop: 6 }}>
+        O valor que você digitar prevalece sobre o dado da API e não se perde ao sincronizar. Nº controle e Tipo (API) não são editáveis. O dado bruto original continua visível na aba "Dados brutos (API)".
+      </p>
+      <KvList rows={rows} />
       <AgenteProdutorBox c={c} config={config} actions={actions} />
-
-      {financeiroAberto && (
-        <PanelModal onClose={() => setFinanceiroAberto(false)}>
-          <FinancePanel c={c} overrides={overrides} actions={actions} canEdit={canEdit} />
-        </PanelModal>
-      )}
-      {atendimentoAberto && (
-        <PanelModal onClose={() => setAtendimentoAberto(false)}>
-          <AtendimentoPanel c={c} claims={claims} overrides={overrides} actions={actions} canEdit={canEdit} />
-        </PanelModal>
-      )}
     </div>
   );
 }
