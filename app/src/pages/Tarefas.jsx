@@ -105,6 +105,7 @@ export function Tarefas() {
   // fica registrado na auditoria interna (visível só pro admin, dentro da
   // própria tarefa).
   function arquivarTarefa(t) {
+    alert("O arquivamento acontece para todos os usuários envolvidos.");
     const motivo = prompt(`Motivo do arquivamento da tarefa "${t.titulo}":`);
     if (motivo === null) return;
     if (!motivo.trim()) { alert("Informe o motivo do arquivamento."); return; }
