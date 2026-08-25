@@ -69,3 +69,17 @@ export async function uploadArquivoDrive({ endpoint, file, pasta, contexto }) {
   if (!resp.ok || dados.erro) throw new Error(dados.erro || `Falha no upload (HTTP ${resp.status}).`);
   return { nome: dados.nome || file.name, url: dados.url, id: dados.id };
 }
+
+// `url` (arquivo.getUrl() no Apps Script) é a página de visualização do
+// Drive ("https://drive.google.com/file/d/ID/view") — funciona bem como
+// link clicável (anexos), mas um <img src> não consegue carregar uma PÁGINA
+// html como imagem (a pedido do usuário: a foto de perfil no Desempenho
+// "não aparecia visivelmente" — era exatamente isso). Deriva o id do
+// arquivo dessa URL e monta o link de thumbnail do Drive, que essa mesma
+// serve como imagem de verdade. Sem casar o padrão, devolve a URL original
+// (não faz pior do que já estava).
+export function driveImagemEmbutivel(url) {
+  const m = /\/file\/d\/([^/]+)/.exec(String(url || ""));
+  if (!m) return url;
+  return `https://drive.google.com/thumbnail?id=${m[1]}&sz=w512`;
+}

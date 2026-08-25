@@ -6,7 +6,7 @@ import { EmptyState } from "../components/EmptyState.jsx";
 import { calcularMetricasTodosUsuarios, gerarFeedbackEPlanoDeAcao } from "../logic/desempenho";
 import { patchListFilter, resetListFilter } from "../state/listFilter";
 import { fmtNum } from "../logic/format";
-import { isDriveUploadConfigured, uploadArquivoDrive, sanitizarNomePasta, CONTEXTO_PERFIL_USUARIO } from "../logic/driveUpload";
+import { isDriveUploadConfigured, uploadArquivoDrive, sanitizarNomePasta, CONTEXTO_PERFIL_USUARIO, driveImagemEmbutivel } from "../logic/driveUpload";
 import { isAdmin, ROLE_LABELS } from "../data/auth";
 import { isGeminiConfigured } from "../ai/geminiApi";
 import { gerarFeedbackEmTextoCorrido } from "../ai/gerarFeedbackTexto";
@@ -28,7 +28,7 @@ function Avatar({ url, nome, size = 36 }) {
     );
   }
   return (
-    <img src={url} alt={nome} onError={() => setBroken(true)}
+    <img src={driveImagemEmbutivel(url)} alt={nome} onError={() => setBroken(true)}
       style={{ width: size, height: size, minWidth: size, borderRadius: "50%", objectFit: "cover", flexShrink: 0 }} />
   );
 }
