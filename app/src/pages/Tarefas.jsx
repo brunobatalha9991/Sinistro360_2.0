@@ -160,8 +160,8 @@ export function Tarefas() {
       <div className="page-head">
         <div><h1>Comunicação interna</h1><p>Tarefas, lembretes e comunicações entre a equipe</p></div>
         <div style={{ display: "flex", gap: 8 }}>
-          <button className="btn ghost sm" onClick={() => taskFilterStore.patch({ showFilters: !filter.showFilters })}>
-            {filter.showFilters ? "🔼 Ocultar filtros" : "🔽 Ver filtros"}
+          <button className={"btn" + (filter.showFilters ? "" : " sec")} onClick={() => taskFilterStore.patch({ showFilters: !filter.showFilters })}>
+            {filter.showFilters ? "▲ Ocultar filtros" : "▼ Filtros"}
           </button>
           <button className="btn" onClick={() => openTaskModal(null)}>+ Nova tarefa</button>
         </div>
