@@ -40,7 +40,6 @@ export function AtendimentoStepsEditor({ atendTemplateCfg, saveConfig }) {
     });
   }
   function setTitulo(stepId, title) { patchStep(stepId, (s) => ({ ...s, title })); }
-  function setStatusOptions(stepId, opts) { patchStep(stepId, (s) => ({ ...s, statusOptions: opts })); }
   function toggleBranch(stepId) {
     patchStep(stepId, (s) => ({ ...s, branch: !s.branch, branches: s.branches || {} }));
   }
@@ -75,7 +74,7 @@ export function AtendimentoStepsEditor({ atendTemplateCfg, saveConfig }) {
             </button>
             <button className="btn danger xs" onClick={() => excluirEtapa(step.id)}>Excluir etapa</button>
           </div>
-          <StatusChipsEditor options={step.statusOptions || STATUS_DEFAULT} onChange={(opts) => setStatusOptions(step.id, opts)} />
+          <StatusChipsEditor step={step} onChangeStep={(patch) => patchStep(step.id, (s) => ({ ...s, ...patch }))} />
           {step.branch && (
             <div style={{ marginTop: 10, paddingTop: 10, borderTop: "1px dashed var(--border)" }}>
               <p className="muted" style={{ fontSize: 12, margin: "0 0 8px" }}>

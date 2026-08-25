@@ -458,9 +458,11 @@ tr:hover td{background:var(--surface-2)}
   transition:background-color .2s ease,box-shadow .2s ease;
 }
 .jdot.done{background:linear-gradient(135deg,var(--ok),#0e8f42);box-shadow:0 0 0 4px rgba(var(--ok-rgb),.16)}
+.jdot.negativo{background:linear-gradient(135deg,var(--danger),#c0184a);box-shadow:0 0 0 4px rgba(var(--danger-rgb),.16)}
 .jdot.current{background:linear-gradient(135deg,var(--brand),var(--brand-2));box-shadow:0 0 0 5px rgba(var(--brand-rgb),.2);animation:neonPulse 2.4s ease-in-out infinite;--glow-rgb:var(--brand-rgb)}
 .jbody{flex:1;background:var(--surface-2);border:1px solid var(--border);border-radius:10px;padding:12px 14px;transition:background-color .2s ease,border-color .2s ease}
 .jbody.done{background:rgba(var(--ok-rgb),.07);border-color:rgba(var(--ok-rgb),.28)}
+.jbody.negativo{background:rgba(var(--danger-rgb),.07);border-color:rgba(var(--danger-rgb),.28)}
 .jhead{display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap}
 .jbody h4{margin:0;font-size:14px}
 .jrow{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-top:10px}

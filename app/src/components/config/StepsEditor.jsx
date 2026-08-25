@@ -27,7 +27,6 @@ export function StepsEditor({ steps, onChange, label, highlight }) {
     onChange(copia);
   }
   function setTitulo(stepId, title) { patchStep(stepId, (s) => ({ ...s, title })); }
-  function setStatusOptions(stepId, opts) { patchStep(stepId, (s) => ({ ...s, statusOptions: opts })); }
   function adicionarEtapa() {
     const v = novaEtapa.trim();
     if (!v) return;
@@ -48,7 +47,7 @@ export function StepsEditor({ steps, onChange, label, highlight }) {
             <input className="inline" defaultValue={step.title} style={{ fontWeight: 600, minWidth: 220 }} onBlur={(e) => setTitulo(step.id, e.target.value)} />
             <button className="btn danger xs" onClick={() => excluirEtapa(step.id)}>Excluir etapa</button>
           </div>
-          <StatusChipsEditor options={step.statusOptions || STATUS_DEFAULT} onChange={(opts) => setStatusOptions(step.id, opts)} />
+          <StatusChipsEditor step={step} onChangeStep={(patch) => patchStep(step.id, (s) => ({ ...s, ...patch }))} />
         </div>
       ))}
       <div style={{ display: "flex", gap: 6, alignItems: "center", margin: "4px 0 12px" }}>

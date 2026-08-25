@@ -7,6 +7,39 @@ import { diasEntre, mediaArr } from "./format";
 export const STATUS_DEFAULT = ["Aguardando", "Em andamento", "Concluído"];
 const CONCLUSAO_STATUS = ["Aguardando", "Indenizado", "Sem Indenização"];
 
+// Uma etapa é "concluída" (verde) quando o status bate com step.doneStatuses,
+// configurado pelo admin em Configurações → Jornadas (nem sempre o nome do
+// status é "Concluído", e pode haver mais de um — ex.: "Indenizado"). Sem
+// essa lista configurada ainda (undefined, não [] vazio), cai no critério
+// antigo por texto — assim etapas já existentes continuam funcionando sem
+// precisar de migração até o admin abrir e configurar explicitamente.
+export function stepStatusEhConcluida(step, status) {
+  if (!status) return false;
+  if (step && Array.isArray(step.doneStatuses)) return step.doneStatuses.indexOf(status) >= 0;
+  return String(status).toLowerCase().indexOf("conclu") >= 0;
+}
+// Encerramento negativo (vermelho) — só existe quando o admin configura
+// explicitamente essa lista; sem configuração, nunca marca negativo (esse
+// conceito não existia antes).
+export function stepStatusEhNegativa(step, status) {
+  if (!status || !step || !Array.isArray(step.negativoStatuses)) return false;
+  return step.negativoStatuses.indexOf(status) >= 0;
+}
+// "Resolvida" = a etapa já teve um desfecho, positivo (verde) ou negativo
+// (vermelho) — usada pra achar a etapa atual (a primeira ainda sem
+// desfecho) em currentStage() e no colapsar/expandir da Jornada do cliente.
+export function stepStatusResolvida(step, status) {
+  return stepStatusEhConcluida(step, status) || stepStatusEhNegativa(step, status);
+}
+// Configuração de data por status (Configurações → Jornadas): se mostra o
+// campo de data e o título dele. Sem configuração pra aquele status, mantém
+// o campo "Data" sempre visível — comportamento de antes.
+export function stepDateConfig(step, status) {
+  const cfg = step && step.dateByStatus && step.dateByStatus[status];
+  if (!cfg) return { show: true, label: "Data" };
+  return { show: cfg.show !== false, label: cfg.label || "Data" };
+}
+
 export function defaultRamoTemplate() {
   return {
     comuns: [{ id: "vistoria", title: "Vistoria", statusOptions: [...STATUS_DEFAULT] }],
@@ -379,11 +412,11 @@ export function currentStage(overrides, templates, atendTemplateCfg, c) {
         const trilha = (stepAt.branches && stepAt.branches[tipo]) || [];
         for (let n = 0; n < trilha.length; n++) {
           const sdT = steps[trilha[n].id] || {};
-          if (!(String(sdT.status || "").toLowerCase().indexOf("conclu") >= 0)) return trilha[n].title;
+          if (!stepStatusResolvida(trilha[n], sdT.status)) return trilha[n].title;
         }
         return trilha.length ? trilha[trilha.length - 1].title : stepAt.title;
       }
-      const doneAt = String(sdAt.status || "").toLowerCase().indexOf("conclu") >= 0;
+      const doneAt = stepStatusResolvida(stepAt, sdAt.status);
       if (!doneAt) return stepAt.title;
     }
     if (!uj.caminho) return "Definir caminho";
@@ -391,7 +424,7 @@ export function currentStage(overrides, templates, atendTemplateCfg, c) {
     const listaCam = uj.caminho === "parcial" ? (tplAt.parcial || []) : uj.caminho === "integral" ? (tplAt.integral || []) : [];
     for (let k = 0; k < listaCam.length; k++) {
       const sdC = steps[listaCam[k].id] || {};
-      if (!(String(sdC.status || "").toLowerCase().indexOf("conclu") >= 0)) return listaCam[k].title;
+      if (!stepStatusResolvida(listaCam[k], sdC.status)) return listaCam[k].title;
     }
     return listaCam.length ? listaCam[listaCam.length - 1].title : "Definir caminho";
   }
@@ -400,14 +433,13 @@ export function currentStage(overrides, templates, atendTemplateCfg, c) {
   const comuns = getComunsSteps(tpl);
   for (let m = 0; m < comuns.length; m++) {
     const sdC = steps[comuns[m].id] || {};
-    if (!(String(sdC.status || "").toLowerCase().indexOf("conclu") >= 0)) return comuns[m].title;
+    if (!stepStatusResolvida(comuns[m], sdC.status)) return comuns[m].title;
   }
   if (!uj.caminho) return "Definir caminho";
   const lista = uj.caminho === "parcial" ? (tpl.parcial || []) : uj.caminho === "integral" ? (tpl.integral || []) : [];
   for (let i = 0; i < lista.length; i++) {
     const sd = steps[lista[i].id] || {};
-    const done = String(sd.status || "").toLowerCase().indexOf("conclu") >= 0;
-    if (!done) return lista[i].title;
+    if (!stepStatusResolvida(lista[i], sd.status)) return lista[i].title;
   }
   return lista.length ? lista[lista.length - 1].title : "Definir caminho";
 }

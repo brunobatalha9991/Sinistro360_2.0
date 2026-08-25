@@ -1,5 +1,9 @@
-import { getAtendTemplate, getRamoTemplate, getComunsSteps, getUserJourney, isAtendimento, STATUS_DEFAULT, getJourneyNotes } from "../../logic/claims";
-import { fmtDateHoraBR } from "../../logic/format";
+import { useEffect, useState } from "react";
+import {
+  getAtendTemplate, getRamoTemplate, getComunsSteps, getUserJourney, isAtendimento, STATUS_DEFAULT, getJourneyNotes,
+  stepStatusEhConcluida, stepStatusEhNegativa, stepStatusResolvida, stepDateConfig,
+} from "../../logic/claims";
+import { fmtDateBR, fmtDateHoraBR } from "../../logic/format";
 
 // Porte 1:1 de journeyPanel() do HTML original, com registro automático
 // (a pedido do usuário) de data/hora/usuário da última interação de cada
@@ -21,7 +25,9 @@ export function JourneyPanel({ c, overrides, config, actions, canEdit, isAdminUs
   // Grava o título da etapa junto com o status — situacaoEfetiva() usa isso
   // pra reconhecer etapas como "Encerramento" e "Status da assistência" em
   // processos de Atendimento sem precisar carregar o template inteiro.
-  function setStepField(stepId, field, value, title) {
+  // `step` (quando for mudança de status) é usado só pra checar se o novo
+  // valor está na lista de status "concluída" configurada pelo admin.
+  function setStepField(stepId, field, value, title, step) {
     const sd = { ...(steps[stepId] || { status: "", date: "", note: "" }), [field]: value };
     if (title) sd.title = title;
     const agora = new Date().toISOString();
@@ -36,7 +42,7 @@ export function JourneyPanel({ c, overrides, config, actions, canEdit, isAdminUs
       sd.firstSetAt = agora;
     }
     if (field === "status") {
-      if (String(value || "").toLowerCase().indexOf("conclu") >= 0) {
+      if (stepStatusEhConcluida(step, value)) {
         sd.concludedAt = agora;
         sd.concludedBy = quem;
       } else {
@@ -80,6 +86,38 @@ export function JourneyPanel({ c, overrides, config, actions, canEdit, isAdminUs
     else if (uj.caminho === "integral") lista = lista.concat(tpl.integral);
   }
 
+  // Etapa atual = a primeira ainda sem desfecho (mesmo critério de
+  // currentStage() em logic/claims.js, reaproveitado aqui localmente pra
+  // decidir qual etapa abrir sozinha por padrão). Etapa "caminho" conta como
+  // sem desfecho até um caminho ser escolhido; etapa "caminho por tipo"
+  // (branch) conta como resolvida assim que qualquer opção for escolhida,
+  // independente de bater com status "concluída" configurado.
+  function stepResolvida(step) {
+    if (step.type === "caminho") return !!uj.caminho;
+    const sd = steps[step.id] || {};
+    if (step.branch) return !!sd.status;
+    return stepStatusResolvida(step, sd.status);
+  }
+  let currentIdx = lista.findIndex((step) => !stepResolvida(step));
+  if (currentIdx < 0) currentIdx = lista.length - 1;
+
+  function buildOpenMap() {
+    const m = {};
+    lista.forEach((step, idx) => { m[step.id] = idx === currentIdx; });
+    return m;
+  }
+  const [openMap, setOpenMap] = useState(buildOpenMap);
+  // Sempre que a etapa atual muda (ex.: usuário concluiu a etapa e a
+  // jornada avançou), reabre só a nova etapa atual — mantendo aberto apenas
+  // uma de cada vez, como pedido. Não reage a outras edições (nota, data)
+  // que não mudam qual etapa é a atual, então não fecha nada que o usuário
+  // tenha aberto manualmente por curiosidade.
+  useEffect(() => {
+    setOpenMap(buildOpenMap());
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentIdx]);
+  function toggle(stepId) { setOpenMap((m) => ({ ...m, [stepId]: !m[stepId] })); }
+
   return (
     <div className="card">
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 8 }}>
@@ -90,63 +128,92 @@ export function JourneyPanel({ c, overrides, config, actions, canEdit, isAdminUs
       </div>
       <p className="muted" style={{ marginTop: 6 }}>
         {atend ? "As etapas são definidas nas Configurações (Atendimento). Aqui você preenche status, datas e observações." : "As etapas são definidas nas Configurações (por ramo). Aqui você preenche status, datas e observações."}
+        {" "}Só a etapa atual vem aberta — use o botão de cada etapa para ver ou esconder os detalhes das outras.
       </p>
       <div className="journey">
         {lista.map((step, idx) => {
+          const open = !!openMap[step.id];
           if (step.type === "caminho") {
+            const done = !!uj.caminho;
+            const label = uj.caminho === "parcial" ? "Perda Parcial" : uj.caminho === "integral" ? "Perda Integral" : "";
             return (
               <div className="jstep" key={step.id + idx}>
-                <div className={"jdot " + (uj.caminho ? "done" : "")}><span>{uj.caminho ? "✓" : ""}</span></div>
-                <div className={"jbody" + (uj.caminho ? " done" : "")}>
-                  <div className="jhead"><h4>{step.title}</h4></div>
-                  <div className="jrow">
-                    <div className="field">
-                      <label>Caminho do sinistro</label>
-                      <select className="inline" value={uj.caminho || ""} onChange={(e) => setCaminho(e.target.value)}>
-                        <option value="">— Selecione —</option>
-                        <option value="parcial">Perda Parcial</option>
-                        <option value="integral">Perda Integral</option>
-                      </select>
+                <div className={"jdot " + (done ? "done" : "")}><span>{done ? "✓" : ""}</span></div>
+                <div className={"jbody" + (done ? " done" : "")}>
+                  <div className="jhead">
+                    <h4>{step.title}</h4>
+                    <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                      {!open && label && <span className="badge blue">{label}</span>}
+                      <button type="button" className="btn sec xs" onClick={() => toggle(step.id)}>{open ? "▾ Ocultar detalhes" : "▸ Ver detalhes"}</button>
                     </div>
                   </div>
+                  {open && (
+                    <div className="jrow">
+                      <div className="field">
+                        <label>Caminho do sinistro</label>
+                        <select className="inline" value={uj.caminho || ""} onChange={(e) => setCaminho(e.target.value)}>
+                          <option value="">— Selecione —</option>
+                          <option value="parcial">Perda Parcial</option>
+                          <option value="integral">Perda Integral</option>
+                        </select>
+                      </div>
+                    </div>
+                  )}
                 </div>
               </div>
             );
           }
           const opts = step.statusOptions || STATUS_DEFAULT;
           const sd = steps[step.id] || { status: "", date: "", note: "" };
-          const done = (sd.status || "").toLowerCase().indexOf("conclu") >= 0;
+          const done = stepStatusEhConcluida(step, sd.status);
+          const negativo = !done && stepStatusEhNegativa(step, sd.status);
+          const dateCfg = stepDateConfig(step, sd.status);
           return (
             <div className="jstep" key={step.id}>
-              <div className={"jdot " + (done ? "done" : sd.status ? "current" : "")}><span>{done ? "✓" : sd.status ? "●" : ""}</span></div>
-              <div className={"jbody" + (done ? " done" : "")}>
-                <div className="jhead"><h4>{step.title}</h4></div>
-                <div className="jrow">
-                  <div className="field">
-                    <label>Status</label>
-                    <select className="inline" style={{ minWidth: 170 }} value={sd.status || ""} onChange={(e) => setStepField(step.id, "status", e.target.value, step.title)}>
-                      <option value="">— Status —</option>
-                      {opts.map((op) => <option key={op} value={op}>{op}</option>)}
-                    </select>
-                  </div>
-                  <div className="field">
-                    <label>Data</label>
-                    <input type="date" className="inline" value={sd.date || ""} onChange={(e) => setStepField(step.id, "date", e.target.value)} />
+              <div className={"jdot " + (done ? "done" : negativo ? "negativo" : sd.status ? "current" : "")}>
+                <span>{done ? "✓" : negativo ? "✕" : sd.status ? "●" : ""}</span>
+              </div>
+              <div className={"jbody" + (done ? " done" : negativo ? " negativo" : "")}>
+                <div className="jhead">
+                  <h4>{step.title}</h4>
+                  <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+                    {!open && sd.status && <span className={"badge " + (done ? "green" : negativo ? "red" : "blue")}>{sd.status}</span>}
+                    {!open && dateCfg.show && sd.date && <span className="muted" style={{ fontSize: 11 }}>{fmtDateBR(sd.date)}</span>}
+                    <button type="button" className="btn sec xs" onClick={() => toggle(step.id)}>{open ? "▾ Ocultar detalhes" : "▸ Ver detalhes"}</button>
                   </div>
                 </div>
-                <div className="field" style={{ marginTop: 8 }}>
-                  <label>Observação</label>
-                  <input defaultValue={sd.note || ""} placeholder="Observação desta etapa..." onBlur={(e) => setStepField(step.id, "note", e.target.value)} />
-                </div>
-                {sd.lastInteractionAt && (
-                  <div className="muted" style={{ fontSize: 11, marginTop: 8 }}>
-                    Última interação: {fmtDateHoraBR(sd.lastInteractionAt)} por {sd.lastInteractionBy}
-                  </div>
-                )}
-                {sd.concludedAt && (
-                  <div className="muted" style={{ fontSize: 11, marginTop: 2 }}>
-                    Concluído em: {fmtDateHoraBR(sd.concludedAt)} por {sd.concludedBy}
-                  </div>
+                {open && (
+                  <>
+                    <div className="jrow">
+                      <div className="field">
+                        <label>Status</label>
+                        <select className="inline" style={{ minWidth: 170 }} value={sd.status || ""} onChange={(e) => setStepField(step.id, "status", e.target.value, step.title, step)}>
+                          <option value="">— Status —</option>
+                          {opts.map((op) => <option key={op} value={op}>{op}</option>)}
+                        </select>
+                      </div>
+                      {dateCfg.show && (
+                        <div className="field">
+                          <label>{dateCfg.label}</label>
+                          <input type="date" className="inline" value={sd.date || ""} onChange={(e) => setStepField(step.id, "date", e.target.value)} />
+                        </div>
+                      )}
+                    </div>
+                    <div className="field" style={{ marginTop: 8 }}>
+                      <label>Observação</label>
+                      <input defaultValue={sd.note || ""} placeholder="Observação desta etapa..." onBlur={(e) => setStepField(step.id, "note", e.target.value)} />
+                    </div>
+                    {sd.lastInteractionAt && (
+                      <div className="muted" style={{ fontSize: 11, marginTop: 8 }}>
+                        Última interação: {fmtDateHoraBR(sd.lastInteractionAt)} por {sd.lastInteractionBy}
+                      </div>
+                    )}
+                    {sd.concludedAt && (
+                      <div className="muted" style={{ fontSize: 11, marginTop: 2 }}>
+                        Concluído em: {fmtDateHoraBR(sd.concludedAt)} por {sd.concludedBy}
+                      </div>
+                    )}
+                  </>
                 )}
               </div>
             </div>
