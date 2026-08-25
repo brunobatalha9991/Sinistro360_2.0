@@ -69,12 +69,12 @@ function ClienteCadastroBox({ clienteId, cadastro, actions, canEdit, onClose }) 
 // (autocompletar pelo nome, entre os que já têm processo) e atalho pra
 // consultar/cadastrar os dados de contato dele (mesmo cadastro do módulo
 // Clientes — ver ClienteCadastroBox acima) — a pedido do usuário.
-function ClienteNomeField({ nome, setNome, claims, overrides, clienteActions, canEdit, config, onUsarCorp }) {
+function ClienteNomeField({ nome, setNome, claims, overrides, clienteActions, canEdit, config, onUsarCorp, navigate }) {
   const [mostrarSugestoes, setMostrarSugestoes] = useState(false);
   const [cadastroAberto, setCadastroAberto] = useState(false);
   const [consultaCorpAberta, setConsultaCorpAberta] = useState(false);
 
-  const clientesLista = listaClientes(claims, overrides);
+  const clientesLista = listaClientes(claims, overrides, clienteActions.clientes);
   const termo = nome.trim().toLowerCase();
   const sugestoes = termo.length >= 2 ? clientesLista.filter((cl) => cl.nome.toLowerCase().indexOf(termo) >= 0).slice(0, 8) : [];
   const clienteId = nome.trim() ? clienteIdFromNome(nome.trim()) : null;
@@ -120,6 +120,7 @@ function ClienteNomeField({ nome, setNome, claims, overrides, clienteActions, ca
           <ConsultaCorpBox
             config={config} termoInicial={nome}
             onUsar={(r) => { onUsarCorp(r); setConsultaCorpAberta(false); }}
+            clienteActions={clienteActions} navigate={navigate}
           />
         </div>
       )}
@@ -306,7 +307,7 @@ export function Abertura() {
           </div>
           <ClienteNomeField
             nome={segurado} setNome={setSegurado} claims={claims} overrides={overrides} clienteActions={clienteActions}
-            canEdit={canEdit} config={config} onUsarCorp={preencherDaConsultaCorp}
+            canEdit={canEdit} config={config} onUsarCorp={preencherDaConsultaCorp} navigate={navigate}
           />
           <div className="field"><label>Placa</label><input placeholder="ABC1D23" value={placa} onChange={(e) => setPlaca(e.target.value)} /></div>
         </div>

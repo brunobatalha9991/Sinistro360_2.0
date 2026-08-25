@@ -16,21 +16,34 @@ export function clienteIdFromNome(nome) {
   return (base || "SEM_NOME").slice(0, 120);
 }
 
-export function listaClientes(claims, overrides) {
+// `cadastros` (corp_clientes, opcional) inclui clientes que só existem por
+// terem sido importados diretamente do CORP (ver ConsultaCorpBox.jsx) —
+// sem nenhum sinistro/processo local ainda. Sem isso, um cliente recém
+// importado ficaria com dado gravado mas invisível/inacessível no módulo
+// (listaClientes/clienteNomeFromId só enxergavam quem já tinha processo).
+export function listaClientes(claims, overrides, cadastros) {
   const seen = new Map();
   (claims || []).forEach((c) => {
     const nome = String(campoEfetivo(overrides, c, "segurado") || "").trim();
     if (nome && !seen.has(nome)) seen.set(nome, clienteIdFromNome(nome));
   });
-  return Array.from(seen.entries()).map(([nome, id]) => ({ id, nome })).sort((a, b) => a.nome.localeCompare(b.nome));
+  const out = Array.from(seen.entries()).map(([nome, id]) => ({ id, nome }));
+  const idsVistos = new Set(out.map((x) => x.id));
+  Object.keys(cadastros || {}).forEach((id) => {
+    if (idsVistos.has(id)) return;
+    const nome = (cadastros[id] && cadastros[id].nome) || "";
+    if (nome) { out.push({ id, nome }); idsVistos.add(id); }
+  });
+  return out.sort((a, b) => a.nome.localeCompare(b.nome));
 }
 
-export function clienteNomeFromId(claims, overrides, clienteId) {
+export function clienteNomeFromId(claims, overrides, clienteId, cadastros) {
   for (const c of claims || []) {
     const nome = String(campoEfetivo(overrides, c, "segurado") || "").trim();
     if (nome && clienteIdFromNome(nome) === clienteId) return nome;
   }
-  return "";
+  const cad = cadastros && cadastros[clienteId];
+  return (cad && cad.nome) || "";
 }
 
 export function clienteClaims(claims, overrides, clienteNome) {

@@ -29,6 +29,25 @@ describe("listaClientes + clienteNomeFromId", () => {
   it("acha o nome a partir do id", () => {
     expect(clienteNomeFromId(claims, {}, clienteIdFromNome("Carlos Andrade"))).toBe("Carlos Andrade");
   });
+  it("inclui cliente que só existe no cadastro (importado do CORP, sem processo local ainda)", () => {
+    const cadastros = { [clienteIdFromNome("Ana Souza")]: { nome: "Ana Souza", documento: "" } };
+    const lista = listaClientes(claims, {}, cadastros);
+    expect(lista).toContainEqual({ id: clienteIdFromNome("Ana Souza"), nome: "Ana Souza" });
+    expect(lista).toHaveLength(3);
+  });
+  it("cadastro não sobrepõe cliente que já tem processo (processo manda)", () => {
+    const cadastros = { [clienteIdFromNome("Carlos Andrade")]: { nome: "Nome Errado no Cadastro" } };
+    const lista = listaClientes(claims, {}, cadastros);
+    expect(lista.filter((c) => c.id === clienteIdFromNome("Carlos Andrade"))).toHaveLength(1);
+    expect(lista.find((c) => c.id === clienteIdFromNome("Carlos Andrade")).nome).toBe("Carlos Andrade");
+  });
+  it("clienteNomeFromId cai no cadastro quando não há processo", () => {
+    const cadastros = { [clienteIdFromNome("Ana Souza")]: { nome: "Ana Souza" } };
+    expect(clienteNomeFromId(claims, {}, clienteIdFromNome("Ana Souza"), cadastros)).toBe("Ana Souza");
+  });
+  it("sem processo nem cadastro, devolve string vazia", () => {
+    expect(clienteNomeFromId(claims, {}, "ID_INEXISTENTE", {})).toBe("");
+  });
 });
 
 describe("clienteClaims", () => {

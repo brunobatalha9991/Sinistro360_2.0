@@ -22,6 +22,26 @@ export function useClienteActions() {
       });
     },
 
+    // Anexos do CLIENTE (não do processo) — a pedido do usuário: guardar a
+    // URL da apólice (e outros documentos) mesmo pra um cliente que ainda
+    // não tem nenhum processo local vinculado. Mesmo padrão de
+    // useOverrideActions.addAnexo/removeAnexo, só que em corp_clientes em
+    // vez de corp_overrides.
+    addAnexo(clienteId, anexo) {
+      saveRecord("corp_clientes", (current) => {
+        const cur = current || {};
+        const existing = cur[clienteId] || {};
+        return { ...cur, [clienteId]: { ...existing, anexos: [...(existing.anexos || []), anexo] } };
+      });
+    },
+    removeAnexo(clienteId, anexoId) {
+      saveRecord("corp_clientes", (current) => {
+        const cur = current || {};
+        const existing = cur[clienteId] || {};
+        return { ...cur, [clienteId]: { ...existing, anexos: (existing.anexos || []).filter((a) => a.id !== anexoId) } };
+      });
+    },
+
     // tipo: "reclamacao" | "feedback". claimId é opcional (vínculo com
     // processo existente).
     addOcorrencia(clienteId, { tipo, titulo, descricao, data, claimId }) {

@@ -58,18 +58,22 @@ export function testConnection(cfg) { setToken(""); return login(cfg).then(() =>
 // do usuário: trazer a base inteira de clientes pra sincronizar ficaria
 // pesado sem necessidade — a maior parte nunca seria usada; melhor buscar
 // só quando precisar). Não existe endpoint de busca por texto livre
-// documentado no CORP — reaproveita /sinistros com os mesmos parâmetros de
-// período já usados na sincronização (ver syncAll), tentando também
-// `segurado`/`placa` como filtro; se o CORP ignorar esses parâmetros (não
-// suportados), o filtro abaixo garante o resultado certo mesmo assim, só
-// que varrendo mais registros. Busca só a 1ª página de cada tipo (S/A/T) —
-// é uma consulta pontual, não uma sincronização.
+// documentado no CORP, e a 1ª tentativa (mandar `segurado`/`placa` como
+// parâmetro extra) quebrou com "Internal Server Error" — a API não aceita
+// parâmetro que não conhece. Por segurança, reaproveita só os MESMOS
+// parâmetros já comprovadamente aceitos pela sincronização normal (ver
+// syncAll) e filtra o nome/placa aqui no navegador. `dataInicial`/
+// `dataFinal` vazios são omitidos (nunca manda data em branco pro CORP —
+// outra causa possível de erro de servidor) e caem no padrão de 1 ano do
+// próprio fetchSinistros. Busca só a 1ª página de cada tipo (S/A/T) — é uma
+// consulta pontual, não uma sincronização.
 export function consultarCorp(cfg, { termo, dataInicial, dataFinal }) {
   const TIPOS = ["S", "A", "T"];
-  const buscas = TIPOS.map((tipo) => fetchSinistros(cfg, {
-    tipo_sinistro: tipo, data_inicial: dataInicial, data_final: dataFinal,
-    segurado: termo, placa: termo, qtd_pag: 100, pagina: 1,
-  }).then((resp) => (Array.isArray(resp) ? resp : ((resp && (resp.sinistros || resp.sinistro || resp.dados || resp.data || resp.itens || resp.registros)) || []))));
+  const paramsBase = { qtd_pag: 100, pagina: 1 };
+  if (dataInicial) paramsBase.data_inicial = dataInicial;
+  if (dataFinal) paramsBase.data_final = dataFinal;
+  const buscas = TIPOS.map((tipo) => fetchSinistros(cfg, { ...paramsBase, tipo_sinistro: tipo })
+    .then((resp) => (Array.isArray(resp) ? resp : ((resp && (resp.sinistros || resp.sinistro || resp.dados || resp.data || resp.itens || resp.registros)) || []))));
   return Promise.all(buscas).then((paginas) => {
     const q = String(termo || "").trim().toLowerCase();
     const todos = paginas.flat();
@@ -105,6 +109,38 @@ export function extractProdDocs(resp) {
 // da apólice no S3) — mesma resposta de fetchDocumento, campo diferente.
 export function extractUrlApolice(resp) {
   return (resp && resp.acompanhamento && resp.acompanhamento.emissao && resp.acompanhamento.emissao.url_apolice) || "";
+}
+
+// Resumo completo da resposta de fetchDocumento (a pedido do usuário: "traga
+// o máximo de informação possível sobre o processo consultado") — achata os
+// campos espalhados em documento[0]/acompanhamento num objeto único, fácil
+// de exibir. Pura/tolerante: nunca lança, devolve null sem documento algum.
+export function extractDocumentoDetalhado(resp) {
+  const doc = resp && Array.isArray(resp.documento) && resp.documento[0];
+  if (!doc) return null;
+  const acomp = resp.acompanhamento || {};
+  return {
+    seguradora: doc.seguradora || "",
+    ramo: doc.ramo || "",
+    numeroApolice: doc.numapo || "",
+    numeroEndosso: doc.numend || "",
+    numeroProposta: doc.numprop || "",
+    vigenciaInicio: doc.inivig || "",
+    vigenciaFim: doc.fimvig || "",
+    valorTotal: doc.pretot != null ? Number(doc.pretot) : null,
+    formaPagamento: doc.forma_pag || "",
+    numeroParcelas: doc.numpar != null ? Number(doc.numpar) : null,
+    situacaoAcompanhamento: doc.sit_acompanhamento_txt || "",
+    situacaoSinistro: doc.sit_sinistro_txt || "",
+    situacaoRenovacao: doc.sit_renovacao_txt || "",
+    cliente: doc.cliente || "",
+    urlApolice: (acomp.emissao && acomp.emissao.url_apolice) || "",
+    urlProposta: (acomp.proposta && acomp.proposta.url_proposta) || "",
+    parcelas: (doc.parcelas || []).map((p) => ({
+      numero: p.parc, vencimento: p.datvenc, valor: p.vlvenc, quitadoEm: p.datquit || null,
+    })),
+    prodDocs: extractProdDocs(resp),
+  };
 }
 
 // Resumo persistível da resposta de fetchDocumento — o que fica guardado em

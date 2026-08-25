@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { extractProdDocs, extractUrlApolice } from "./corpApi";
+import { extractProdDocs, extractUrlApolice, extractDocumentoDetalhado } from "./corpApi";
 
 // Formato real de GET /documento?codfil=&nosnum= (exemplo enviado pelo
 // usuário) — body.documento[0].prod_docs é a lista de {agente, produtor}.
@@ -8,6 +8,24 @@ const RESPOSTA_REAL = {
     {
       codfil: 1,
       nosnum: 64170,
+      numapo: "114134153657",
+      numend: "0",
+      numprop: "85496174",
+      inivig: "19/09/2025",
+      fimvig: "19/09/2026",
+      pretot: 357,
+      numpar: 10,
+      forma_pag: "Boleto Bancário",
+      seguradora: "PORTO SEGURO",
+      ramo: "RESIDENCIAL",
+      cliente: "BRUNO MARCULINO DE OLIVEIRA",
+      sit_acompanhamento_txt: "Recebido e não entregue ao cliente",
+      sit_sinistro_txt: "APÓLICE SEM SINISTRO",
+      sit_renovacao_txt: "APÓLICE NOVA",
+      parcelas: [
+        { parc: 1, datvenc: "29/09/2025", vlvenc: 35.69, datquit: null },
+        { parc: 2, datvenc: "29/10/2025", vlvenc: 35.7, datquit: "01/10/2025" },
+      ],
       prod_docs: [
         { agente: "PRODUÇÃO CORRETORA", produtor: "PRODUÇÃO CORRETORA - BATALHA", cod_age: 1, cod_pro: 1 },
         { agente: "PRODUÇÃO CORRETORA", produtor: "BRUNO OLIVEIRA", cod_age: 1, cod_pro: 17666 },
@@ -15,6 +33,7 @@ const RESPOSTA_REAL = {
     },
   ],
   acompanhamento: {
+    proposta: { numprop: "85496174", url_proposta: null },
     emissao: {
       numapo: "114134153657",
       datemi: "19/09/2025",
@@ -55,5 +74,37 @@ describe("extractUrlApolice", () => {
   it("devolve string vazia pra resposta nula/indefinida", () => {
     expect(extractUrlApolice(null)).toBe("");
     expect(extractUrlApolice(undefined)).toBe("");
+  });
+});
+
+describe("extractDocumentoDetalhado", () => {
+  it("achata os campos principais do documento + acompanhamento", () => {
+    const d = extractDocumentoDetalhado(RESPOSTA_REAL);
+    expect(d).toMatchObject({
+      seguradora: "PORTO SEGURO", ramo: "RESIDENCIAL", numeroApolice: "114134153657",
+      numeroProposta: "85496174", vigenciaInicio: "19/09/2025", vigenciaFim: "19/09/2026",
+      valorTotal: 357, numeroParcelas: 10, formaPagamento: "Boleto Bancário",
+      cliente: "BRUNO MARCULINO DE OLIVEIRA",
+      situacaoAcompanhamento: "Recebido e não entregue ao cliente",
+      situacaoSinistro: "APÓLICE SEM SINISTRO",
+      urlApolice: "https://corp-anexos.s3.amazonaws.com/exemplo.pdf?Signature=abc",
+    });
+  });
+  it("extrai as parcelas", () => {
+    const d = extractDocumentoDetalhado(RESPOSTA_REAL);
+    expect(d.parcelas).toHaveLength(2);
+    expect(d.parcelas[0]).toEqual({ numero: 1, vencimento: "29/09/2025", valor: 35.69, quitadoEm: null });
+    expect(d.parcelas[1]).toEqual({ numero: 2, vencimento: "29/10/2025", valor: 35.7, quitadoEm: "01/10/2025" });
+  });
+  it("reaproveita extractProdDocs pro agente/produtor", () => {
+    const d = extractDocumentoDetalhado(RESPOSTA_REAL);
+    expect(d.prodDocs).toHaveLength(2);
+    expect(d.prodDocs[1]).toMatchObject({ agente: "PRODUÇÃO CORRETORA", produtor: "BRUNO OLIVEIRA" });
+  });
+  it("devolve null sem documento nenhum (não lança)", () => {
+    expect(extractDocumentoDetalhado({})).toBeNull();
+    expect(extractDocumentoDetalhado({ documento: [] })).toBeNull();
+    expect(extractDocumentoDetalhado(null)).toBeNull();
+    expect(extractDocumentoDetalhado(undefined)).toBeNull();
   });
 });

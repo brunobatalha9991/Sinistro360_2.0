@@ -1,6 +1,52 @@
 import { useState } from "react";
+import { uid } from "../../logic/format";
 
 function contatoVazio() { return { nome: "", telefone: "", cargo: "" }; }
+
+// Anexos do cliente (não do processo) — a pedido do usuário: guardar a URL
+// da apólice (e outros links) mesmo pra um cliente sem nenhum processo
+// vinculado ainda. Alimentado automaticamente pela importação da consulta
+// ao CORP (ConsultaCorpBox.jsx) e também editável à mão aqui.
+function AnexosCliente({ clienteId, anexos, actions, canEdit }) {
+  const [nome, setNome] = useState("");
+  const [url, setUrl] = useState("");
+
+  function adicionar() {
+    const u = url.trim();
+    if (!u) return;
+    actions.addAnexo(clienteId, { id: uid("anx"), nome: nome.trim() || u, url: u, adicionadoEm: new Date().toISOString() });
+    setNome(""); setUrl("");
+  }
+  function remover(a) {
+    if (!confirm(`Remover o anexo "${a.nome}"?`)) return;
+    actions.removeAnexo(clienteId, a.id);
+  }
+
+  return (
+    <div style={{ marginTop: 14 }}>
+      <label style={{ display: "block", marginBottom: 6 }}>Anexos (apólices, documentos, links)</label>
+      {!anexos.length ? (
+        <p className="muted" style={{ fontSize: 12, margin: 0 }}>Nenhum anexo ainda.</p>
+      ) : (
+        <div style={{ display: "flex", flexDirection: "column", gap: 6, marginBottom: 10 }}>
+          {anexos.map((a) => (
+            <div key={a.id} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8, border: "1px solid var(--border)", borderRadius: 8, padding: "6px 10px" }}>
+              <a href={a.url} target="_blank" rel="noreferrer">{a.nome}</a>
+              {canEdit && <a style={{ color: "var(--danger)", cursor: "pointer", fontSize: 12 }} onClick={() => remover(a)}>✕ Remover</a>}
+            </div>
+          ))}
+        </div>
+      )}
+      {canEdit && (
+        <div className="grid c3" style={{ alignItems: "end" }}>
+          <div className="field"><label>Nome (opcional)</label><input placeholder="Ex.: Apólice residencial" value={nome} onChange={(e) => setNome(e.target.value)} /></div>
+          <div className="field"><label>Link</label><input placeholder="https://..." value={url} onChange={(e) => setUrl(e.target.value)} /></div>
+          <button type="button" className="btn sec sm" onClick={adicionar}>+ Adicionar anexo</button>
+        </div>
+      )}
+    </div>
+  );
+}
 
 // Cadastro manual do cliente (CPF/CNPJ, endereço, contatos) — inteiramente
 // próprio do Sinistro360, nunca vindo da API (que só traz o nome como
@@ -43,6 +89,10 @@ export function CadastroPanel({ clienteId, cadastro, actions, canEdit }) {
       </div>
 
       <button className="btn" style={{ marginTop: 14 }} onClick={salvar}>Salvar cadastro</button>
+
+      <div style={{ borderTop: "1px solid var(--line)", marginTop: 16, paddingTop: 4 }}>
+        <AnexosCliente clienteId={clienteId} anexos={cadastro.anexos || []} actions={actions} canEdit={canEdit} />
+      </div>
     </div>
   );
 }

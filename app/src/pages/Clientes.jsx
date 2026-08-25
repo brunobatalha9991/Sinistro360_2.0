@@ -3,6 +3,7 @@ import { useData } from "../data/DataProvider.jsx";
 import { useHashRoute } from "../hooks/useHashRoute";
 import { EmptyState } from "../components/EmptyState.jsx";
 import { ConsultaCorpBox } from "../components/ConsultaCorpBox.jsx";
+import { useClienteActions } from "../hooks/useClienteActions";
 import { visibleClaims } from "../logic/claims";
 import {
   listaClientes, clienteClaims, clienteComsCliente, clienteAvaliacaoMedia,
@@ -12,15 +13,17 @@ import {
 export function Clientes() {
   const { records, config } = useData();
   const { navigate } = useHashRoute();
+  const clienteActions = useClienteActions();
   const [busca, setBusca] = useState("");
   const [consultaCorpAberta, setConsultaCorpAberta] = useState(false);
 
   const claims = visibleClaims(records.corp_claims);
   const overrides = records.corp_overrides || {};
   const ocorrencias = records.corp_cliente_ocorrencias || [];
+  const cadastros = records.corp_clientes || {};
 
   const linhas = useMemo(() => {
-    const lista = listaClientes(claims, overrides);
+    const lista = listaClientes(claims, overrides, cadastros);
     return lista.map((cl) => {
       const cs = clienteClaims(claims, overrides, cl.nome);
       const coms = clienteComsCliente(claims, overrides, cl.nome);
@@ -29,7 +32,7 @@ export function Clientes() {
       const placas = cs.map((c) => c.placa).filter(Boolean).join(", ");
       return { ...cl, qtdSinistros: cs.length, media, reclamacoesAbertas: abertas, placas };
     });
-  }, [claims, overrides, ocorrencias]);
+  }, [claims, overrides, ocorrencias, cadastros]);
 
   const filtradas = busca.trim()
     ? linhas.filter((cl) => cl.nome.toLowerCase().indexOf(busca.trim().toLowerCase()) >= 0)
@@ -50,7 +53,7 @@ export function Clientes() {
       {consultaCorpAberta && (
         <div className="card">
           <h3 style={{ marginTop: 0 }}>Consultar no CORP</h3>
-          <ConsultaCorpBox config={config} />
+          <ConsultaCorpBox config={config} clienteActions={clienteActions} navigate={navigate} />
         </div>
       )}
 
@@ -71,7 +74,7 @@ export function Clientes() {
             <tbody>
               {filtradas.map((cl) => (
                 <tr key={cl.id} style={{ cursor: "pointer" }} onClick={() => navigate("cliente", cl.id)}>
-                  <td><a>{cl.nome}</a></td>
+                  <td><a className="nome-cliente">{cl.nome}</a></td>
                   <td>{cl.qtdSinistros}</td>
                   <td>{cl.placas || "—"}</td>
                   <td>{cl.media != null ? `${cl.media.toFixed(1)} ★` : "—"}</td>

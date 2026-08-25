@@ -29,7 +29,7 @@ export function Cliente() {
   const canEdit = canEditRole(currentUser);
 
   const clienteId = param;
-  const nome = clienteNomeFromId(claims, overrides, clienteId);
+  const nome = clienteNomeFromId(claims, overrides, clienteId, actions.clientes);
 
   if (!nome) {
     return (
