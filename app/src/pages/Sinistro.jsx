@@ -52,6 +52,7 @@ export function Sinistro() {
   const rel = relatedClaims(overrides, allClaimsRaw, c);
   const canEdit = canEditRole(currentUser);
   const isAdminUser = isAdmin(currentUser);
+  const isConsulta = currentUser?.role === "consulta";
 
   const tabs = [
     ["jornada", "Jornada do cliente"],
@@ -63,8 +64,10 @@ export function Sinistro() {
     ["vinculos", `Vínculos (${rel.length})`],
     ["satisfacao", "Pesquisa de satisfação"],
     ["anexos", "Anexos"],
-    ["auditoria", "Auditoria Interna"],
-    ["raw", "Dados brutos (API)"],
+    ...(isConsulta ? [] : [
+      ["auditoria", "Auditoria Interna"],
+      ["raw", "Dados brutos (API)"],
+    ]),
   ];
 
   function renderPanel() {
@@ -72,14 +75,14 @@ export function Sinistro() {
       case "jornada": return <JourneyPanel c={c} overrides={overrides} config={config} actions={actions} canEdit={canEdit} isAdminUser={isAdminUser} currentUser={currentUser} navigate={navigate} />;
       case "historico": return <CommsPanel c={c} overrides={overrides} actions={actions} canEdit={canEdit} config={config} clientes={records.corp_clientes || {}} />;
       case "proxima": return <NextActionPanel c={c} overrides={overrides} actions={actions} canEdit={canEdit} />;
-      case "auditoria": return <AuditPanel c={c} overrides={overrides} records={records} />;
+      case "auditoria": return isConsulta ? null : <AuditPanel c={c} overrides={overrides} records={records} />;
       case "vinculos": return <LinksPanel c={c} claims={claims} allClaimsRaw={allClaimsRaw} overrides={overrides} actions={actions} navigate={navigate} setDetailTab={setDetailTab} />;
       case "satisfacao": return <PesquisaSatisfacaoPanel c={c} overrides={overrides} actions={actions} canEdit={canEdit} />;
       case "anexos": return <AnexosPanel c={c} overrides={overrides} config={config} actions={actions} canEdit={canEdit} currentUser={currentUser} />;
       case "geral": return <GeralPanel c={c} claims={claims} overrides={overrides} actions={actions} canEdit={canEdit} config={config} />;
       case "financeiro": return <FinancePanel c={c} overrides={overrides} actions={actions} canEdit={canEdit} />;
       case "atendimento": return <AtendimentoPanel c={c} claims={claims} overrides={overrides} actions={actions} canEdit={canEdit} />;
-      case "raw": return (
+      case "raw": return isConsulta ? null : (
         <div className="card">
           <h3 style={{ marginTop: 0 }}>Resposta bruta da API</h3>
           <pre style={{ whiteSpace: "pre-wrap", fontSize: 12, background: "#0f172a", color: "#a5f3fc", padding: 14, borderRadius: 8, overflow: "auto" }}>
