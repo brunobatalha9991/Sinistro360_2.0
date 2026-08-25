@@ -345,7 +345,7 @@ export function Abertura() {
       if (u) actions.saveResponsavel(claim.id, u, { motivo: "Responsável inicial definido na abertura manual do processo" });
     }
     if (agenteFinal || produtorSel) {
-      actions.saveAgenteProdutor(claim.id, { agentes: agenteFinal ? [agenteFinal] : [], produtores: produtorSel ? [produtorSel] : [] });
+      actions.saveAgenteProdutorPares(claim.id, [{ agente: agenteFinal, produtor: produtorSel }]);
     }
     if (agenteSel === NEW_SENTINEL && agenteNovo.trim() && agenteOpts.indexOf(agenteNovo.trim()) < 0) {
       saveConfig("corp_agentes_catalogo", (cur) => [...(cur || []), agenteNovo.trim()]);

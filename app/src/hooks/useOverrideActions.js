@@ -88,6 +88,35 @@ export function useOverrideActions() {
     // Produtor em Sinistros e o vínculo de acesso de usuários "Consulta".
     saveAgenteProdutor: (claimId, snapshot) => setOvr(claimId, { agenteProdutor: snapshot }),
 
+    // Edição manual dos pares Agente/Produtor (a pedido do usuário): editar,
+    // adicionar ou remover um par não pode ser desfeito pela próxima consulta
+    // ao /documento do CORP. Recalcula agentes/produtores (dedup, mesma
+    // lógica de normalizeAgenteProdutorSnapshot) a partir dos pares e marca
+    // agenteProdutorManual — é essa marca que faz useDocumentoCorp parar de
+    // sobrescrever este processo dali em diante (ver useDocumentoCorp.js).
+    saveAgenteProdutorPares(claimId, pares) {
+      const limpos = (pares || []).map((p) => ({ agente: (p.agente || "").trim(), produtor: (p.produtor || "").trim() }));
+      const agentes = []; const produtores = [];
+      const seenA = {}; const seenP = {};
+      limpos.forEach((p) => {
+        if (p.agente && !seenA[p.agente]) { seenA[p.agente] = true; agentes.push(p.agente); }
+        if (p.produtor && !seenP[p.produtor]) { seenP[p.produtor] = true; produtores.push(p.produtor); }
+      });
+      saveRecord("corp_overrides", (current) => {
+        const cur = current || {};
+        const existing = cur[claimId] || {};
+        const prevAp = existing.agenteProdutor || {};
+        return {
+          ...cur,
+          [claimId]: {
+            ...existing,
+            agenteProdutorManual: true,
+            agenteProdutor: { ...prevAp, agentes, produtores, prodDocs: limpos, atualizadoEm: new Date().toISOString() },
+          },
+        };
+      });
+    },
+
     // Alertas de e-mail (Gmail) — a pedido do usuário: quando um e-mail
     // bate com um processo (por nº de sinistro/placa/nome, ou vínculo
     // manual), fica registrado aqui SEM gravar nada no histórico sozinho —

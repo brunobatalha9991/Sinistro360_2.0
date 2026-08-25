@@ -3,85 +3,93 @@ import { KvList } from "../KvList.jsx";
 import { EditableCell } from "../EditableCell.jsx";
 import { OficinaModal } from "./OficinaModal.jsx";
 import {
-  distinctComputed, campoEfetivo, campoFoiEditado, situacaoEfetiva, isManualClaim,
+  distinctComputed, campoEfetivo, campoFoiEditado, situacaoEfetiva,
   getAgenteProdutor, getAgentesEfetivo, distinctProdutores,
 } from "../../logic/claims";
 import { txt } from "../../logic/format";
-import { extractProdDocs } from "../../logic/corpApi";
 import { useDocumentoCorp } from "../../hooks/useDocumentoCorp";
 
-// Processos manuais não têm nosnum real da API, então não há o que buscar
-// no endpoint /documento (ver AgenteProdutorBox abaixo) — Agente/Produtor
-// aqui é editado diretamente, do mesmo catálogo já usado na Abertura
-// (Configurações → Agentes e Produtores), pra dar como corrigir um processo
-// que não teve Agente/Produtor definidos na criação.
-function AgenteProdutorManualBox({ c, overrides, config, claims, actions, canEdit }) {
-  const [editing, setEditing] = useState(false);
-  const ap = getAgenteProdutor(overrides, c.id) || {};
-  const agenteAtual = (ap.agentes || [])[0] || "";
-  const produtorAtual = (ap.produtores || [])[0] || "";
-  const [agenteSel, setAgenteSel] = useState(agenteAtual);
-  const [produtorSel, setProdutorSel] = useState(produtorAtual);
-  const agenteOpts = getAgentesEfetivo(config, overrides, claims);
-  const produtorOpts = distinctProdutores(overrides, claims);
-
-  function abrir() {
-    if (!canEdit) { alert("Seu perfil é apenas de consulta. Você pode visualizar, mas não editar processos."); return; }
-    setAgenteSel(agenteAtual); setProdutorSel(produtorAtual); setEditing(true);
-  }
-  function salvar() {
-    actions.saveAgenteProdutor(c.id, { agentes: agenteSel ? [agenteSel] : [], produtores: produtorSel ? [produtorSel] : [] });
-    actions.logAudit(c.id, "Agente/Produtor definido", `${agenteSel || "—"} / ${produtorSel || "—"}`);
-    setEditing(false);
-  }
-
+// Formulário inline (editar linha existente OU adicionar uma nova) do par
+// Agente/Produtor — texto livre (não só o catálogo), com sugestões via
+// <datalist>, porque o objetivo aqui é justamente poder corrigir um valor
+// que a API trouxe errado, não só escolher entre valores já conhecidos.
+function ParForm({ agente: agenteInicial, produtor: produtorInicial, agenteOpts, produtorOpts, listId, onSave, onCancel }) {
+  const [agente, setAgente] = useState(agenteInicial || "");
+  const [produtor, setProdutor] = useState(produtorInicial || "");
   return (
-    <div style={{ marginTop: 16, borderTop: "1px solid var(--line)", paddingTop: 14 }}>
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 8 }}>
-        <label style={{ margin: 0 }}>Agente / Produtor</label>
-        {!editing && <a style={{ opacity: 0.6, cursor: "pointer" }} onClick={abrir}>✎ editar</a>}
+    <div className="grid c2" style={{ marginTop: 8, marginBottom: 8 }}>
+      <div className="field"><label>Agente</label>
+        <input list={listId + "-ag"} value={agente} onChange={(e) => setAgente(e.target.value)} placeholder="Nome do agente" />
+        <datalist id={listId + "-ag"}>{agenteOpts.map((a) => <option key={a} value={a} />)}</datalist>
       </div>
-      {!editing ? (
-        agenteAtual || produtorAtual ? (
-          <div style={{ fontSize: 13, marginTop: 6 }}><b>{produtorAtual || "—"}</b> <span className="muted">— agente: {agenteAtual || "—"}</span></div>
-        ) : (
-          <div className="muted" style={{ fontSize: 12, marginTop: 4 }}>Nenhum agente/produtor vinculado.</div>
-        )
-      ) : (
-        <div className="grid c2" style={{ marginTop: 8 }}>
-          <div className="field"><label>Agente</label>
-            <select value={agenteSel} onChange={(e) => setAgenteSel(e.target.value)}>
-              <option value="">— Selecione —</option>
-              {agenteOpts.map((a) => <option key={a} value={a}>{a}</option>)}
-            </select>
-          </div>
-          <div className="field"><label>Produtor</label>
-            <select value={produtorSel} onChange={(e) => setProdutorSel(e.target.value)}>
-              <option value="">— Selecione —</option>
-              {produtorOpts.map((p) => <option key={p} value={p}>{p}</option>)}
-            </select>
-          </div>
-          <div style={{ gridColumn: "1 / -1", display: "flex", gap: 8 }}>
-            <button type="button" className="btn xs" onClick={salvar}>Salvar</button>
-            <button type="button" className="btn ghost xs" onClick={() => setEditing(false)}>Cancelar</button>
-          </div>
-        </div>
+      <div className="field"><label>Produtor</label>
+        <input list={listId + "-pr"} value={produtor} onChange={(e) => setProdutor(e.target.value)} placeholder="Nome do produtor" />
+        <datalist id={listId + "-pr"}>{produtorOpts.map((p) => <option key={p} value={p} />)}</datalist>
+      </div>
+      <div style={{ gridColumn: "1 / -1", display: "flex", gap: 8 }}>
+        <button type="button" className="btn xs" onClick={() => onSave({ agente: agente.trim(), produtor: produtor.trim() })}>Salvar</button>
+        <button type="button" className="btn ghost xs" onClick={onCancel}>Cancelar</button>
+      </div>
+    </div>
+  );
+}
+
+function ParRow({ par, index, agenteOpts, produtorOpts, listId, canEdit, onSave, onRemove }) {
+  const [editing, setEditing] = useState(false);
+  function exigirEdicao(fn) {
+    return () => {
+      if (!canEdit) { alert("Seu perfil é apenas de consulta. Você pode visualizar, mas não editar processos."); return; }
+      fn();
+    };
+  }
+  if (editing) {
+    return (
+      <ParForm
+        agente={par.agente} produtor={par.produtor} agenteOpts={agenteOpts} produtorOpts={produtorOpts} listId={listId}
+        onSave={(v) => { onSave(index, v); setEditing(false); }} onCancel={() => setEditing(false)}
+      />
+    );
+  }
+  return (
+    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8, padding: "4px 0" }}>
+      <div style={{ fontSize: 13 }}><b>{txt(par.produtor)}</b> <span className="muted">— agente: {txt(par.agente)}</span></div>
+      {canEdit && (
+        <span style={{ display: "flex", gap: 10, flexShrink: 0 }}>
+          <a style={{ cursor: "pointer", opacity: 0.7 }} onClick={exigirEdicao(() => setEditing(true))}>✎ editar</a>
+          <a style={{ cursor: "pointer", color: "var(--danger)" }} onClick={exigirEdicao(() => onRemove(index))}>✕ remover</a>
+        </span>
       )}
     </div>
   );
 }
 
-// Agente/Produtor vêm de um endpoint separado do CORP (/documento, não faz
-// parte da sincronização normal de sinistros) — busca sob demanda ao abrir
-// a aba, usando o "nosnum" do processo (chave universal no CORP) + codfil.
-// Processos criados manualmente (sem nosnum real da API) não têm o que
-// buscar aqui — usam AgenteProdutorManualBox (edição direta) em vez disso.
+// Agente/Produtor: normalmente vêm em pares (o mais comum são 2, mas pode
+// vir 1 ou vários) de um endpoint separado do CORP (/documento) — busca sob
+// demanda ao abrir a aba. A pedido do usuário, cada par pode ser editado,
+// removido ou um novo adicionado, independente dos demais (editar um não
+// mexe no outro), e a próxima busca ao CORP não desfaz a edição: assim que
+// qualquer edição acontece aqui, `agenteProdutorManual` é marcado em
+// overrides e useDocumentoCorp para de sobrescrever este processo (ver
+// useOverrideActions.saveAgenteProdutorPares e useDocumentoCorp.js).
+// Processos manuais (sem nosnum real) simplesmente não têm o que buscar —
+// a lista aqui já nasce vazia e só cresce pelo "+ Adicionar" abaixo.
 function AgenteProdutorBox({ c, config, overrides, claims, actions, canEdit }) {
-  const { resp, carregando, erro } = useDocumentoCorp(c, config, actions);
-  const prodDocs = extractProdDocs(resp);
+  const { carregando, erro } = useDocumentoCorp(c, config, actions, overrides);
+  const [addingNew, setAddingNew] = useState(false);
+  const ap = getAgenteProdutor(overrides, c.id) || {};
+  const pares = ap.prodDocs || [];
+  const agenteOpts = getAgentesEfetivo(config, overrides, claims);
+  const produtorOpts = distinctProdutores(overrides, claims);
+  const listId = "ap_" + c.id;
 
-  if (isManualClaim(c)) {
-    return <AgenteProdutorManualBox c={c} overrides={overrides} config={config} claims={claims} actions={actions} canEdit={canEdit} />;
+  function persistir(novosPares) {
+    actions.saveAgenteProdutorPares(c.id, novosPares);
+    actions.logAudit(c.id, "Agente/Produtor editado", `${novosPares.length} vínculo(s) — editado manualmente`);
+  }
+  function salvarPar(index, novoPar) { persistir(pares.map((p, i) => (i === index ? novoPar : p))); }
+  function removerPar(index) {
+    if (!confirm("Remover este vínculo de agente/produtor?")) return;
+    persistir(pares.filter((_, i) => i !== index));
   }
 
   return (
@@ -90,15 +98,21 @@ function AgenteProdutorBox({ c, config, overrides, claims, actions, canEdit }) {
         <label style={{ margin: 0 }}>Agente / Produtor</label>
         {carregando && <span className="muted" style={{ fontSize: 12 }}>Buscando...</span>}
       </div>
-      {erro && <div style={{ color: "var(--danger)", fontSize: 12, marginTop: 4 }}>{erro}</div>}
-      {!carregando && !erro && !prodDocs.length && (
-        <div className="muted" style={{ fontSize: 12, marginTop: 4 }}>Nenhum agente/produtor encontrado para este processo.</div>
+      {erro && !pares.length && <div style={{ color: "var(--danger)", fontSize: 12, marginTop: 4 }}>{erro}</div>}
+      {!pares.length && !carregando && (
+        <div className="muted" style={{ fontSize: 12, marginTop: 4 }}>Nenhum agente/produtor vinculado.</div>
       )}
-      {prodDocs.map((p, idx) => (
-        <div key={idx} style={{ fontSize: 13, marginTop: 6 }}>
-          <b>{txt(p.produtor)}</b> <span className="muted">— agente: {txt(p.agente)}</span>
-        </div>
+      {pares.map((p, i) => (
+        <ParRow key={i} par={p} index={i} agenteOpts={agenteOpts} produtorOpts={produtorOpts} listId={listId + "-" + i} canEdit={canEdit} onSave={salvarPar} onRemove={removerPar} />
       ))}
+      {addingNew ? (
+        <ParForm
+          agenteOpts={agenteOpts} produtorOpts={produtorOpts} listId={listId + "-new"}
+          onSave={(v) => { persistir([...pares, v]); setAddingNew(false); }} onCancel={() => setAddingNew(false)}
+        />
+      ) : canEdit && (
+        <button type="button" className="btn ghost xs" style={{ marginTop: 6 }} onClick={() => setAddingNew(true)}>+ Adicionar agente/produtor</button>
+      )}
     </div>
   );
 }

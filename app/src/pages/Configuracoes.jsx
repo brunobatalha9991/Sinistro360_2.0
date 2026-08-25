@@ -104,7 +104,7 @@ export function Configuracoes() {
 
           <ConfigGroup title="Agentes & Produtores" subtitle="Catálogo de agentes e importação em lote de Agente/Produtor da API CORP — usado no filtro de Sinistros e no vínculo de acesso de usuários Consulta.">
             <AgentesCatalogoCard config={config} saveConfig={saveConfig} overrides={overrides} claims={claims} canEdit={admin} />
-            <ImportarAgenteProdutorCard claims={claims} config={config} actions={actions} canEdit={admin} />
+            <ImportarAgenteProdutorCard claims={claims} config={config} overrides={overrides} actions={actions} canEdit={admin} />
           </ConfigGroup>
 
           <ConfigGroup title="Mesa de Atendimento" subtitle="Checklist de abertura, formulários de solicitação e upload de anexos no Drive.">

@@ -11,8 +11,8 @@ import { useDocumentoCorp } from "../../hooks/useDocumentoCorp";
 // codfil+nosnum (nosnum é a chave universal do CORP), igual ao Agente/
 // Produtor da Visão geral. Processos manuais não têm nosnum real, então não
 // disparam a busca.
-function ApoliceCorpBox({ c, config, actions }) {
-  const { resp, carregando, erro } = useDocumentoCorp(c, config, actions);
+function ApoliceCorpBox({ c, config, actions, overrides }) {
+  const { resp, carregando, erro } = useDocumentoCorp(c, config, actions, overrides);
   if (isManualClaim(c)) return null;
   const url = extractUrlApolice(resp);
   return (
@@ -92,7 +92,7 @@ export function AnexosPanel({ c, overrides, config, actions, canEdit, currentUse
         Proposta de seguro, dados do segurado ou qualquer outro documento do processo. Fica salvo no Google Drive (pasta própria, separada dos anexos da Mesa de Atendimento) — o link abre em uma nova guia.
       </p>
 
-      <ApoliceCorpBox c={c} config={config} actions={actions} />
+      <ApoliceCorpBox c={c} config={config} actions={actions} overrides={overrides} />
 
       {!anexos.length ? <EmptyState>Nenhum anexo ainda.</EmptyState> : (
         <div style={{ display: "flex", flexDirection: "column", gap: 8, marginBottom: 14 }}>

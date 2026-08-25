@@ -7,14 +7,17 @@ import { fetchDocumento, normalizeAgenteProdutorSnapshot } from "../../logic/cor
 // do usuário, pra não depender de alguém abrir a Visão geral de cada
 // processo um por um antes do filtro/vínculo por Agente-Produtor funcionar
 // pra valer. Sequencial (não em paralelo) pra não sobrecarregar a API.
-export function ImportarAgenteProdutorCard({ claims, config, actions, canEdit }) {
+export function ImportarAgenteProdutorCard({ claims, config, overrides, actions, canEdit }) {
   const [rodando, setRodando] = useState(false);
   const [progresso, setProgresso] = useState(null);
 
   async function importar() {
     if (!canEdit) { alert("Seu perfil é apenas de consulta. Você pode visualizar, mas não importar dados."); return; }
-    const alvo = (claims || []).filter((c) => !isManualClaim(c) && c.nosnum);
-    if (!alvo.length) { alert("Nenhum processo sincronizado da API para buscar."); return; }
+    // Pula processos cujo Agente/Produtor já foi editado manualmente (Visão
+    // geral) — a pedido do usuário, a importação em lote não pode desfazer
+    // uma edição/remoção manual. Ver useDocumentoCorp.js.
+    const alvo = (claims || []).filter((c) => !isManualClaim(c) && c.nosnum && !(overrides && overrides[c.id] && overrides[c.id].agenteProdutorManual));
+    if (!alvo.length) { alert("Nenhum processo sincronizado da API para buscar (ou todos já têm Agente/Produtor editado manualmente)."); return; }
     if (!confirm(`Buscar Agente/Produtor de ${alvo.length} processo(s) agora? Pode levar alguns minutos.`)) return;
 
     setRodando(true);
