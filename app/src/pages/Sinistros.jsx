@@ -28,6 +28,16 @@ function terceiroSemVinculoSegurado(overrides, allClaimsRaw, c) {
   return !relatedClaims(overrides, allClaimsRaw, c).some((x) => x.partyType === "Segurado");
 }
 
+// Processo Pendente/Em andamento sem Produtor vinculado (a pedido do
+// usuário) — mesmo recorte de situação já usado no filtro de Responsável
+// ("traz apenas Pendente / Em andamento").
+function semProdutorVinculado(overrides, atendTemplate, c) {
+  const label = situacaoEfetiva(overrides, c, atendTemplate).label;
+  if (label !== "Pendente" && label !== "Em andamento") return false;
+  const ap = getAgenteProdutor(overrides, c.id);
+  return !ap || !(ap.produtores && ap.produtores.length);
+}
+
 export function Sinistros() {
   const { records, config } = useData();
   const { navigate } = useHashRoute();
@@ -104,6 +114,7 @@ export function Sinistros() {
     if (except !== "limitacaoComunicacaoHist" && lf.limitacaoComunicacaoHist && !claimTemFlagHistorico(overrides, c.id, "limitacaoComunicacao")) return false;
     if (except !== "foraDoPrazo" && lf.foraDoPrazo && !claimTemEtapaForaDoPrazo(overrides, c.id)) return false;
     if (except !== "terceiroSemVinculo" && lf.terceiroSemVinculo && !terceiroSemVinculoSegurado(overrides, allClaimsRaw, c)) return false;
+    if (except !== "semProdutor" && lf.semProdutor && !semProdutorVinculado(overrides, atendTemplate, c)) return false;
     if (except !== "texto" && q) {
       const hay = [campoEfetivo(overrides, c, "segurado"), campoEfetivo(overrides, c, "placa"), campoEfetivo(overrides, c, "numsin"), campoEfetivo(overrides, c, "numapo"), campoEfetivo(overrides, c, "cia"), c.partyType, campoEfetivo(overrides, c, "oficina"), campoEfetivo(overrides, c, "ramo")].join(" ").toLowerCase();
       if (hay.indexOf(q) < 0) return false;
@@ -122,6 +133,7 @@ export function Sinistros() {
   const baseLimComHist = claims.filter((c) => passa(c, "limitacaoComunicacaoHist"));
   const baseForaPrazo = claims.filter((c) => passa(c, "foraDoPrazo"));
   const baseTerceiroSemVinculo = claims.filter((c) => passa(c, "terceiroSemVinculo"));
+  const baseSemProdutor = claims.filter((c) => passa(c, "semProdutor"));
 
   const cntTipo = {}; let totalNaoFinal = 0;
   baseTipo.forEach((c) => {
@@ -150,6 +162,7 @@ export function Sinistros() {
   const qtdLimComHist = baseLimComHist.filter((c) => claimTemFlagHistorico(overrides, c.id, "limitacaoComunicacao")).length;
   const qtdForaPrazo = baseForaPrazo.filter((c) => claimTemEtapaForaDoPrazo(overrides, c.id)).length;
   const qtdTerceiroSemVinculo = baseTerceiroSemVinculo.filter((c) => terceiroSemVinculoSegurado(overrides, allClaimsRaw, c)).length;
+  const qtdSemProdutor = baseSemProdutor.filter((c) => semProdutorVinculado(overrides, atendTemplate, c)).length;
 
   const stageNames = allJourneyStages(templates, atendTemplate);
   const stageCounts = {}; let stageTotal = 0;
@@ -203,6 +216,7 @@ export function Sinistros() {
     if (lf.limitacaoComunicacaoHist && !claimTemFlagHistorico(overrides, c.id, "limitacaoComunicacao")) return false;
     if (lf.foraDoPrazo && !claimTemEtapaForaDoPrazo(overrides, c.id)) return false;
     if (lf.terceiroSemVinculo && !terceiroSemVinculoSegurado(overrides, allClaimsRaw, c)) return false;
+    if (lf.semProdutor && !semProdutorVinculado(overrides, atendTemplate, c)) return false;
     if (!q) return true;
     return [campoEfetivo(overrides, c, "segurado"), campoEfetivo(overrides, c, "placa"), campoEfetivo(overrides, c, "numsin"), campoEfetivo(overrides, c, "numapo"), campoEfetivo(overrides, c, "cia"), c.partyType, campoEfetivo(overrides, c, "oficina"), campoEfetivo(overrides, c, "ramo")].join(" ").toLowerCase().indexOf(q) >= 0;
   });
@@ -226,6 +240,7 @@ export function Sinistros() {
   if (lf.limitacaoComunicacaoHist) activeCount++;
   if (lf.foraDoPrazo) activeCount++;
   if (lf.terceiroSemVinculo) activeCount++;
+  if (lf.semProdutor) activeCount++;
 
   const allCols = getAllCols({ overrides, allClaimsRaw, navigate, atendTemplateCfg: atendTemplate });
 
@@ -316,6 +331,7 @@ export function Sinistros() {
               <div className={"chip-btn" + (lf.aguardandoRetornoHist ? " active" : "")} onClick={() => patchListFilter({ aguardandoRetornoHist: !lf.aguardandoRetornoHist })}>⏳ Aguardando retorno ({qtdAguardHist})</div>
               <div className={"chip-btn" + (lf.limitacaoComunicacaoHist ? " active" : "")} onClick={() => patchListFilter({ limitacaoComunicacaoHist: !lf.limitacaoComunicacaoHist })}>🚧 Limitação de comunicação ({qtdLimComHist})</div>
               <div className={"chip-btn" + (lf.foraDoPrazo ? " active" : "")} onClick={() => patchListFilter({ foraDoPrazo: !lf.foraDoPrazo })}>⏰ Etapa fora do prazo ({qtdForaPrazo})</div>
+              <div className={"chip-btn" + (lf.semProdutor ? " active" : "")} onClick={() => patchListFilter({ semProdutor: !lf.semProdutor })}>⚠ Sem produtor vinculado ({qtdSemProdutor})</div>
             </div>
           </div>
 

@@ -5,6 +5,7 @@ import { HeaderLayoutGrid } from "./HeaderLayoutGrid.jsx";
 import { useData } from "../../data/DataProvider.jsx";
 import { setDemandaPrefill } from "../../state/taskModal";
 import { setComsPrefill } from "../../state/comsPrefill";
+import { setAberturaPrefill } from "../../state/aberturaPrefill";
 import { getGmailToken } from "../../gmail/googleAuthClient";
 import { baixarAnexoGmail } from "../../logic/gmailApi";
 import {
@@ -377,11 +378,25 @@ export function DetailHeader({ c, sit, rel, claims, allClaimsRaw, overrides, use
     navigate("sinistros");
   }
 
+  // Atalho "+ Abrir processo vinculado" (a pedido do usuário): abre a
+  // Abertura já com Seguradora/Ramo/Apólice/Data de ocorrência/Agente/
+  // Produtor deste processo pré-preenchidos e o vínculo (nos dois sentidos)
+  // pronto pra ser criado ao salvar — fluxo típico: abrir o Terceiro a
+  // partir do Segurado, ou vice-versa. Ver Abertura.jsx (vinculoProcessoId).
+  function abrirProcessoVinculado() {
+    const sugestao = c.partyType === "Segurado" ? "Terceiro" : c.partyType === "Terceiro" ? "Segurado" : "Segurado";
+    setAberturaPrefill({ vinculoProcessoId: c.id, tipoParte: sugestao });
+    navigate("abertura");
+  }
+
   return (
     <div className="detail-head">
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 8, marginBottom: 12 }}>
         <button className="btn sec sm" onClick={() => navigate("sinistros")}>← Voltar aos sinistros</button>
-        {canEdit && <button className="btn danger sm" onClick={excluirProcesso}>🗑 Excluir processo</button>}
+        <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+          {canEdit && <button className="btn sec sm" onClick={abrirProcessoVinculado}>+ Abrir processo vinculado</button>}
+          {canEdit && <button className="btn danger sm" onClick={excluirProcesso}>🗑 Excluir processo</button>}
+        </div>
       </div>
       <h1>{(numsinEf ? "Sinistro " + numsinEf : "Registro #" + c.nosnum) + " — " + txt(seguradoEf)}</h1>
       <div className="sub">Placa {txt(placaEf)} • {txt(ciaEf)} • Ramo {txt(ramoEf)} • Apólice {txt(numapoEf)} • Oficina {txt(oficinaEf)}</div>

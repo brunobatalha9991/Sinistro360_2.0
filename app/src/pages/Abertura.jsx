@@ -6,8 +6,12 @@ import { useOverrideActions } from "../hooks/useOverrideActions";
 import { useClienteActions } from "../hooks/useClienteActions";
 import { EmptyState } from "../components/EmptyState.jsx";
 import { ConsultaCorpBox } from "../components/ConsultaCorpBox.jsx";
+import { ProcSearch } from "../components/ProcSearch.jsx";
 import { canEdit as canEditRole } from "../data/auth";
-import { distinctComputed, partyTypeFromTipo, defaultRamoTemplate, visibleClaims } from "../logic/claims";
+import {
+  distinctComputed, partyTypeFromTipo, defaultRamoTemplate, visibleClaims,
+  campoEfetivo, getAgenteProdutor, getAgentesEfetivo, distinctProdutores,
+} from "../logic/claims";
 import { listaClientes, clienteIdFromNome } from "../logic/clientes";
 import { todayISO, isoFromBR } from "../logic/format";
 import { takePendingTaskLink } from "../state/taskModal";
@@ -139,6 +143,7 @@ function buildManualClaim(data, currentUser) {
     segurado: (data.segurado || "").trim(), cia: (data.cia || "").trim(), ramo: (data.ramo || "").trim(),
     numapo: (data.numapo || "").trim(), numend: (data.numend || "").trim(), item: (data.item || "").trim(),
     placa: (data.placa || "").trim().toUpperCase(), situacao: "PENDENTE",
+    veiculoMarca: (data.veiculoMarca || "").trim(), veiculoModelo: (data.veiculoModelo || "").trim(), veiculoAno: (data.veiculoAno || "").trim(),
     franquia: Number(data.franquia) || 0, valavi: Number(data.valavi) || 0, valind: 0, valdes: 0,
     datavi: data.datavi || todayISO(), datoco: data.datoco || "", datenc: "", datvis: "", datlib: "",
     responsavel: "", oficina: (data.oficina || "").trim(), tipo_atendimento: "",
@@ -166,24 +171,57 @@ export function Abertura() {
   const ciaOpts = distinctComputed(claims, (c) => c.cia);
   const ramoOpts = Object.keys(templates).sort();
   const oficinaOpts = distinctComputed(claims, (c) => c.oficina);
+  const agenteOpts = getAgentesEfetivo(config, overrides, claims);
+  const produtorOpts = distinctProdutores(overrides, claims);
 
-  const [tipoParte, setTipoParte] = useState("Segurado");
   // Capturado uma única vez ao montar: preenchimento vindo do módulo
-  // Clientes ("+ Abrir novo atendimento para este cliente"), se houver.
+  // Clientes ("+ Abrir novo atendimento para este cliente") ou do atalho
+  // "+ Abrir processo vinculado" dentro de um processo já aberto (ver
+  // DetailHeader.jsx), se houver.
   const [aberturaPrefillValue] = useState(() => takeAberturaPrefill());
+
+  // A partir de um processo "vinculado" (escolhido no campo de busca abaixo,
+  // ou vindo do atalho de dentro do processo) — Seguradora/Ramo/Apólice/Data
+  // de ocorrência/Agente/Produtor são do mesmo evento, então valem também
+  // para o novo processo. Mapeia pro <select> igual a preencherDaConsultaCorp
+  // (NEW_SENTINEL quando o valor ainda não está no catálogo local).
+  function computeVinculoFields(target) {
+    if (!target) return null;
+    const tcia = campoEfetivo(overrides, target, "cia") || "";
+    const tramo = campoEfetivo(overrides, target, "ramo") || "";
+    const tnumapo = campoEfetivo(overrides, target, "numapo") || "";
+    const tdatoco = campoEfetivo(overrides, target, "datoco") || "";
+    const ap = getAgenteProdutor(overrides, target.id) || {};
+    return {
+      ciaIsNew: !!(tcia && ciaOpts.indexOf(tcia) < 0), cia: tcia,
+      ramoIsNew: !!(tramo && ramoOpts.indexOf(tramo) < 0), ramo: tramo,
+      numapo: tnumapo, datoco: tdatoco,
+      agente: (ap.agentes || [])[0] || "", produtor: (ap.produtores || [])[0] || "",
+    };
+  }
+
+  const vinculoTarget = aberturaPrefillValue?.vinculoProcessoId
+    ? claims.find((x) => x.id === aberturaPrefillValue.vinculoProcessoId) || null
+    : null;
+  const vinculoInit = computeVinculoFields(vinculoTarget);
+
+  const [tipoParte, setTipoParte] = useState(aberturaPrefillValue?.tipoParte || "Segurado");
   const [segurado, setSegurado] = useState(aberturaPrefillValue?.segurado || "");
   const [placa, setPlaca] = useState("");
+  const [veiculoMarca, setVeiculoMarca] = useState("");
+  const [veiculoModelo, setVeiculoModelo] = useState("");
+  const [veiculoAno, setVeiculoAno] = useState("");
   const [numsin, setNumsin] = useState("");
-  const [cia, setCia] = useState("");
-  const [ciaNova, setCiaNova] = useState("");
-  const [ramo, setRamo] = useState("");
-  const [ramoNovo, setRamoNovo] = useState("");
+  const [cia, setCia] = useState(vinculoInit ? (vinculoInit.ciaIsNew ? NEW_SENTINEL : vinculoInit.cia) : "");
+  const [ciaNova, setCiaNova] = useState(vinculoInit && vinculoInit.ciaIsNew ? vinculoInit.cia : "");
+  const [ramo, setRamo] = useState(vinculoInit ? (vinculoInit.ramoIsNew ? NEW_SENTINEL : vinculoInit.ramo) : "");
+  const [ramoNovo, setRamoNovo] = useState(vinculoInit && vinculoInit.ramoIsNew ? vinculoInit.ramo : "");
   const [oficina, setOficina] = useState("");
   const [oficinaNova, setOficinaNova] = useState("");
-  const [numapo, setNumapo] = useState("");
+  const [numapo, setNumapo] = useState(vinculoInit?.numapo || "");
   const [numend, setNumend] = useState("");
   const [item, setItem] = useState("");
-  const [datoco, setDatoco] = useState("");
+  const [datoco, setDatoco] = useState(vinculoInit?.datoco || "");
   const [datavi, setDatavi] = useState(todayISO());
   const [franquia, setFranquia] = useState("");
   const [valavi, setValavi] = useState("");
@@ -191,10 +229,41 @@ export function Abertura() {
   const [descricao, setDescricao] = useState("");
   const [observacoes, setObservacoes] = useState("");
   const [status, setStatus] = useState(null);
+  // Agente/Produtor (obrigatórios para Segurado/Terceiro — a pedido do
+  // usuário). agente aceita "+ Novo agente..." (mesmo padrão de
+  // seguradora/ramo/oficina); produtor só vem do catálogo já existente
+  // (mesma regra de AgentesCatalogoCard.jsx: "produtor não tem cadastro
+  // manual").
+  const [agenteSel, setAgenteSel] = useState(vinculoInit?.agente || "");
+  const [agenteNovo, setAgenteNovo] = useState("");
+  const [produtorSel, setProdutorSel] = useState(vinculoInit?.produtor || "");
+  // Vínculo com outro processo do mesmo evento (Segurado ↔ Terceiro) — ao
+  // escolher, reaplica computeVinculoFields (mesmo efeito do prefill acima).
+  const [vinculoId, setVinculoId] = useState(vinculoTarget ? vinculoTarget.id : "");
   // Capturado uma única vez ao montar: id da tarefa que disparou o atalho
   // "abrir novo atendimento" (Mesa de Atendimento), se houver — o processo
   // criado aqui é vinculado automaticamente a ela.
   const [tarefaVinculada] = useState(() => takePendingTaskLink());
+
+  function aplicarVinculo(claimId) {
+    setVinculoId(claimId);
+    if (!claimId) return;
+    const target = claims.find((x) => x.id === claimId);
+    const f = computeVinculoFields(target);
+    if (!f) return;
+    if (f.cia) { setCia(f.ciaIsNew ? NEW_SENTINEL : f.cia); setCiaNova(f.ciaIsNew ? f.cia : ""); }
+    if (f.ramo) { setRamo(f.ramoIsNew ? NEW_SENTINEL : f.ramo); setRamoNovo(f.ramoIsNew ? f.ramo : ""); }
+    if (f.numapo) setNumapo(f.numapo);
+    if (f.datoco) setDatoco(f.datoco);
+    if (f.agente) { setAgenteSel(f.agente); setAgenteNovo(""); }
+    if (f.produtor) setProdutorSel(f.produtor);
+  }
+
+  function vinculoLabel() {
+    if (tipoParte === "Segurado") return "Vincular ao processo do Terceiro (mesmo evento)";
+    if (tipoParte === "Terceiro") return "Vincular ao processo do Segurado (mesmo evento)";
+    return "Vincular a outro processo (opcional)";
+  }
 
   const canEdit = canEditRole(currentUser);
   if (!canEdit) {
@@ -241,9 +310,18 @@ export function Abertura() {
     if (r.descricao) setDescricao(r.descricao);
   }
 
+  // Agente/Produtor/Responsável são obrigatórios para Segurado/Terceiro (a
+  // pedido do usuário) — Atendimento (sem apólice) fica de fora.
+  const exigeVinculos = tipoParte !== "Atendimento";
+  const agenteFinal = agenteSel === NEW_SENTINEL ? agenteNovo.trim() : agenteSel;
+
   function criar() {
     const nome = segurado.trim();
     if (!nome) { setStatus({ cls: "err", msg: "Informe o nome do segurado/terceiro." }); return; }
+    if (exigeVinculos && (!agenteFinal || !produtorSel || !responsavelId)) {
+      setStatus({ cls: "err", msg: "Para Segurado/Terceiro, Agente, Produtor e Responsável são obrigatórios." });
+      return;
+    }
     const ciaFinal = cia === NEW_SENTINEL ? ciaNova.trim() : cia;
     const ramoFinal = ramo === NEW_SENTINEL ? ramoNovo.trim().toUpperCase() : ramo;
     const oficinaFinal = oficina === NEW_SENTINEL ? oficinaNova.trim() : oficina;
@@ -251,6 +329,7 @@ export function Abertura() {
     const claim = buildManualClaim({
       tipoParte, segurado: nome, placa, numsin, cia: ciaFinal, ramo: ramoFinal, oficina: oficinaFinal,
       numapo, numend, item, datoco, datavi, franquia, valavi, observacoes, descricao,
+      veiculoMarca, veiculoModelo, veiculoAno,
     }, currentUser);
 
     if (claim.ramo) {
@@ -264,6 +343,17 @@ export function Abertura() {
     if (responsavelId) {
       const u = users.find((x) => x.id === responsavelId);
       if (u) actions.saveResponsavel(claim.id, u, { motivo: "Responsável inicial definido na abertura manual do processo" });
+    }
+    if (agenteFinal || produtorSel) {
+      actions.saveAgenteProdutor(claim.id, { agentes: agenteFinal ? [agenteFinal] : [], produtores: produtorSel ? [produtorSel] : [] });
+    }
+    if (agenteSel === NEW_SENTINEL && agenteNovo.trim() && agenteOpts.indexOf(agenteNovo.trim()) < 0) {
+      saveConfig("corp_agentes_catalogo", (cur) => [...(cur || []), agenteNovo.trim()]);
+    }
+    if (vinculoId) {
+      actions.addLink(claim.id, vinculoId);
+      const alvo = claims.find((x) => x.id === vinculoId);
+      actions.logAudit(claim.id, "Vinculado automaticamente", alvo ? `Vinculado ao processo ${alvo.numsin || "#" + alvo.nosnum} — ${alvo.segurado}` : "");
     }
     actions.logAudit(claim.id, "Processo criado manualmente", "Via módulo Abertura");
 
@@ -313,6 +403,21 @@ export function Abertura() {
         </div>
 
         <div className="grid c3">
+          <div className="field"><label>Marca</label><input placeholder="Ex.: Fiat" value={veiculoMarca} onChange={(e) => setVeiculoMarca(e.target.value)} /></div>
+          <div className="field"><label>Modelo</label><input placeholder="Ex.: Argo" value={veiculoModelo} onChange={(e) => setVeiculoModelo(e.target.value)} /></div>
+          <div className="field"><label>Ano Modelo</label><input placeholder="Ex.: 2023" value={veiculoAno} onChange={(e) => setVeiculoAno(e.target.value)} /></div>
+        </div>
+
+        <div className="field">
+          <label>{vinculoLabel()}</label>
+          <ProcSearch
+            value={{ label: vinculoTarget && vinculoId === vinculoTarget.id ? (vinculoTarget.numsin || "#" + vinculoTarget.nosnum) + " — " + vinculoTarget.segurado : "" }}
+            onChange={aplicarVinculo} claims={claims}
+          />
+          {vinculoId && <p className="muted" style={{ fontSize: 11.5, marginTop: 4 }}>Seguradora, ramo, apólice, data de ocorrência, agente e produtor foram copiados desse processo. O vínculo é criado nos dois sentidos ao salvar.</p>}
+        </div>
+
+        <div className="grid c3">
           <div className="field"><label>Seguradora</label>
             <select value={cia} onChange={(e) => setCia(e.target.value)}>
               <option value="">— Selecione —</option>
@@ -350,13 +455,39 @@ export function Abertura() {
           <div className="field"><label>Nova oficina</label>
             <input className={oficina === NEW_SENTINEL ? "" : "hidden"} placeholder="Nome da nova oficina" value={oficinaNova} onChange={(e) => setOficinaNova(e.target.value)} />
           </div>
-          <div className="field"><label>Responsável</label>
+        </div>
+
+        <div className="grid c3">
+          <div className="field"><label>Agente{exigeVinculos ? " *" : ""}</label>
+            <select value={agenteSel} onChange={(e) => setAgenteSel(e.target.value)}>
+              <option value="">— Selecione —</option>
+              {agenteOpts.map((a) => <option key={a} value={a}>{a}</option>)}
+              <option value={NEW_SENTINEL}>+ Novo agente...</option>
+            </select>
+          </div>
+          <div className="field"><label>Novo agente</label>
+            <input className={agenteSel === NEW_SENTINEL ? "" : "hidden"} placeholder="Nome do novo agente" value={agenteNovo} onChange={(e) => setAgenteNovo(e.target.value)} />
+          </div>
+          <div className="field"><label>Produtor{exigeVinculos ? " *" : ""}</label>
+            <select value={produtorSel} onChange={(e) => setProdutorSel(e.target.value)}>
+              <option value="">— Selecione —</option>
+              {produtorOpts.map((p) => <option key={p} value={p}>{p}</option>)}
+            </select>
+            <p className="muted" style={{ fontSize: 11, marginTop: 4 }}>Produtor não tem cadastro manual — só vem de processos já buscados (Configurações → Agentes e Produtores).</p>
+          </div>
+        </div>
+
+        <div className="grid c2">
+          <div className="field"><label>Responsável{exigeVinculos ? " *" : ""}</label>
             <select value={responsavelId} onChange={(e) => setResponsavelId(e.target.value)}>
               <option value="">— Sem responsável —</option>
               {users.map((u) => <option key={u.id} value={u.id}>{u.nome}</option>)}
             </select>
           </div>
         </div>
+        {exigeVinculos && (
+          <p className="muted" style={{ fontSize: 11.5, marginTop: -8, marginBottom: 8 }}>* Agente, Produtor e Responsável são obrigatórios para Segurado/Terceiro.</p>
+        )}
 
         <div className="grid c3">
           <div className="field"><label>Apólice</label><input placeholder="Nº da apólice" value={numapo} onChange={(e) => setNumapo(e.target.value)} /></div>
@@ -378,11 +509,11 @@ export function Abertura() {
         <div className="field"><label>Observações</label><textarea rows={3} placeholder="Observações..." value={observacoes} onChange={(e) => setObservacoes(e.target.value)} /></div>
 
         <p className="muted" style={{ fontSize: 12 }}>
-          O processo já inicia com situação "Pendente". Para vincular Segurado/Terceiro do mesmo evento, crie cada um e use a aba "Vínculos" dentro do processo depois.
+          O processo já inicia com situação "Pendente". Use o campo "{vinculoLabel()}" acima para já vincular ao Segurado/Terceiro do mesmo evento, herdando seguradora, ramo, apólice, data de ocorrência, agente e produtor.
         </p>
 
         {status && <div className={"status " + status.cls}>{status.msg}</div>}
-        <button className="btn" onClick={criar}>Criar processo</button>
+        <button className="btn" onClick={criar} disabled={exigeVinculos && (!agenteFinal || !produtorSel || !responsavelId)}>Criar processo</button>
       </div>
     </div>
   );

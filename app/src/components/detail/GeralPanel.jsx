@@ -2,21 +2,87 @@ import { useState } from "react";
 import { KvList } from "../KvList.jsx";
 import { EditableCell } from "../EditableCell.jsx";
 import { OficinaModal } from "./OficinaModal.jsx";
-import { distinctComputed, campoEfetivo, campoFoiEditado, situacaoEfetiva, isManualClaim } from "../../logic/claims";
+import {
+  distinctComputed, campoEfetivo, campoFoiEditado, situacaoEfetiva, isManualClaim,
+  getAgenteProdutor, getAgentesEfetivo, distinctProdutores,
+} from "../../logic/claims";
 import { txt } from "../../logic/format";
 import { extractProdDocs } from "../../logic/corpApi";
 import { useDocumentoCorp } from "../../hooks/useDocumentoCorp";
+
+// Processos manuais não têm nosnum real da API, então não há o que buscar
+// no endpoint /documento (ver AgenteProdutorBox abaixo) — Agente/Produtor
+// aqui é editado diretamente, do mesmo catálogo já usado na Abertura
+// (Configurações → Agentes e Produtores), pra dar como corrigir um processo
+// que não teve Agente/Produtor definidos na criação.
+function AgenteProdutorManualBox({ c, overrides, config, claims, actions, canEdit }) {
+  const [editing, setEditing] = useState(false);
+  const ap = getAgenteProdutor(overrides, c.id) || {};
+  const agenteAtual = (ap.agentes || [])[0] || "";
+  const produtorAtual = (ap.produtores || [])[0] || "";
+  const [agenteSel, setAgenteSel] = useState(agenteAtual);
+  const [produtorSel, setProdutorSel] = useState(produtorAtual);
+  const agenteOpts = getAgentesEfetivo(config, overrides, claims);
+  const produtorOpts = distinctProdutores(overrides, claims);
+
+  function abrir() {
+    if (!canEdit) { alert("Seu perfil é apenas de consulta. Você pode visualizar, mas não editar processos."); return; }
+    setAgenteSel(agenteAtual); setProdutorSel(produtorAtual); setEditing(true);
+  }
+  function salvar() {
+    actions.saveAgenteProdutor(c.id, { agentes: agenteSel ? [agenteSel] : [], produtores: produtorSel ? [produtorSel] : [] });
+    actions.logAudit(c.id, "Agente/Produtor definido", `${agenteSel || "—"} / ${produtorSel || "—"}`);
+    setEditing(false);
+  }
+
+  return (
+    <div style={{ marginTop: 16, borderTop: "1px solid var(--line)", paddingTop: 14 }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 8 }}>
+        <label style={{ margin: 0 }}>Agente / Produtor</label>
+        {!editing && <a style={{ opacity: 0.6, cursor: "pointer" }} onClick={abrir}>✎ editar</a>}
+      </div>
+      {!editing ? (
+        agenteAtual || produtorAtual ? (
+          <div style={{ fontSize: 13, marginTop: 6 }}><b>{produtorAtual || "—"}</b> <span className="muted">— agente: {agenteAtual || "—"}</span></div>
+        ) : (
+          <div className="muted" style={{ fontSize: 12, marginTop: 4 }}>Nenhum agente/produtor vinculado.</div>
+        )
+      ) : (
+        <div className="grid c2" style={{ marginTop: 8 }}>
+          <div className="field"><label>Agente</label>
+            <select value={agenteSel} onChange={(e) => setAgenteSel(e.target.value)}>
+              <option value="">— Selecione —</option>
+              {agenteOpts.map((a) => <option key={a} value={a}>{a}</option>)}
+            </select>
+          </div>
+          <div className="field"><label>Produtor</label>
+            <select value={produtorSel} onChange={(e) => setProdutorSel(e.target.value)}>
+              <option value="">— Selecione —</option>
+              {produtorOpts.map((p) => <option key={p} value={p}>{p}</option>)}
+            </select>
+          </div>
+          <div style={{ gridColumn: "1 / -1", display: "flex", gap: 8 }}>
+            <button type="button" className="btn xs" onClick={salvar}>Salvar</button>
+            <button type="button" className="btn ghost xs" onClick={() => setEditing(false)}>Cancelar</button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
 
 // Agente/Produtor vêm de um endpoint separado do CORP (/documento, não faz
 // parte da sincronização normal de sinistros) — busca sob demanda ao abrir
 // a aba, usando o "nosnum" do processo (chave universal no CORP) + codfil.
 // Processos criados manualmente (sem nosnum real da API) não têm o que
-// buscar aqui.
-function AgenteProdutorBox({ c, config, actions }) {
+// buscar aqui — usam AgenteProdutorManualBox (edição direta) em vez disso.
+function AgenteProdutorBox({ c, config, overrides, claims, actions, canEdit }) {
   const { resp, carregando, erro } = useDocumentoCorp(c, config, actions);
   const prodDocs = extractProdDocs(resp);
 
-  if (isManualClaim(c)) return null;
+  if (isManualClaim(c)) {
+    return <AgenteProdutorManualBox c={c} overrides={overrides} config={config} claims={claims} actions={actions} canEdit={canEdit} />;
+  }
 
   return (
     <div style={{ marginTop: 16, borderTop: "1px solid var(--line)", paddingTop: 14 }}>
@@ -88,6 +154,9 @@ export function GeralPanel({ c, claims, overrides, actions, canEdit, config, nav
     ["Tipo (API)", <span>{txt(c.tipo)}</span>],
     ["Nome", cell("segurado", { className: "nome-cliente" })],
     ["Placa", cell("placa")],
+    ["Marca", cell("veiculoMarca")],
+    ["Modelo", cell("veiculoModelo")],
+    ["Ano Modelo", cell("veiculoAno")],
     ["Seguradora", cell("cia", { type: "select", options: segOpts, emptyLabel: "Nenhuma", novoLabel: "+ Nova seguradora...", promptMsg: "Nome da nova seguradora:" })],
     ["Ramo", cell("ramo")],
     ["Apólice", cell("numapo")],
@@ -114,7 +183,7 @@ export function GeralPanel({ c, claims, overrides, actions, canEdit, config, nav
         O valor que você digitar prevalece sobre o dado da API e não se perde ao sincronizar. Nº controle e Tipo (API) não são editáveis. O dado bruto original continua visível na aba "Dados brutos (API)".
       </p>
       <KvList rows={rows} />
-      <AgenteProdutorBox c={c} config={config} actions={actions} />
+      <AgenteProdutorBox c={c} config={config} overrides={overrides} claims={claims} actions={actions} canEdit={canEdit} />
     </div>
   );
 }
