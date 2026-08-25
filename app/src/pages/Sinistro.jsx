@@ -52,7 +52,7 @@ export function Sinistro() {
   const rel = relatedClaims(overrides, allClaimsRaw, c);
   const canEdit = canEditRole(currentUser);
   const isAdminUser = isAdmin(currentUser);
-  const isConsulta = currentUser?.role === "consulta";
+  const isConsulta = currentUser?.role === "consulta" && !isAdminUser;
 
   const tabs = [
     ["jornada", "Jornada do cliente"],
