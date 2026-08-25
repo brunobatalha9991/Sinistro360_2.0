@@ -53,7 +53,7 @@ export function Clientes() {
       {consultaCorpAberta && (
         <div className="card">
           <h3 style={{ marginTop: 0 }}>Consultar no CORP</h3>
-          <ConsultaClienteCorpBox config={config} clienteActions={clienteActions} navigate={navigate} />
+          <ConsultaClienteCorpBox config={config} clienteActions={clienteActions} navigate={navigate} claims={claims} overrides={overrides} />
         </div>
       )}
 

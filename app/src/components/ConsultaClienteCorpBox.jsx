@@ -1,6 +1,6 @@
 import { Fragment, useState } from "react";
-import { buscarClientes, buscarClienteDetalhado, buscarLigacoesCliente, mapearLigacoesCliente, fetchDocumento, extractUrlApolice } from "../logic/corpApi";
-import { clienteIdFromNome } from "../logic/clientes";
+import { buscarClientes, buscarClienteDetalhado, buscarLigacoesCliente, mapearLigacoesCliente, fetchDocumento, extractUrlApolice, extractDocumentoDetalhado } from "../logic/corpApi";
+import { clienteIdFromNome, clienteClaims } from "../logic/clientes";
 import { uid } from "../logic/format";
 
 // A documentação do CORP mostra emails/telefones/contatos como lista de
@@ -24,7 +24,7 @@ function fmtBRL(v) { return v == null ? "—" : v.toLocaleString("pt-BR", { styl
 // quem já tinha processo; essa busca direta encontra qualquer cliente
 // cadastrado no CORP, com ou sem sinistro. Não grava nada sozinha — só o
 // botão "Importar" grava, e só o registro escolhido.
-export function ConsultaClienteCorpBox({ config, clienteActions, navigate }) {
+export function ConsultaClienteCorpBox({ config, clienteActions, navigate, claims, overrides }) {
   const cfg = config.corp_cfg || {};
   const configurado = !!(cfg.url && cfg.email);
   const [texto, setTexto] = useState("");
@@ -60,20 +60,61 @@ export function ConsultaClienteCorpBox({ config, clienteActions, navigate }) {
     buscarClienteDetalhado(cfg, c.codfil, c.codigo)
       .then((dados) => setDetalhes((s) => ({ ...s, [chave]: { carregando: false, aberto: true, dados, erro: dados ? null : "Cliente não encontrado." } })))
       .catch((e) => setDetalhes((s) => ({ ...s, [chave]: { carregando: false, aberto: true, erro: e.message } })));
-    // Apólices/documentos vinculados ao cliente (a pedido do usuário) —
-    // GET /cliente_ligacoes?codigo= traz codfil+nosnum de cada documento.
-    // A URL do PDF de cada uma é buscada e vinculada AUTOMATICAMENTE assim
-    // que a lista chega — igual já acontece na aba Anexos do sinistro (lá é
-    // 1 documento só, conhecido de antemão; aqui pode ser vários, por isso
-    // primeiro precisa descobrir quais são).
+
+    // Apólices/documentos do cliente, de DUAS fontes combinadas:
+    // 1) GET /cliente_ligacoes?codigo= — nem sempre confiável: o "codigo" da
+    //    busca por nome (/clientes) é um id diferente do que o CORP usa pra
+    //    vincular documentos, então às vezes volta vazio mesmo pra cliente
+    //    com apólice de verdade (visto depurando ao vivo com o usuário).
+    // 2) Sinistros JÁ sincronizados aqui pro mesmo nome (mesmo mecanismo que
+    //    já funciona 100% na tela de Sinistro): cada um guarda seu próprio
+    //    codfil+nosnum, então dá pra buscar o documento direto em
+    //    /documento sem precisar descobrir nada — e essa chamada já traz a
+    //    URL da apólice de graça (extractDocumentoDetalhado), sem precisar
+    //    de uma segunda busca via buscarApolice.
     setLigacoes((s) => ({ ...s, [chave]: { carregando: true } }));
-    buscarLigacoesCliente(cfg, c.codigo)
-      .then((docs) => {
-        const mapeados = mapearLigacoesCliente(docs);
-        setLigacoes((s) => ({ ...s, [chave]: { carregando: false, docs: mapeados } }));
-        mapeados.forEach((doc) => buscarApolice(c, doc, { abrirNovaAba: false }));
-      })
-      .catch((e) => setLigacoes((s) => ({ ...s, [chave]: { carregando: false, erro: e.message } })));
+    const paresLocais = [];
+    const vistoLocal = new Set();
+    clienteClaims(claims, overrides, c.nome).forEach((cl) => {
+      if (!cl.codfil || !cl.nosnum) return;
+      const k = `${cl.codfil}|${cl.nosnum}`;
+      if (!vistoLocal.has(k)) { vistoLocal.add(k); paresLocais.push({ codfil: cl.codfil, nosnum: cl.nosnum }); }
+    });
+
+    Promise.allSettled([
+      buscarLigacoesCliente(cfg, c.codigo).then(mapearLigacoesCliente),
+      Promise.all(paresLocais.map((p) => fetchDocumento(cfg, p.codfil, p.nosnum).then(extractDocumentoDetalhado).catch(() => null))),
+    ]).then(([resLigacoes, resLocais]) => {
+      const doCorp = resLigacoes.status === "fulfilled" ? resLigacoes.value : [];
+      const doLocal = (resLocais.status === "fulfilled" ? resLocais.value : []).filter(Boolean);
+      const vistos = new Set(doCorp.map((d) => `${d.codfil}|${d.nosnum}`));
+      const todos = [...doCorp, ...doLocal.filter((d) => !vistos.has(`${d.codfil}|${d.nosnum}`))];
+      const erro = !todos.length && resLigacoes.status === "rejected" ? resLigacoes.reason.message : null;
+      setLigacoes((s) => ({ ...s, [chave]: { carregando: false, docs: todos, erro } }));
+      todos.forEach((doc) => {
+        if (doc.urlApolice) {
+          const chaveDoc = `${doc.codfil}|${doc.nosnum}`;
+          setApolices((s) => ({ ...s, [chaveDoc]: { carregando: false, url: doc.urlApolice } }));
+          anexarApoliceSeNecessario(c, doc, doc.urlApolice);
+        } else {
+          buscarApolice(c, doc, { abrirNovaAba: false });
+        }
+      });
+    });
+  }
+
+  // Vincula automaticamente a URL da apólice ao cadastro do cliente (sem
+  // precisar ter clicado "Importar" antes — o clienteId é derivado só do
+  // nome), evitando duplicar o mesmo anexo se já tiver sido vinculado antes.
+  function anexarApoliceSeNecessario(c, doc, url) {
+    const nome = String(c.nome || "").trim();
+    if (!nome) return;
+    const clienteId = clienteIdFromNome(nome);
+    const jaTem = ((clienteActions.clientes[clienteId] || {}).anexos || []).some((a) => a.url === url);
+    if (!jaTem) {
+      const nomeAnexo = "Apólice" + (doc.numeroApolice ? ` ${doc.numeroApolice}` : "") + (doc.seguradora ? ` — ${doc.seguradora}` : "");
+      clienteActions.addAnexo(clienteId, { id: uid("anx"), nome: nomeAnexo, url, adicionadoEm: new Date().toISOString() });
+    }
   }
 
   // Busca a URL assinada do PDF (fetchDocumento, mesmo usado na consulta
@@ -91,15 +132,7 @@ export function ConsultaClienteCorpBox({ config, clienteActions, navigate }) {
         setApolices((s) => ({ ...s, [chaveDoc]: { carregando: false, url: url || null, erro: url ? null : "Nenhuma apólice encontrada para este documento." } }));
         if (url) {
           if (abrirNovaAba) window.open(url, "_blank", "noreferrer");
-          const nome = String(c.nome || "").trim();
-          if (nome) {
-            const clienteId = clienteIdFromNome(nome);
-            const jaTem = ((clienteActions.clientes[clienteId] || {}).anexos || []).some((a) => a.url === url);
-            if (!jaTem) {
-              const nomeAnexo = "Apólice" + (doc.numeroApolice ? ` ${doc.numeroApolice}` : "") + (doc.seguradora ? ` — ${doc.seguradora}` : "");
-              clienteActions.addAnexo(clienteId, { id: uid("anx"), nome: nomeAnexo, url, adicionadoEm: new Date().toISOString() });
-            }
-          }
+          anexarApoliceSeNecessario(c, doc, url);
         }
       })
       .catch((e) => setApolices((s) => ({ ...s, [chaveDoc]: { carregando: false, erro: e.message } })));
