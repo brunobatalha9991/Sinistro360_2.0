@@ -46,7 +46,9 @@ export function runDemandaSync({ cfg, users, saveRecord }) {
       return lista;
     });
     if (novos > 0) {
-      const todos = users.map((u) => u.id);
+      // Usuários "consulta" não usam o módulo Nova Demanda — não recebem
+      // notificação dele.
+      const todos = users.filter((u) => u.role !== "consulta").map((u) => u.id);
       saveRecord("corp_notifs", (current) => {
         const arr = [...(current || [])];
         todos.forEach((uid) => arr.push({ id: "ntf_" + Math.random().toString(36).slice(2, 9), taskId: "__demanda__", userId: uid, text: `${novos} nova(s) demanda(s) recebida(s) de formulário`, at: new Date().toISOString(), read: false }));
