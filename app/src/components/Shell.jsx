@@ -96,7 +96,7 @@ export function Shell({ route, param, crumb, currentUser, currentRole, onNavigat
               <a key={m[0]} className={cls} title={m[1]} onClick={() => handleNavigate(m[0])}>
                 <Icon name={m[2]} />
                 <span className="nav-label">{m[1]}</span>
-                {m[0] === "sinistros" && atrasadosGlobal > 0 && (
+                {m[0] === "sinistros" && atrasadosGlobal > 0 && currentRole !== "consulta" && (
                   <span className="nav-dot" title={`${atrasadosGlobal} processo(s) atrasado(s)`} />
                 )}
               </a>
