@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import {
   getAtendTemplate, getRamoTemplate, getComunsSteps, getUserJourney, isAtendimento, STATUS_DEFAULT, getJourneyNotes,
-  stepStatusEhConcluida, stepStatusEhNegativa, stepDateConfig,
+  stepStatusEhConcluida, stepStatusEhNegativa, stepDateConfig, stepHoraConfig,
 } from "../../logic/claims";
 import { fmtDateHoraBR } from "../../logic/format";
 
@@ -42,11 +42,13 @@ export function JourneyPanel({ c, overrides, config, actions, canEdit, isAdminUs
       sd.firstSetAt = agora;
     }
     if (field === "status") {
-      // A cada troca de status, a data limpa — o campo (e o título dele,
-      // ver stepDateConfig) pode mudar de sentido de um status pro outro,
-      // então pede pra preencher de novo em vez de manter uma data que já
-      // não corresponde ao status atual.
+      // A cada troca de status, a data (e a hora, quando existir) limpa —
+      // o campo (e o título dele, ver stepDateConfig/stepHoraConfig) pode
+      // mudar de sentido de um status pro outro, então pede pra preencher
+      // de novo em vez de manter um valor que já não corresponde ao status
+      // atual.
       sd.date = "";
+      sd.hora = "";
       if (stepStatusEhConcluida(step, value)) {
         sd.concludedAt = agora;
         sd.concludedBy = quem;
@@ -176,6 +178,7 @@ export function JourneyPanel({ c, overrides, config, actions, canEdit, isAdminUs
           const done = stepStatusEhConcluida(step, sd.status);
           const negativo = !done && stepStatusEhNegativa(step, sd.status);
           const dateCfg = stepDateConfig(step, sd.status);
+          const horaCfg = stepHoraConfig(step, sd.status);
           return (
             <div className="jstep" key={step.id}>
               <div className={"jdot " + (done ? "done" : negativo ? "negativo" : sd.status ? "current" : "")}>
@@ -211,6 +214,12 @@ export function JourneyPanel({ c, overrides, config, actions, canEdit, isAdminUs
                               </button>
                             )}
                           </div>
+                        </div>
+                      )}
+                      {horaCfg.show && (
+                        <div className="field">
+                          <label>{horaCfg.label}</label>
+                          <input type="time" className="inline" value={sd.hora || ""} onChange={(e) => setStepField(step.id, "hora", e.target.value)} />
                         </div>
                       )}
                     </div>

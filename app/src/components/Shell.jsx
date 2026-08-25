@@ -1,10 +1,12 @@
 import { useEffect, useState } from "react";
 import { Icon } from "./icons.jsx";
 import { NotifBell } from "./NotifBell.jsx";
+import { HorarioAlarmeModal } from "./HorarioAlarmeModal.jsx";
 import { ROLE_LABELS, userModulos, isAdmin } from "../data/auth";
 import { useData } from "../data/DataProvider.jsx";
 import { visibleClaims, isAtrasado } from "../logic/claims";
 import { myUnreadCount, demandaUnreadCount } from "../logic/tasks";
+import { useHorarioAlarme } from "../hooks/useHorarioAlarme";
 
 const SIDEBAR_KEY = "corp_sidebar_collapsed";
 
@@ -73,6 +75,7 @@ export function Shell({ route, param, crumb, currentUser, currentRole, onNavigat
   }
 
   const { records } = useData();
+  const { alarmes: alarmesHora, dismiss: dismissAlarmeHora, dismissAll: dismissAllAlarmeHora } = useHorarioAlarme(currentUser);
   const menu = visibleMenu(currentUser, currentRole);
   const nome = currentUser?.nome || "Usuário";
   const initials = nome.split(" ").map((w) => w[0]).slice(0, 2).join("");
@@ -150,6 +153,9 @@ export function Shell({ route, param, crumb, currentUser, currentRole, onNavigat
         </div>
         <div className="content">{children}</div>
       </div>
+      {alarmesHora.length > 0 && (
+        <HorarioAlarmeModal alarmes={alarmesHora} onDismiss={dismissAlarmeHora} onDismissAll={dismissAllAlarmeHora} navigate={onNavigate} />
+      )}
     </div>
   );
 }

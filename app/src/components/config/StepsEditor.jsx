@@ -8,7 +8,7 @@ import { uid } from "../../logic/format";
 // Usado nas jornadas por ramo (comuns/parcial/integral) e nas trilhas por
 // tipo de assistência. `onChange(nextSteps)` recebe a lista inteira nova;
 // quem chama decide onde salvar (ramo, trilha, etc.).
-export function StepsEditor({ steps, onChange, label, highlight }) {
+export function StepsEditor({ steps, onChange, label, highlight, horaOption }) {
   const [novaEtapa, setNovaEtapa] = useState("");
   // Configuração de status por etapa (Marca como/Tem data/título) é o que
   // deixa esta tela longa — minimizada por padrão (a pedido do usuário),
@@ -69,7 +69,7 @@ export function StepsEditor({ steps, onChange, label, highlight }) {
             <button className="btn danger xs" onClick={() => excluirEtapa(step.id)}>Excluir etapa</button>
           </div>
           {isOpen(step.id) && (
-            <StatusChipsEditor step={step} onChangeStep={(patch) => patchStep(step.id, (s) => ({ ...s, ...patch }))} />
+            <StatusChipsEditor step={step} onChangeStep={(patch) => patchStep(step.id, (s) => ({ ...s, ...patch }))} horaOption={horaOption} />
           )}
         </div>
       ))}

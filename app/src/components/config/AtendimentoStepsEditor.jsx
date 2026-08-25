@@ -74,7 +74,7 @@ export function AtendimentoStepsEditor({ atendTemplateCfg, saveConfig }) {
             </button>
             <button className="btn danger xs" onClick={() => excluirEtapa(step.id)}>Excluir etapa</button>
           </div>
-          <StatusChipsEditor step={step} onChangeStep={(patch) => patchStep(step.id, (s) => ({ ...s, ...patch }))} />
+          <StatusChipsEditor step={step} onChangeStep={(patch) => patchStep(step.id, (s) => ({ ...s, ...patch }))} horaOption />
           {step.branch && (
             <div style={{ marginTop: 10, paddingTop: 10, borderTop: "1px dashed var(--border)" }}>
               <p className="muted" style={{ fontSize: 12, margin: "0 0 8px" }}>
@@ -86,6 +86,7 @@ export function AtendimentoStepsEditor({ atendTemplateCfg, saveConfig }) {
                   steps={(step.branches || {})[tipo] || []}
                   onChange={(next) => setTrilha(step.id, tipo, next)}
                   label={`➤ ${tipo}`}
+                  horaOption
                 />
               ))}
               {!(step.statusOptions || []).length && (

@@ -40,6 +40,14 @@ export function stepDateConfig(step, status) {
   if (!cfg) return { show: true, label: "Data" };
   return { show: cfg.show !== false, label: cfg.label || "Data" };
 }
+// Campo de horário por status — só existe nas Etapas de Atendimento
+// (Configurações → Jornadas), opt-in (ao contrário da data, que vem
+// visível por padrão): sem configurar, não mostra hora nenhuma.
+export function stepHoraConfig(step, status) {
+  const cfg = step && step.horaByStatus && step.horaByStatus[status];
+  if (!cfg || !cfg.show) return { show: false, label: "Horário" };
+  return { show: true, label: cfg.label || "Horário" };
+}
 
 export function defaultRamoTemplate() {
   return {
@@ -97,6 +105,48 @@ export function getAtendTemplate(atendTemplateCfg) {
   return atendTemplateCfg && atendTemplateCfg.steps && atendTemplateCfg.steps.length
     ? atendTemplateCfg
     : defaultAtendTemplate();
+}
+// Lista de etapas de Atendimento efetivamente em uso por este processo,
+// já resolvendo a trilha por tipo (branch) escolhida — mesma montagem
+// usada em JourneyPanel.jsx, extraída aqui pra ser reaproveitada pelo
+// alarme de horário (useHorarioAlarme.js).
+export function atendimentoStepsList(atendTemplateCfg, uj) {
+  const tpl = getAtendTemplate(atendTemplateCfg);
+  const steps = (uj && uj.steps) || {};
+  const lista = [];
+  for (const step of tpl.steps || []) {
+    lista.push(step);
+    if (step.branch) {
+      const escolhido = (steps[step.id] || {}).status || "";
+      if (escolhido) {
+        const trilha = (step.branches && step.branches[escolhido]) || [];
+        lista.push(...trilha);
+      }
+      break;
+    }
+  }
+  return lista;
+}
+// Etapas de Atendimento deste processo com horário configurado (ver
+// stepHoraConfig), data+hora já no passado e ainda sem desfecho — o
+// alarme visual (useHorarioAlarme.js) dispara pra cada uma dessas.
+export function claimAlarmesHoraAtivos(overrides, atendTemplateCfg, c) {
+  if (!isAtendimento(c)) return [];
+  const uj = getUserJourney(overrides, c.id);
+  const steps = uj.steps || {};
+  const agora = Date.now();
+  const out = [];
+  atendimentoStepsList(atendTemplateCfg, uj).forEach((step) => {
+    const sd = steps[step.id];
+    if (!sd || !sd.date || !sd.hora) return;
+    if (stepStatusEhConcluida(step, sd.status) || stepStatusEhNegativa(step, sd.status)) return;
+    const cfg = stepHoraConfig(step, sd.status);
+    if (!cfg.show) return;
+    const alvo = new Date(`${sd.date}T${sd.hora}`).getTime();
+    if (isNaN(alvo) || alvo > agora) return;
+    out.push({ stepId: step.id, title: step.title, label: cfg.label, date: sd.date, hora: sd.hora });
+  });
+  return out;
 }
 export function isAtendimento(c) { return !!(c && c.partyType === "Aviso"); }
 export function isManualClaim(c) { return !!(c && c.origem === "manual"); }
