@@ -11,9 +11,11 @@ const RESPOSTA_REAL = {
       numapo: "114134153657",
       numend: "0",
       numprop: "85496174",
+      tipdoc: "A", tipdoc_txt: "A - Apólice",
+      tabela_itens: "PACOTE", filial: "BATALHA ADM E CORRETORA DE SEG",
       inivig: "19/09/2025",
       fimvig: "19/09/2026",
-      pretot: 357,
+      pretot: 357, preliq: 268.76, preadi: 63.7, predes: 0, preiof: 24.54, prepri: 35.69,
       numpar: 10,
       forma_pag: "Boleto Bancário",
       seguradora: "PORTO SEGURO",
@@ -22,6 +24,7 @@ const RESPOSTA_REAL = {
       sit_acompanhamento_txt: "Recebido e não entregue ao cliente",
       sit_sinistro_txt: "APÓLICE SEM SINISTRO",
       sit_renovacao_txt: "APÓLICE NOVA",
+      ad_receb_doc_fisico: "F", ad_receb_doc_digital: "T", ad_receb_data: "25/09/2025", ad_entr_data: null,
       parcelas: [
         { parc: 1, datvenc: "29/09/2025", vlvenc: 35.69, datquit: null },
         { parc: 2, datvenc: "29/10/2025", vlvenc: 35.7, datquit: "01/10/2025" },
@@ -90,11 +93,23 @@ describe("extractDocumentoDetalhado", () => {
       urlApolice: "https://corp-anexos.s3.amazonaws.com/exemplo.pdf?Signature=abc",
     });
   });
+  it("achata também os valores detalhados e o recebimento/entrega do documento", () => {
+    const d = extractDocumentoDetalhado(RESPOSTA_REAL);
+    expect(d).toMatchObject({
+      tipoDocumento: "A - Apólice", categoriaItem: "PACOTE", filial: "BATALHA ADM E CORRETORA DE SEG",
+      valorLiquido: 268.76, valorAdicionalFracionamento: 63.7, valorDesconto: 0, valorIof: 24.54, valorPrimeiraParcela: 35.69,
+      documentoRecebidoFisico: false, documentoRecebidoDigital: true, dataRecebimentoDocumento: "25/09/2025",
+    });
+  });
+  it("prodDocs não inclui dado de comissão/repasse (só agente/produtor)", () => {
+    const d = extractDocumentoDetalhado(RESPOSTA_REAL);
+    expect(Object.keys(d.prodDocs[0]).sort()).toEqual(["agente", "produtor"]);
+  });
   it("extrai as parcelas", () => {
     const d = extractDocumentoDetalhado(RESPOSTA_REAL);
     expect(d.parcelas).toHaveLength(2);
-    expect(d.parcelas[0]).toEqual({ numero: 1, vencimento: "29/09/2025", valor: 35.69, quitadoEm: null });
-    expect(d.parcelas[1]).toEqual({ numero: 2, vencimento: "29/10/2025", valor: 35.7, quitadoEm: "01/10/2025" });
+    expect(d.parcelas[0]).toEqual({ numero: 1, vencimento: "29/09/2025", valor: 35.69, quitadoEm: null, valorQuitado: null });
+    expect(d.parcelas[1]).toEqual({ numero: 2, vencimento: "29/10/2025", valor: 35.7, quitadoEm: "01/10/2025", valorQuitado: null });
   });
   it("reaproveita extractProdDocs pro agente/produtor", () => {
     const d = extractDocumentoDetalhado(RESPOSTA_REAL);

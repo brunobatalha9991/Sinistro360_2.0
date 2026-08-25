@@ -158,27 +158,47 @@ export function extractUrlApolice(resp) {
 // chamada — /cliente_ligacoes já devolve praticamente tudo isso de graça,
 // só falta a URL assinada do PDF (que vem só de fetchDocumento/
 // extractUrlApolice, não está disponível em /cliente_ligacoes).
+function num(v) { return v != null ? Number(v) : null; }
 function mapearDocumento(doc) {
   if (!doc) return null;
   return {
     codfil: doc.codfil, nosnum: doc.nosnum,
+    tipoDocumento: doc.tipdoc_txt || doc.tipdoc || "",
     seguradora: doc.seguradora || "",
     ramo: doc.ramo || "",
+    categoriaItem: doc.tabela_itens || "",
+    filial: doc.filial || "",
     numeroApolice: doc.numapo || "",
     numeroEndosso: doc.numend || "",
     numeroProposta: doc.numprop || "",
+    motivoEndosso: doc.motivo_endosso_txt || "",
     vigenciaInicio: doc.inivig || "",
     vigenciaFim: doc.fimvig || "",
-    valorTotal: doc.pretot != null ? Number(doc.pretot) : null,
+    // Composição do valor total (pretot) — a pedido do usuário, usar os
+    // demais campos financeiros que o CORP já devolve, não só o total.
+    valorTotal: num(doc.pretot),
+    valorLiquido: num(doc.preliq),
+    valorAdicionalFracionamento: num(doc.preadi),
+    valorDesconto: num(doc.predes),
+    valorIof: num(doc.preiof),
+    valorPrimeiraParcela: num(doc.prepri),
     formaPagamento: doc.forma_pag || "",
-    numeroParcelas: doc.numpar != null ? Number(doc.numpar) : null,
+    numeroParcelas: num(doc.numpar),
     situacaoAcompanhamento: doc.sit_acompanhamento_txt || "",
     situacaoSinistro: doc.sit_sinistro_txt || "",
     situacaoRenovacao: doc.sit_renovacao_txt || "",
     cliente: doc.cliente || "",
+    // Recebimento/entrega do documento (físico e digital) ao cliente — dado
+    // operacional que o CORP já rastreia e que antes não era exibido.
+    documentoRecebidoFisico: doc.ad_receb_doc_fisico === "T",
+    documentoRecebidoDigital: doc.ad_receb_doc_digital === "T",
+    dataRecebimentoDocumento: doc.ad_receb_data || "",
+    dataEntregaDocumento: doc.ad_entr_data || "",
     parcelas: (doc.parcelas || []).map((p) => ({
-      numero: p.parc, vencimento: p.datvenc, valor: p.vlvenc, quitadoEm: p.datquit || null,
+      numero: p.parc, vencimento: p.datvenc, valor: p.vlvenc, quitadoEm: p.datquit || null, valorQuitado: num(p.vlquit),
     })),
+    // Só quem vendeu (agente/produtor) — comissão/repasse é dado interno da
+    // corretora, não é sobre o cliente nem a apólice, fica de fora.
     prodDocs: (doc.prod_docs || []).map((p) => ({ agente: p.agente, produtor: p.produtor })),
   };
 }
