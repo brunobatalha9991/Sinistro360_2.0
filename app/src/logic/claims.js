@@ -3,6 +3,7 @@
 // vez de ler localStorage diretamente — mesmo comportamento, fonte explícita.
 import { mapSituacao } from "./situacao";
 import { diasEntre, mediaArr } from "./format";
+import { isAdmin } from "../data/auth";
 
 export const STATUS_DEFAULT = ["Aguardando", "Em andamento", "Concluído"];
 const CONCLUSAO_STATUS = ["Aguardando", "Indenizado", "Sem Indenização"];
@@ -118,6 +119,12 @@ export function campoEfetivo(overrides, c, campo) {
 export function getUserJourney(overrides, claimId) {
   const ovr = getOvr(overrides, claimId);
   return ovr.journeyUser || { caminho: "", steps: {} };
+}
+// Alguma etapa da Jornada do cliente foi marcada como "Fora do prazo" (ver
+// JourneyPanel.jsx) — usado no filtro do módulo Sinistros.
+export function claimTemEtapaForaDoPrazo(overrides, claimId) {
+  const steps = (getUserJourney(overrides, claimId) || {}).steps || {};
+  return Object.values(steps).some((sd) => sd && sd.foraDoPrazo);
 }
 export function getNextAction(overrides, claimId) { return getOvr(overrides, claimId).nextAction || null; }
 // Pesquisa de satisfação (Fase 4 — Oficinas/Seguradoras/Clientes) — ver
@@ -280,7 +287,7 @@ export function emailAlertaDispensado(overrides, claimId, emailId) {
 // pra não trancar usuários "consulta" já existentes assim que a função for
 // ligada, antes de um admin configurar os vínculos deles.
 export function usuarioTemVinculoRestrito(user) {
-  if (!user || user.role !== "consulta") return false;
+  if (!user || user.role !== "consulta" || isAdmin(user)) return false;
   const ag = user.agentesVinculados || [];
   const pr = user.produtoresVinculados || [];
   const gr = user.gruposProdutoresVinculados || [];

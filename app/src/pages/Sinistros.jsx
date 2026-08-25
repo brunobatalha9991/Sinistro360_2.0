@@ -15,7 +15,7 @@ import {
   visibleClaims, campoEfetivo, situacaoEfetiva, getUserJourney, getNextAction,
   getSitAtend, getTemp, getResponsavel, isAtrasado, isSemAtualizacao, isManualClaim,
   allJourneyStages, currentStage, getAgenteProdutor, getAgentesEfetivo, distinctGruposProdutores, grupoProdutor,
-  distinctComputed, claimTemFlagHistorico,
+  distinctComputed, claimTemFlagHistorico, claimTemEtapaForaDoPrazo,
 } from "../logic/claims";
 
 const DEFAULT_TEMP_OPTIONS = ["Tranquilo", "Moderado", "Grave", "Em atenção"];
@@ -94,6 +94,7 @@ export function Sinistros() {
     }
     if (except !== "aguardandoRetornoHist" && lf.aguardandoRetornoHist && !claimTemFlagHistorico(overrides, c.id, "aguardandoRetorno")) return false;
     if (except !== "limitacaoComunicacaoHist" && lf.limitacaoComunicacaoHist && !claimTemFlagHistorico(overrides, c.id, "limitacaoComunicacao")) return false;
+    if (except !== "foraDoPrazo" && lf.foraDoPrazo && !claimTemEtapaForaDoPrazo(overrides, c.id)) return false;
     if (except !== "texto" && q) {
       const hay = [campoEfetivo(overrides, c, "segurado"), campoEfetivo(overrides, c, "placa"), campoEfetivo(overrides, c, "numsin"), campoEfetivo(overrides, c, "numapo"), campoEfetivo(overrides, c, "cia"), c.partyType, campoEfetivo(overrides, c, "oficina"), campoEfetivo(overrides, c, "ramo")].join(" ").toLowerCase();
       if (hay.indexOf(q) < 0) return false;
@@ -110,6 +111,7 @@ export function Sinistros() {
   const baseCaminho = claims.filter((c) => passa(c, "caminho"));
   const baseAguardHist = claims.filter((c) => passa(c, "aguardandoRetornoHist"));
   const baseLimComHist = claims.filter((c) => passa(c, "limitacaoComunicacaoHist"));
+  const baseForaPrazo = claims.filter((c) => passa(c, "foraDoPrazo"));
 
   const cntTipo = {}; let totalNaoFinal = 0;
   baseTipo.forEach((c) => {
@@ -135,6 +137,7 @@ export function Sinistros() {
   const qtdAberto = baseAberto.filter((c) => { const l = situacaoEfetiva(overrides, c).label; return l === "Pendente" || l === "Em andamento"; }).length;
   const qtdAguardHist = baseAguardHist.filter((c) => claimTemFlagHistorico(overrides, c.id, "aguardandoRetorno")).length;
   const qtdLimComHist = baseLimComHist.filter((c) => claimTemFlagHistorico(overrides, c.id, "limitacaoComunicacao")).length;
+  const qtdForaPrazo = baseForaPrazo.filter((c) => claimTemEtapaForaDoPrazo(overrides, c.id)).length;
 
   const stageNames = allJourneyStages(templates, atendTemplate);
   const stageCounts = {}; let stageTotal = 0;
@@ -186,6 +189,7 @@ export function Sinistros() {
     if (lf.oficina && lf.oficina !== "todas" && campoEfetivo(overrides, c, "oficina") !== lf.oficina) return false;
     if (lf.aguardandoRetornoHist && !claimTemFlagHistorico(overrides, c.id, "aguardandoRetorno")) return false;
     if (lf.limitacaoComunicacaoHist && !claimTemFlagHistorico(overrides, c.id, "limitacaoComunicacao")) return false;
+    if (lf.foraDoPrazo && !claimTemEtapaForaDoPrazo(overrides, c.id)) return false;
     if (!q) return true;
     return [campoEfetivo(overrides, c, "segurado"), campoEfetivo(overrides, c, "placa"), campoEfetivo(overrides, c, "numsin"), campoEfetivo(overrides, c, "numapo"), campoEfetivo(overrides, c, "cia"), c.partyType, campoEfetivo(overrides, c, "oficina"), campoEfetivo(overrides, c, "ramo")].join(" ").toLowerCase().indexOf(q) >= 0;
   });
@@ -207,6 +211,7 @@ export function Sinistros() {
   if (lf.oficina && lf.oficina !== "todas") activeCount++;
   if (lf.aguardandoRetornoHist) activeCount++;
   if (lf.limitacaoComunicacaoHist) activeCount++;
+  if (lf.foraDoPrazo) activeCount++;
 
   const allCols = getAllCols({ overrides, allClaimsRaw, navigate });
 
@@ -292,6 +297,7 @@ export function Sinistros() {
               <div className={"chip-btn" + (lf.aberto ? " active" : "")} onClick={() => patchListFilter({ aberto: !lf.aberto })}>📂 Em aberto (Pendente/Em andamento) ({qtdAberto})</div>
               <div className={"chip-btn" + (lf.aguardandoRetornoHist ? " active" : "")} onClick={() => patchListFilter({ aguardandoRetornoHist: !lf.aguardandoRetornoHist })}>⏳ Aguardando retorno ({qtdAguardHist})</div>
               <div className={"chip-btn" + (lf.limitacaoComunicacaoHist ? " active" : "")} onClick={() => patchListFilter({ limitacaoComunicacaoHist: !lf.limitacaoComunicacaoHist })}>🚧 Limitação de comunicação ({qtdLimComHist})</div>
+              <div className={"chip-btn" + (lf.foraDoPrazo ? " active" : "")} onClick={() => patchListFilter({ foraDoPrazo: !lf.foraDoPrazo })}>⏰ Etapa fora do prazo ({qtdForaPrazo})</div>
             </div>
           </div>
 
