@@ -1,15 +1,38 @@
 import { useCallback, useState } from "react";
 import { useData } from "../data/DataProvider.jsx";
-import { getSession, setSession, findUserById, findUserByEmail } from "../data/auth";
+import { getSession, setSession, findUserById, findUserByEmail, getVipViewOff, setVipViewOff } from "../data/auth";
 import { hashNewPassword, verifyPassword } from "../logic/passwordHash";
 
 export function useAuth() {
   const { records, saveRecord } = useData();
   const users = records.corp_users || [];
   const [session, setSessionState] = useState(getSession);
+  // Liga/desliga a "visão VIP" (a pedido do usuário) — só existe pra quem
+  // realmente tem VIP concedido (rawUser.vip); é uma escolha pessoal de
+  // como EU quero ver o sistema agora, não muda o que o admin concedeu.
+  // Guardado por usuário em sessionStorage (ver getVipViewOff/setVipViewOff
+  // em data/auth.js) pra sobreviver a um F5 dentro da mesma aba/sessão.
+  const [vipOff, setVipOff] = useState(() => {
+    const s = getSession();
+    return s ? getVipViewOff(s.userId) : false;
+  });
 
-  const currentUser = session ? findUserById(users, session.userId) : null;
+  const rawUser = session ? findUserById(users, session.userId) : null;
+  const isRealVip = !!(rawUser && rawUser.vip);
+  // Com a visão VIP desativada, o usuário passa a ser tratado em TODO o
+  // app como se `vip` fosse false — isAdmin()/canEdit()/userModulos() etc.
+  // (data/auth.js) leem esse mesmo objeto, então a troca se propaga sozinha
+  // pra tudo, sem precisar mexer em nenhum outro lugar.
+  const currentUser = isRealVip && vipOff ? { ...rawUser, vip: false } : rawUser;
   const currentRole = currentUser ? currentUser.role : "consulta";
+  const vipViewActive = isRealVip && !vipOff;
+
+  function toggleVipView() {
+    if (!isRealVip) return;
+    const next = !vipOff;
+    setVipOff(next);
+    setVipViewOff(rawUser.id, next);
+  }
 
   const login = useCallback(async (email, senha) => {
     const u = findUserByEmail(users, email);
@@ -39,6 +62,7 @@ export function useAuth() {
     const s = { userId: u.id, at: new Date().toISOString() };
     setSession(s);
     setSessionState(s);
+    setVipOff(getVipViewOff(u.id));
     return { ok: true };
   }, [users, saveRecord]);
 
@@ -47,5 +71,5 @@ export function useAuth() {
     setSessionState(null);
   }, []);
 
-  return { currentUser, currentRole, login, logout };
+  return { currentUser, currentRole, login, logout, isRealVip, vipViewActive, toggleVipView };
 }

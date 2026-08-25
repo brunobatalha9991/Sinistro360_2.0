@@ -27,6 +27,21 @@ export function setSession(s) {
   else sessionStorage.removeItem(SESSION_KEY);
 }
 
+// "Visão VIP" liga/desliga (a pedido do usuário) — só quem tem VIP
+// concedido (u.vip) vê o botão; ligar/desligar é uma escolha pessoal de
+// como ver o sistema nesta aba/sessão, não altera o VIP concedido pelo
+// admin. Guardado por usuário pra não vazar de um usuário VIP pro
+// próximo que logar na mesma aba.
+export function getVipViewOff(userId) {
+  try { return sessionStorage.getItem("corp_vip_view_off_" + userId) === "1"; } catch { return false; }
+}
+export function setVipViewOff(userId, off) {
+  try {
+    if (off) sessionStorage.setItem("corp_vip_view_off_" + userId, "1");
+    else sessionStorage.removeItem("corp_vip_view_off_" + userId);
+  } catch { /* ignore */ }
+}
+
 export function findUserById(users, id) {
   return (users || []).find((u) => u.id === id) || null;
 }

@@ -5,6 +5,7 @@ import { HorarioAlarmeModal } from "./HorarioAlarmeModal.jsx";
 import { TarefaAlarmeModal } from "./TarefaAlarmeModal.jsx";
 import { ROLE_LABELS, userModulos, isAdmin } from "../data/auth";
 import { useData } from "../data/DataProvider.jsx";
+import { useAuth } from "../hooks/useAuth";
 import { visibleClaims, isAtrasado } from "../logic/claims";
 import { myUnreadCount, demandaUnreadCount } from "../logic/tasks";
 import { useHorarioAlarme } from "../hooks/useHorarioAlarme";
@@ -77,8 +78,9 @@ export function Shell({ route, param, crumb, currentUser, currentRole, onNavigat
   }
 
   const { records } = useData();
+  const { isRealVip, vipViewActive, toggleVipView } = useAuth();
   const { alarmes: alarmesHora, dismiss: dismissAlarmeHora, dismissAll: dismissAllAlarmeHora } = useHorarioAlarme(currentUser);
-  const alarmesTarefa = useTarefaAlarme(currentUser);
+  const { alarmes: alarmesTarefa, dismiss: dismissAlarmeTarefa, dismissAll: dismissAllAlarmeTarefa, markViewed: markViewedAlarmeTarefa } = useTarefaAlarme(currentUser);
   const menu = visibleMenu(currentUser, currentRole);
   const nome = currentUser?.nome || "Usuário";
   const initials = nome.split(" ").map((w) => w[0]).slice(0, 2).join("");
@@ -148,7 +150,19 @@ export function Shell({ route, param, crumb, currentUser, currentRole, onNavigat
               <span className={"badge " + (currentUser?.role === "admin" ? "purple" : currentUser?.role === "consulta" ? "gray" : "blue")}>
                 {currentUser ? `${currentUser.nome} • ${ROLE_LABELS[currentUser.role]}` : "—"}
               </span>
-              {currentUser?.vip && <span className="badge amber" title="Acesso VIP: permissões de Administrador mantendo a função">★ VIP</span>}
+              {isRealVip && (
+                <button
+                  type="button"
+                  className={"badge " + (vipViewActive ? "amber" : "gray")}
+                  style={{ border: "none", cursor: "pointer", font: "inherit" }}
+                  onClick={toggleVipView}
+                  title={vipViewActive
+                    ? "Visão VIP ativa: você tem acesso de Administrador. Clique para ver como seu perfil normal."
+                    : "Visão VIP desativada: você está vendo como seu perfil normal. Clique para reativar o acesso de Administrador."}
+                >
+                  {vipViewActive ? "★ VIP" : "☆ VIP"}
+                </button>
+              )}
               <button className="btn sec sm" onClick={onLogout}>Sair</button>
             </div>
             <div className="avatar">{initials}</div>
@@ -160,7 +174,10 @@ export function Shell({ route, param, crumb, currentUser, currentRole, onNavigat
         <HorarioAlarmeModal alarmes={alarmesHora} onDismiss={dismissAlarmeHora} onDismissAll={dismissAllAlarmeHora} navigate={onNavigate} />
       )}
       {alarmesTarefa.length > 0 && (
-        <TarefaAlarmeModal alarmes={alarmesTarefa} navigate={onNavigate} />
+        <TarefaAlarmeModal
+          alarmes={alarmesTarefa} onDismiss={dismissAlarmeTarefa} onDismissAll={dismissAllAlarmeTarefa}
+          onView={markViewedAlarmeTarefa} navigate={onNavigate}
+        />
       )}
     </div>
   );
