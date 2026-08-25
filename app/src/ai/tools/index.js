@@ -5,6 +5,8 @@ import { updateClaimFieldTool } from "./updateClaimField";
 import { listarFiltrosTool } from "./listarFiltros";
 import { explicarDashboardTool } from "./explicarDashboard";
 import { analisarDesempenhoTool } from "./analisarDesempenho";
+import { listarTarefasTool } from "./listarTarefas";
+import { listarDemandasTool } from "./listarDemandas";
 
 // Registro central de "tools" que o Gemini pode chamar. Para adicionar uma
 // tool nova: crie um arquivo em src/ai/tools/ exportando um objeto
@@ -25,6 +27,7 @@ import { analisarDesempenhoTool } from "./analisarDesempenho";
 export const TOOLS = [
   searchClaimsTool, reportClaimsTool, createTaskTool, updateClaimFieldTool,
   listarFiltrosTool, explicarDashboardTool, analisarDesempenhoTool,
+  listarTarefasTool, listarDemandasTool,
 ];
 
 export function getTool(name) {

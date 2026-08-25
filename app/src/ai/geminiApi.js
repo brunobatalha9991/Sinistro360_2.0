@@ -23,6 +23,40 @@ function errorMessage(status, data) {
   return apiMsg || `Erro ao chamar a API do Gemini (HTTP ${status}).`;
 }
 
+// Timeout + 1 nova tentativa automática (a pedido do usuário: as respostas
+// estavam demorando muito e "caindo a conexão" com frequência, sem nenhum
+// tratamento antes — uma falha de rede passageira ou um 5xx/429 do lado do
+// Gemini derrubava o turno inteiro na hora, exigindo reformular a pergunta).
+// Sem isso, um fetch sem resposta ficava pendurado indefinidamente (o
+// navegador não tem timeout próprio pra fetch).
+const REQUEST_TIMEOUT_MS = 30000;
+const MAX_TENTATIVAS = 2;
+
+async function fetchComTimeoutERetry(url, options) {
+  for (let tentativa = 1; tentativa <= MAX_TENTATIVAS; tentativa++) {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
+    const ultima = tentativa === MAX_TENTATIVAS;
+    try {
+      const resp = await fetch(url, { ...options, signal: controller.signal });
+      clearTimeout(timer);
+      // 5xx/429 costumam ser passageiros (sobrecarga momentânea do
+      // servidor/limite de uso) — vale tentar de novo antes de desistir.
+      if (!ultima && (resp.status >= 500 || resp.status === 429)) {
+        await new Promise((r) => setTimeout(r, 1200));
+        continue;
+      }
+      return resp;
+    } catch (e) {
+      clearTimeout(timer);
+      if (!ultima) { await new Promise((r) => setTimeout(r, 800)); continue; }
+      throw e.name === "AbortError"
+        ? new Error(`O Gemini demorou mais de ${REQUEST_TIMEOUT_MS / 1000}s para responder. Tente novamente.`)
+        : new Error("Falha de rede ao chamar a API do Gemini. Verifique sua conexão.");
+    }
+  }
+}
+
 // contents: array no formato do Gemini [{role:"user"|"model", parts:[{text}|{functionCall}|{functionResponse}]}]
 // tools: array de function declarations ({name, description, parameters})
 export async function generateContent({ systemInstruction, contents, tools }) {
@@ -35,16 +69,11 @@ export async function generateContent({ systemInstruction, contents, tools }) {
     ...(tools && tools.length ? { tools: [{ functionDeclarations: tools }] } : {}),
   };
 
-  let resp;
-  try {
-    resp = await fetch(`${BASE_URL}/${geminiModel()}:generateContent?key=${encodeURIComponent(apiKey)}`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(body),
-    });
-  } catch {
-    throw new Error("Falha de rede ao chamar a API do Gemini. Verifique sua conexão.");
-  }
+  const resp = await fetchComTimeoutERetry(`${BASE_URL}/${geminiModel()}:generateContent?key=${encodeURIComponent(apiKey)}`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  });
 
   const raw = await resp.text();
   let data;
