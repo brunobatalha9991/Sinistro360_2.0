@@ -3,6 +3,46 @@ import { createPortal } from "react-dom";
 import { ROLE_LABELS, MODULOS_DISPONIVEIS } from "../../data/auth";
 import { uid } from "../../logic/format";
 import { hashNewPassword } from "../../logic/passwordHash";
+import { Avatar } from "../Avatar.jsx";
+import { isDriveUploadConfigured, uploadArquivoDrive, sanitizarNomePasta, CONTEXTO_PERFIL_USUARIO } from "../../logic/driveUpload";
+
+// Foto do usuário (a pedido do usuário: "escolher a foto nas configurações
+// do usuário também") — mesmo campo corp_users[].fotoUrl usado no
+// Desempenho e na barra superior (Shell.jsx), então trocar aqui atualiza
+// os outros lugares automaticamente (é o mesmo dado, não uma cópia).
+function UserPhotoCell({ u, saveUsers, config }) {
+  const [enviando, setEnviando] = useState(false);
+  const [erro, setErro] = useState(null);
+  const uploadOk = isDriveUploadConfigured(config);
+
+  async function handleFoto(file) {
+    if (!file) return;
+    setEnviando(true); setErro(null);
+    try {
+      const endpoint = config.corp_drive_upload_endpoint || "";
+      const enviado = await uploadArquivoDrive({ endpoint, file, pasta: sanitizarNomePasta(u.nome), contexto: CONTEXTO_PERFIL_USUARIO });
+      saveUsers((current) => (current || []).map((x) => (x.id === u.id ? { ...x, fotoUrl: enviado.url } : x)));
+    } catch (e) {
+      setErro(e.message);
+    } finally {
+      setEnviando(false);
+    }
+  }
+
+  return (
+    <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+      <Avatar url={u.fotoUrl} nome={u.nome} size={30} />
+      {uploadOk && (
+        <label className="btn ghost xs" style={{ cursor: enviando ? "default" : "pointer", whiteSpace: "nowrap" }}>
+          {enviando ? "Enviando..." : "Alterar"}
+          <input type="file" accept="image/*" style={{ display: "none" }} disabled={enviando}
+            onChange={(e) => { const f = e.target.files[0]; e.target.value = ""; handleFoto(f); }} />
+        </label>
+      )}
+      {erro && <span style={{ color: "var(--danger)", fontSize: 11 }} title={erro}>✕</span>}
+    </div>
+  );
+}
 
 const ROLE_ORDER = ["atendente", "analista", "consulta", "admin"];
 
@@ -86,7 +126,7 @@ function VinculoAgenteProdutorModal({ user, agentesDisponiveis, produtoresDispon
 }
 
 // Porte 1:1 do card "Usuários do sistema" das Configurações do HTML original.
-export function UsersCard({ users, currentUser, saveRecord, agentesDisponiveis, produtoresDisponiveis, gruposProdutoresDisponiveis }) {
+export function UsersCard({ users, currentUser, saveRecord, agentesDisponiveis, produtoresDisponiveis, gruposProdutoresDisponiveis, config }) {
   const [vinculoUser, setVinculoUser] = useState(null);
   const [nome, setNome] = useState("");
   const [email, setEmail] = useState("");
@@ -268,10 +308,11 @@ export function UsersCard({ users, currentUser, saveRecord, agentesDisponiveis, 
 
       <div style={{ overflow: "auto", marginTop: 14 }}>
         <table>
-          <thead><tr><th>Nome</th><th>E-mail</th><th>Função</th><th>Ações</th></tr></thead>
+          <thead><tr><th>Foto</th><th>Nome</th><th>E-mail</th><th>Função</th><th>Ações</th></tr></thead>
           <tbody>
             {users.map((u) => (
               <tr key={u.id}>
+                <td><UserPhotoCell u={u} saveUsers={saveUsers} config={config} /></td>
                 <td>{u.nome}</td>
                 <td className="mono">{u.email}</td>
                 <td>

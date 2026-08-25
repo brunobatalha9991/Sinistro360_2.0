@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { Icon } from "./icons.jsx";
+import { Avatar } from "./Avatar.jsx";
 import { NotifBell } from "./NotifBell.jsx";
 import { HorarioAlarmeModal } from "./HorarioAlarmeModal.jsx";
 import { TarefaAlarmeModal } from "./TarefaAlarmeModal.jsx";
@@ -83,7 +84,6 @@ export function Shell({ route, param, crumb, currentUser, currentRole, onNavigat
   const { alarmes: alarmesTarefa, dismiss: dismissAlarmeTarefa, dismissAll: dismissAllAlarmeTarefa, markViewed: markViewedAlarmeTarefa } = useTarefaAlarme(currentUser);
   const menu = visibleMenu(currentUser, currentRole);
   const nome = currentUser?.nome || "Usuário";
-  const initials = nome.split(" ").map((w) => w[0]).slice(0, 2).join("");
   const isDark = theme === "dark";
 
   const overrides = records.corp_overrides || {};
@@ -165,7 +165,7 @@ export function Shell({ route, param, crumb, currentUser, currentRole, onNavigat
               )}
               <button className="btn sec sm" onClick={onLogout}>Sair</button>
             </div>
-            <div className="avatar">{initials}</div>
+            <Avatar url={currentUser?.fotoUrl} nome={nome} size={34} />
           </div>
         </div>
         <div className="content">{children}</div>

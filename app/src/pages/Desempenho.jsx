@@ -3,10 +3,11 @@ import { useData } from "../data/DataProvider.jsx";
 import { useHashRoute } from "../hooks/useHashRoute";
 import { useAuth } from "../hooks/useAuth";
 import { EmptyState } from "../components/EmptyState.jsx";
+import { Avatar } from "../components/Avatar.jsx";
 import { calcularMetricasTodosUsuarios, gerarFeedbackEPlanoDeAcao } from "../logic/desempenho";
 import { patchListFilter, resetListFilter } from "../state/listFilter";
 import { fmtNum } from "../logic/format";
-import { isDriveUploadConfigured, uploadArquivoDrive, sanitizarNomePasta, CONTEXTO_PERFIL_USUARIO, driveImagemEmbutivel } from "../logic/driveUpload";
+import { isDriveUploadConfigured, uploadArquivoDrive, sanitizarNomePasta, CONTEXTO_PERFIL_USUARIO } from "../logic/driveUpload";
 import { isAdmin, ROLE_LABELS } from "../data/auth";
 import { isGeminiConfigured } from "../ai/geminiApi";
 import { gerarFeedbackEmTextoCorrido } from "../ai/gerarFeedbackTexto";
@@ -14,24 +15,6 @@ import { gerarFeedbackEmTextoCorrido } from "../ai/gerarFeedbackTexto";
 function todayISO() { return new Date().toISOString().slice(0, 10); }
 function diasAtras(n) { const d = new Date(); d.setDate(d.getDate() - n); return d.toISOString().slice(0, 10); }
 function fmtDiasMedia(n) { return n == null ? "—" : n.toLocaleString("pt-BR", { maximumFractionDigits: 1 }) + " d"; }
-
-function Avatar({ url, nome, size = 36 }) {
-  const [broken, setBroken] = useState(false);
-  const iniciais = String(nome || "?").trim().split(/\s+/).slice(0, 2).map((p) => p[0] || "").join("").toUpperCase() || "?";
-  if (!url || broken) {
-    return (
-      <div style={{
-        width: size, height: size, minWidth: size, borderRadius: "50%", flexShrink: 0,
-        background: "var(--chip-bg, #1e293b)", color: "var(--text)", display: "flex",
-        alignItems: "center", justifyContent: "center", fontSize: Math.round(size * 0.38), fontWeight: 700,
-      }}>{iniciais}</div>
-    );
-  }
-  return (
-    <img src={driveImagemEmbutivel(url)} alt={nome} onError={() => setBroken(true)}
-      style={{ width: size, height: size, minWidth: size, borderRadius: "50%", objectFit: "cover", flexShrink: 0 }} />
-  );
-}
 
 function Stat({ label, value, danger }) {
   return (

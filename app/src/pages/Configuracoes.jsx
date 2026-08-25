@@ -88,7 +88,7 @@ export function Configuracoes() {
             <UsersCard
               users={records.corp_users || []} currentUser={currentUser} saveRecord={saveRecord}
               agentesDisponiveis={agentesEfetivo} produtoresDisponiveis={produtoresEfetivo}
-              gruposProdutoresDisponiveis={gruposProdutoresEfetivo}
+              gruposProdutoresDisponiveis={gruposProdutoresEfetivo} config={config}
             />
           </ConfigGroup>
 
