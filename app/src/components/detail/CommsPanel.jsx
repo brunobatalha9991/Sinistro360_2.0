@@ -122,6 +122,10 @@ function SugestaoClienteBox({ titulo, oficinaTexto, seguradoraTexto }) {
 export function CommsPanel({ c, overrides, actions, canEdit, config, clientes }) {
   const { currentUser } = useAuth();
   const [msgModalOpen, setMsgModalOpen] = useState(false);
+  // A ferramenta de registro só abre sob clique (a pedido do usuário) —
+  // deixa o Histórico já registrado mais visual, sem o formulário sempre
+  // ocupando a tela. Fecha sozinha depois de registrar com sucesso.
+  const [registrarAberto, setRegistrarAberto] = useState(false);
   const list = loadComms(overrides, c.id).slice().reverse();
   const templates = (config && config.corp_journey_templates) || {};
   const atendTemplateCfg = config && config.corp_atendimento_template;
@@ -165,6 +169,7 @@ export function CommsPanel({ c, overrides, actions, canEdit, config, clientes })
     actions.logAudit(c.id, "Comunicação registrada", `${tituloResolvido} — ${novos.map((n) => n.canal).join(", ")}`);
     setBoxCliente(blankBox()); setBoxOficina(blankBox()); setBoxSeguradora(blankBox());
     setTitulo(etapaAtual); setTituloAvulso("");
+    setRegistrarAberto(false);
   }
   function excluir(id) {
     // NOTA: o original não checava permissão aqui (só ao criar) — um usuário
@@ -215,33 +220,46 @@ export function CommsPanel({ c, overrides, actions, canEdit, config, clientes })
             <MensagemTemplateModal c={c} overrides={overrides} config={config} clientes={clientes} actions={actions} onClose={() => setMsgModalOpen(false)} />
           )}
 
-          <div className="card">
-            <h3 style={{ marginTop: 0 }}>Registrar comunicação</h3>
-            <div className="grid c2">
-              <div className="field"><label>Título</label>
-                <select value={titulo} onChange={(e) => setTitulo(e.target.value)}>
-                  <option value="">— Selecione —</option>
-                  {titulosEtapas.map((et) => <option key={et} value={et}>{et}</option>)}
-                  <option value={TITULO_AVULSO}>+ Título avulso...</option>
-                </select>
-                {titulo === TITULO_AVULSO && (
-                  <input style={{ marginTop: 6 }} placeholder="Digite o título para esta situação" value={tituloAvulso} onChange={(e) => setTituloAvulso(e.target.value)} />
-                )}
+          {!registrarAberto ? (
+            <div className="card" style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 8 }}>
+              <div>
+                <h3 style={{ margin: 0 }}>Registrar comunicação</h3>
+                <p className="muted" style={{ margin: "2px 0 0", fontSize: 12 }}>Registra uma nova comunicação com cliente, oficina e/ou seguradora.</p>
               </div>
-              <div className="field"><label>Data</label>
-                <input type="date" value={data} onChange={(e) => setData(e.target.value)} />
+              <button className="btn sm" onClick={() => setRegistrarAberto(true)}>+ Registrar comunicação</button>
+            </div>
+          ) : (
+            <div className="card">
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 8 }}>
+                <h3 style={{ margin: 0 }}>Registrar comunicação</h3>
+                <button className="btn sec xs" onClick={() => setRegistrarAberto(false)}>✕ Fechar</button>
               </div>
-            </div>
+              <div className="grid c2">
+                <div className="field"><label>Título</label>
+                  <select value={titulo} onChange={(e) => setTitulo(e.target.value)}>
+                    <option value="">— Selecione —</option>
+                    {titulosEtapas.map((et) => <option key={et} value={et}>{et}</option>)}
+                    <option value={TITULO_AVULSO}>+ Título avulso...</option>
+                  </select>
+                  {titulo === TITULO_AVULSO && (
+                    <input style={{ marginTop: 6 }} placeholder="Digite o título para esta situação" value={tituloAvulso} onChange={(e) => setTituloAvulso(e.target.value)} />
+                  )}
+                </div>
+                <div className="field"><label>Data</label>
+                  <input type="date" value={data} onChange={(e) => setData(e.target.value)} />
+                </div>
+              </div>
 
-            <div style={{ display: "flex", flexDirection: "column", gap: 12, marginTop: 4 }}>
-              <ComunicacaoBox canal="Cliente" box={boxCliente} onChange={setBoxCliente} comAvaliacao />
-              <ComunicacaoBox canal="Oficina" box={boxOficina} onChange={setBoxOficina} comAvaliacao comLimitacao />
-              <ComunicacaoBox canal="Seguradora" box={boxSeguradora} onChange={setBoxSeguradora} comAvaliacao />
-              <SugestaoClienteBox titulo={tituloResolvido} oficinaTexto={boxOficina.texto} seguradoraTexto={boxSeguradora.texto} />
-            </div>
+              <div style={{ display: "flex", flexDirection: "column", gap: 12, marginTop: 4 }}>
+                <ComunicacaoBox canal="Cliente" box={boxCliente} onChange={setBoxCliente} comAvaliacao />
+                <ComunicacaoBox canal="Oficina" box={boxOficina} onChange={setBoxOficina} comAvaliacao comLimitacao />
+                <ComunicacaoBox canal="Seguradora" box={boxSeguradora} onChange={setBoxSeguradora} comAvaliacao />
+                <SugestaoClienteBox titulo={tituloResolvido} oficinaTexto={boxOficina.texto} seguradoraTexto={boxSeguradora.texto} />
+              </div>
 
-            <button className="btn" style={{ marginTop: 14 }} onClick={registrar}>Registrar comunicação</button>
-          </div>
+              <button className="btn" style={{ marginTop: 14 }} onClick={registrar}>Registrar comunicação</button>
+            </div>
+          )}
         </>
       )}
 
