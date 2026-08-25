@@ -1,5 +1,5 @@
 import { Fragment, useState } from "react";
-import { buscarClientes, buscarClienteDetalhado, buscarLigacoesCliente, fetchDocumento, extractUrlApolice } from "../logic/corpApi";
+import { buscarClientes, buscarClienteDetalhado, buscarLigacoesCliente, mapearLigacoesCliente, fetchDocumento, extractUrlApolice } from "../logic/corpApi";
 import { clienteIdFromNome } from "../logic/clientes";
 import { uid } from "../logic/format";
 
@@ -50,7 +50,7 @@ export function ConsultaClienteCorpBox({ config, clienteActions, navigate }) {
     // verApolice), então busca só a lista aqui.
     setLigacoes((s) => ({ ...s, [chave]: { carregando: true } }));
     buscarLigacoesCliente(cfg, c.codigo)
-      .then((docs) => setLigacoes((s) => ({ ...s, [chave]: { carregando: false, docs } })))
+      .then((docs) => setLigacoes((s) => ({ ...s, [chave]: { carregando: false, docs: mapearLigacoesCliente(docs) } })))
       .catch((e) => setLigacoes((s) => ({ ...s, [chave]: { carregando: false, erro: e.message } })));
   }
 
@@ -72,7 +72,7 @@ export function ConsultaClienteCorpBox({ config, clienteActions, navigate }) {
             const clienteId = clienteIdFromNome(nome);
             const jaTem = ((clienteActions.clientes[clienteId] || {}).anexos || []).some((a) => a.url === url);
             if (!jaTem) {
-              const nomeAnexo = "Apólice" + (doc.numapo ? ` ${doc.numapo}` : "") + (doc.seguradora ? ` — ${doc.seguradora}` : "");
+              const nomeAnexo = "Apólice" + (doc.numeroApolice ? ` ${doc.numeroApolice}` : "") + (doc.seguradora ? ` — ${doc.seguradora}` : "");
               clienteActions.addAnexo(clienteId, { id: uid("anx"), nome: nomeAnexo, url, adicionadoEm: new Date().toISOString() });
             }
           }
@@ -188,30 +188,36 @@ export function ConsultaClienteCorpBox({ config, clienteActions, navigate }) {
                                   <div className="muted">Nenhuma apólice/documento encontrado pra este cliente.</div>
                                 )}
                                 {ligacoes[chave] && ligacoes[chave].docs && ligacoes[chave].docs.length > 0 && (
-                                  <table style={{ marginTop: 6 }}>
-                                    <thead><tr><th>Apólice</th><th>Seguradora</th><th>Ramo</th><th>Vigência</th><th>Situação</th><th>PDF</th></tr></thead>
-                                    <tbody>
-                                      {ligacoes[chave].docs.map((doc, di) => {
-                                        const chaveDoc = `${doc.codfil}|${doc.nosnum}`;
-                                        const ap = apolices[chaveDoc];
-                                        return (
-                                          <tr key={chaveDoc + di}>
-                                            <td className="mono">{doc.numapo || "—"}</td>
-                                            <td>{doc.seguradora || "—"}</td>
-                                            <td>{doc.ramo || "—"}</td>
-                                            <td>{doc.inivig || "—"} a {doc.fimvig || "—"}</td>
-                                            <td>{doc.sit_acompanhamento_txt || "—"}</td>
-                                            <td>
-                                              {ap && ap.carregando ? "Buscando..." : ap && ap.url ? <a href={ap.url} target="_blank" rel="noreferrer">Abrir</a> : (
-                                                <button className="btn ghost xs" onClick={() => verApolice(c, doc)}>Ver</button>
-                                              )}
-                                              {ap && ap.erro && <div className="muted" style={{ fontSize: 10.5 }}>{ap.erro}</div>}
-                                            </td>
-                                          </tr>
-                                        );
-                                      })}
-                                    </tbody>
-                                  </table>
+                                  <div style={{ display: "flex", flexDirection: "column", gap: 8, marginTop: 6 }}>
+                                    {ligacoes[chave].docs.map((doc, di) => {
+                                      const chaveDoc = `${doc.codfil}|${doc.nosnum}`;
+                                      const ap = apolices[chaveDoc];
+                                      return (
+                                        <div key={chaveDoc + di} style={{ border: "1px solid var(--border)", borderRadius: 8, padding: 10, background: "var(--card)" }}>
+                                          <div className="grid c3" style={{ gap: 6 }}>
+                                            <div><b>Apólice:</b> {doc.numeroApolice || "—"}</div>
+                                            <div><b>Seguradora:</b> {doc.seguradora || "—"}</div>
+                                            <div><b>Ramo:</b> {doc.ramo || "—"}</div>
+                                            <div><b>Vigência:</b> {doc.vigenciaInicio || "—"} a {doc.vigenciaFim || "—"}</div>
+                                            <div><b>Valor total:</b> {doc.valorTotal != null ? doc.valorTotal.toLocaleString("pt-BR", { style: "currency", currency: "BRL" }) : "—"} {doc.numeroParcelas ? `(${doc.numeroParcelas}x)` : ""}</div>
+                                            <div><b>Pagamento:</b> {doc.formaPagamento || "—"}</div>
+                                          </div>
+                                          <div style={{ marginTop: 4 }}><b>Situação:</b> {doc.situacaoAcompanhamento || "—"}</div>
+                                          {doc.prodDocs.length > 0 && (
+                                            <div style={{ marginTop: 4 }}>
+                                              <b>Agente/Produtor:</b> {doc.prodDocs.map((p) => p.produtor).filter(Boolean).join(", ") || "—"}
+                                            </div>
+                                          )}
+                                          <div style={{ marginTop: 8 }}>
+                                            {ap && ap.carregando ? "Buscando PDF..." : ap && ap.url ? <a href={ap.url} target="_blank" rel="noreferrer" className="btn sec xs">📄 Abrir apólice (PDF)</a> : (
+                                              <button className="btn sec xs" onClick={() => verApolice(c, doc)}>📄 Ver apólice (PDF)</button>
+                                            )}
+                                            {ap && ap.erro && <div className="muted" style={{ fontSize: 10.5, marginTop: 4 }}>{ap.erro}</div>}
+                                          </div>
+                                        </div>
+                                      );
+                                    })}
+                                  </div>
                                 )}
                               </div>
                             </div>

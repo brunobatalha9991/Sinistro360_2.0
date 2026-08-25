@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { extractProdDocs, extractUrlApolice, extractDocumentoDetalhado } from "./corpApi";
+import { extractProdDocs, extractUrlApolice, extractDocumentoDetalhado, mapearLigacoesCliente } from "./corpApi";
 
 // Formato real de GET /documento?codfil=&nosnum= (exemplo enviado pelo
 // usuário) — body.documento[0].prod_docs é a lista de {agente, produtor}.
@@ -106,5 +106,24 @@ describe("extractDocumentoDetalhado", () => {
     expect(extractDocumentoDetalhado({ documento: [] })).toBeNull();
     expect(extractDocumentoDetalhado(null)).toBeNull();
     expect(extractDocumentoDetalhado(undefined)).toBeNull();
+  });
+});
+
+describe("mapearLigacoesCliente", () => {
+  it("achata cada documento de /cliente_ligacoes no mesmo formato de extractDocumentoDetalhado (sem URL de PDF)", () => {
+    const docs = mapearLigacoesCliente(RESPOSTA_REAL.documento);
+    expect(docs).toHaveLength(1);
+    expect(docs[0]).toMatchObject({
+      codfil: 1, nosnum: 64170, seguradora: "PORTO SEGURO", ramo: "RESIDENCIAL",
+      numeroApolice: "114134153657", valorTotal: 357, numeroParcelas: 10,
+    });
+    expect(docs[0].urlApolice).toBeUndefined();
+    expect(docs[0].parcelas).toHaveLength(2);
+    expect(docs[0].prodDocs).toHaveLength(2);
+  });
+  it("ignora entradas sem documento válido, sem lançar", () => {
+    expect(mapearLigacoesCliente([])).toEqual([]);
+    expect(mapearLigacoesCliente(null)).toEqual([]);
+    expect(mapearLigacoesCliente(undefined)).toEqual([]);
   });
 });

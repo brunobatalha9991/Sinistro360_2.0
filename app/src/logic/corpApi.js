@@ -151,15 +151,17 @@ export function extractUrlApolice(resp) {
   return (resp && resp.acompanhamento && resp.acompanhamento.emissao && resp.acompanhamento.emissao.url_apolice) || "";
 }
 
-// Resumo completo da resposta de fetchDocumento (a pedido do usuário: "traga
-// o máximo de informação possível sobre o processo consultado") — achata os
-// campos espalhados em documento[0]/acompanhamento num objeto único, fácil
-// de exibir. Pura/tolerante: nunca lança, devolve null sem documento algum.
-export function extractDocumentoDetalhado(resp) {
-  const doc = resp && Array.isArray(resp.documento) && resp.documento[0];
+// Achata 1 objeto de documento cru (documento[0] de fetchDocumento, OU
+// qualquer item de buscarLigacoesCliente — mesmo formato) num resumo fácil
+// de exibir. Extraída à parte (a pedido do usuário: "carrega esses dados na
+// busca pelo cliente") pra poder ser reaproveitada sem precisar de uma nova
+// chamada — /cliente_ligacoes já devolve praticamente tudo isso de graça,
+// só falta a URL assinada do PDF (que vem só de fetchDocumento/
+// extractUrlApolice, não está disponível em /cliente_ligacoes).
+function mapearDocumento(doc) {
   if (!doc) return null;
-  const acomp = resp.acompanhamento || {};
   return {
+    codfil: doc.codfil, nosnum: doc.nosnum,
     seguradora: doc.seguradora || "",
     ramo: doc.ramo || "",
     numeroApolice: doc.numapo || "",
@@ -174,12 +176,33 @@ export function extractDocumentoDetalhado(resp) {
     situacaoSinistro: doc.sit_sinistro_txt || "",
     situacaoRenovacao: doc.sit_renovacao_txt || "",
     cliente: doc.cliente || "",
-    urlApolice: (acomp.emissao && acomp.emissao.url_apolice) || "",
-    urlProposta: (acomp.proposta && acomp.proposta.url_proposta) || "",
     parcelas: (doc.parcelas || []).map((p) => ({
       numero: p.parc, vencimento: p.datvenc, valor: p.vlvenc, quitadoEm: p.datquit || null,
     })),
-    prodDocs: extractProdDocs(resp),
+    prodDocs: (doc.prod_docs || []).map((p) => ({ agente: p.agente, produtor: p.produtor })),
+  };
+}
+
+// Documentos vinculados a um cliente (resultado de buscarLigacoesCliente),
+// já no mesmo formato rico de extractDocumentoDetalhado — sem URL de PDF
+// (isso exige uma chamada extra por documento, ver fetchDocumento).
+export function mapearLigacoesCliente(docs) {
+  return (docs || []).map(mapearDocumento).filter(Boolean);
+}
+
+// Resumo completo da resposta de fetchDocumento (a pedido do usuário: "traga
+// o máximo de informação possível sobre o processo consultado") — achata os
+// campos espalhados em documento[0]/acompanhamento num objeto único, fácil
+// de exibir. Pura/tolerante: nunca lança, devolve null sem documento algum.
+export function extractDocumentoDetalhado(resp) {
+  const doc = resp && Array.isArray(resp.documento) && resp.documento[0];
+  const base = mapearDocumento(doc);
+  if (!base) return null;
+  const acomp = resp.acompanhamento || {};
+  return {
+    ...base,
+    urlApolice: (acomp.emissao && acomp.emissao.url_apolice) || "",
+    urlProposta: (acomp.proposta && acomp.proposta.url_proposta) || "",
   };
 }
 
