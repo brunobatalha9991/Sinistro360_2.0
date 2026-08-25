@@ -54,6 +54,33 @@ function fetchSinistros(cfg, params) {
 }
 export function testConnection(cfg) { setToken(""); return login(cfg).then(() => true); }
 
+// Busca CLIENTE direto no CORP (GET /clientes?texto=), sem depender de
+// nenhum sinistro — a pedido do usuário: a consulta anterior (via
+// /sinistros) só encontrava quem já tinha processo. Exige pelo menos 4
+// caracteres em `texto` (regra do próprio CORP); devolve nome, CPF/CNPJ,
+// e-mail, telefone, cidade/UF, ativo/vigente — já no resultado da busca,
+// sem precisar de uma segunda chamada.
+export function buscarClientes(cfg, { texto, qtdPag, pag, vigentes } = {}) {
+  const params = { texto: String(texto || "").trim() };
+  if (qtdPag) params.qtd_pag = qtdPag;
+  if (pag) params.pag = pag;
+  if (vigentes) params.vigentes = vigentes;
+  const qs = Object.keys(params).map((k) => encodeURIComponent(k) + "=" + encodeURIComponent(params[k])).join("&");
+  return withAuth(cfg, () => request(cfg, "/clientes?" + qs, { method: "GET" }))
+    .then((resp) => (resp && resp.clientes) || [])
+    .catch((e) => { if (e.status === 404) return []; throw e; });
+}
+
+// Detalhe completo de 1 cliente (GET /cliente?codfil=&codigo=) — endereços,
+// múltiplos telefones/e-mails/contatos. `codfil`/`codigo` vêm do resultado
+// de buscarClientes.
+export function buscarClienteDetalhado(cfg, codfil, codigo) {
+  const qs = `codfil=${encodeURIComponent(codfil)}&codigo=${encodeURIComponent(codigo)}`;
+  return withAuth(cfg, () => request(cfg, "/cliente?" + qs, { method: "GET" }))
+    .then((resp) => (resp && Array.isArray(resp.cliente) && resp.cliente[0]) || null)
+    .catch((e) => { if (e.status === 404) return null; throw e; });
+}
+
 // Consulta AO VIVO no CORP por nome/placa, sem gravar nada aqui (a pedido
 // do usuário: trazer a base inteira de clientes pra sincronizar ficaria
 // pesado sem necessidade — a maior parte nunca seria usada; melhor buscar

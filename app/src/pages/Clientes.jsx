@@ -2,7 +2,7 @@ import { useMemo, useState } from "react";
 import { useData } from "../data/DataProvider.jsx";
 import { useHashRoute } from "../hooks/useHashRoute";
 import { EmptyState } from "../components/EmptyState.jsx";
-import { ConsultaCorpBox } from "../components/ConsultaCorpBox.jsx";
+import { ConsultaClienteCorpBox } from "../components/ConsultaClienteCorpBox.jsx";
 import { useClienteActions } from "../hooks/useClienteActions";
 import { visibleClaims } from "../logic/claims";
 import {
@@ -53,7 +53,7 @@ export function Clientes() {
       {consultaCorpAberta && (
         <div className="card">
           <h3 style={{ marginTop: 0 }}>Consultar no CORP</h3>
-          <ConsultaCorpBox config={config} clienteActions={clienteActions} navigate={navigate} />
+          <ConsultaClienteCorpBox config={config} clienteActions={clienteActions} navigate={navigate} />
         </div>
       )}
 

@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { uid } from "../../logic/format";
 
-function contatoVazio() { return { nome: "", telefone: "", cargo: "" }; }
+function contatoVazio() { return { nome: "", telefone: "", email: "", cargo: "" }; }
 
 // Anexos do cliente (não do processo) — a pedido do usuário: guardar a URL
 // da apólice (e outros links) mesmo pra um cliente sem nenhum processo
@@ -79,9 +79,10 @@ export function CadastroPanel({ clienteId, cadastro, actions, canEdit }) {
       <div style={{ marginTop: 14 }}>
         <label style={{ display: "block", marginBottom: 6 }}>Contatos</label>
         {contatos.map((ct, i) => (
-          <div key={i} className="grid c3" style={{ marginBottom: 6 }}>
+          <div key={i} className="grid c4" style={{ marginBottom: 6 }}>
             <input placeholder="Nome" value={ct.nome} onChange={(e) => setContatos((cur) => cur.map((x, j) => (j === i ? { ...x, nome: e.target.value } : x)))} />
             <input placeholder="Telefone" value={ct.telefone} onChange={(e) => setContatos((cur) => cur.map((x, j) => (j === i ? { ...x, telefone: e.target.value } : x)))} />
+            <input placeholder="E-mail" value={ct.email || ""} onChange={(e) => setContatos((cur) => cur.map((x, j) => (j === i ? { ...x, email: e.target.value } : x)))} />
             <input placeholder="Cargo" value={ct.cargo} onChange={(e) => setContatos((cur) => cur.map((x, j) => (j === i ? { ...x, cargo: e.target.value } : x)))} />
           </div>
         ))}
