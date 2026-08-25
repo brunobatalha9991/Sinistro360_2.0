@@ -4,7 +4,7 @@
 // sinistro. O cadastro (corp_oficinas) é inteiramente manual, guardado
 // numa coleção própria, então nunca é afetado por uma sincronização de
 // corp_claims.
-import { campoEfetivo, getUserJourney, loadComms, getPesquisaSatisfacao } from "./claims";
+import { campoEfetivo, getUserJourney, loadComms, getPesquisaSatisfacao, comFlagContaComoMetrica } from "./claims";
 import { diasEntre } from "./format";
 
 // Slug determinístico a partir do nome da oficina — vira o id do registro
@@ -74,8 +74,8 @@ export function oficinaAvaliacaoMedia(coms) {
 export function oficinaAguardandoLimitacaoCounts(coms) {
   let aguardandoRetorno = 0, limitacaoComunicacao = 0;
   (coms || []).forEach((m) => {
-    if (m.aguardandoRetorno) aguardandoRetorno++;
-    if (m.limitacaoComunicacao) limitacaoComunicacao++;
+    if (comFlagContaComoMetrica(m, "aguardandoRetorno")) aguardandoRetorno++;
+    if (comFlagContaComoMetrica(m, "limitacaoComunicacao")) limitacaoComunicacao++;
   });
   return { aguardandoRetorno, limitacaoComunicacao };
 }

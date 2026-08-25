@@ -138,6 +138,24 @@ export function getResponsavel(overrides, claimId) { return getOvr(overrides, cl
 export function getSitAtend(overrides, claimId) { return getOvr(overrides, claimId).sitAtend || ""; }
 export function getTemp(overrides, claimId) { return getOvr(overrides, claimId).temperatura || ""; }
 export function loadComms(overrides, claimId) { return getOvr(overrides, claimId).comms || []; }
+
+// "Aguardando retorno" e "Limitação de comunicação" (Histórico) perpetuam
+// como indicador/métrica mesmo desmarcados depois — a pedido do usuário,
+// pra não perder a evidência numa reunião com a oficina só porque alguém
+// desmarcou o botão. Só NÃO conta como métrica se for desmarcado em menos
+// de 8h da marcação (ver toggleComFlag em CommsPanel.jsx, que grava
+// `${campo}Desde` ao marcar e trava `${campo}Metrica` ao desmarcar depois
+// das 8h). Marcado agora (m[campo] true) sempre conta, travado ou não.
+export function comFlagContaComoMetrica(m, campo) {
+  if (!m) return false;
+  return !!(m[campo] || m[campo + "Metrica"]);
+}
+// Processo tem, em qualquer comunicação do Histórico, o indicador `campo`
+// contando como métrica (ver comFlagContaComoMetrica) — usado no filtro do
+// módulo Sinistros.
+export function claimTemFlagHistorico(overrides, claimId, campo) {
+  return loadComms(overrides, claimId).some((m) => comFlagContaComoMetrica(m, campo));
+}
 export function getManualLinks(overrides, claimId) { return getOvr(overrides, claimId).links || []; }
 export function getFinance(overrides, claimId) { return getOvr(overrides, claimId).finance || {}; }
 export function loadAudit(overrides, claimId) { return getOvr(overrides, claimId).audit || []; }

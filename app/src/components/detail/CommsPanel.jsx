@@ -176,6 +176,29 @@ export function CommsPanel({ c, overrides, actions, canEdit, config, clientes })
     actions.logAudit(c.id, "Comunicação excluída", "");
   }
 
+  // "Aguardando retorno" e "Limitação de comunicação" podem ser
+  // marcados/desmarcados depois de registrados (a pedido do usuário) — mas
+  // perpetuam como indicador/métrica (ver comFlagContaComoMetrica em
+  // logic/claims.js): ao marcar, grava `${campo}Desde`; ao desmarcar, só
+  // trava `${campo}Metrica` (métrica permanente) se já tinham passado 8h
+  // desde a marcação — desmarcado antes disso, não conta como métrica.
+  const OITO_HORAS_MS = 8 * 60 * 60 * 1000;
+  function toggleFlag(id, campo) {
+    if (!canEdit) { alert("Seu perfil é apenas de consulta. Você pode visualizar, mas não editar processos."); return; }
+    const desdeCampo = campo + "Desde";
+    const metricaCampo = campo + "Metrica";
+    const arr = loadComms(overrides, c.id).map((m) => {
+      if (m.id !== id) return m;
+      if (!m[campo]) return { ...m, [campo]: true, [desdeCampo]: m[desdeCampo] || new Date().toISOString() };
+      const desde = m[desdeCampo] ? new Date(m[desdeCampo]).getTime() : null;
+      const decorrido = desde ? Date.now() - desde : 0;
+      const patch = { ...m, [campo]: false, [desdeCampo]: null };
+      if (desde && decorrido >= OITO_HORAS_MS) patch[metricaCampo] = true;
+      return patch;
+    });
+    actions.saveComms(c.id, arr);
+  }
+
   return (
     <div>
       {canEdit && (
@@ -234,8 +257,20 @@ export function CommsPanel({ c, overrides, actions, canEdit, config, clientes })
                 <div>
                   {m.titulo && <span className="badge blue" style={{ marginRight: 6 }}>{m.titulo}</span>}
                   <span className={"badge " + CANAL_BADGE[m.canal]}>{m.canal}</span>
-                  {m.aguardandoRetorno && <span className="badge amber" style={{ marginLeft: 6 }}>Aguardando retorno</span>}
-                  {m.limitacaoComunicacao && <span className="badge red" style={{ marginLeft: 6 }}>Limitação de comunicação</span>}
+                  <span
+                    className={"badge " + (m.aguardandoRetorno ? "amber" : "gray")} style={{ marginLeft: 6, cursor: canEdit ? "pointer" : "default" }}
+                    title={canEdit ? "Clique para marcar/desmarcar" : ""} onClick={() => toggleFlag(m.id, "aguardandoRetorno")}
+                  >
+                    {m.aguardandoRetorno ? "✓ " : ""}Aguardando retorno
+                  </span>
+                  {m.canal === "Oficina" && (
+                    <span
+                      className={"badge " + (m.limitacaoComunicacao ? "red" : "gray")} style={{ marginLeft: 6, cursor: canEdit ? "pointer" : "default" }}
+                      title={canEdit ? "Clique para marcar/desmarcar" : ""} onClick={() => toggleFlag(m.id, "limitacaoComunicacao")}
+                    >
+                      {m.limitacaoComunicacao ? "✓ " : ""}Limitação de comunicação
+                    </span>
+                  )}
                   <span className="muted" style={{ marginLeft: 8, fontSize: 12 }}>{m.meio} • {fmtDateBR(m.date)}</span>
                 </div>
                 {canEdit && <button className="btn danger xs" onClick={() => excluir(m.id)}>Excluir</button>}

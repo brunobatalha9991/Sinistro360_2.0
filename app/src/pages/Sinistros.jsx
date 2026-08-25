@@ -15,6 +15,7 @@ import {
   visibleClaims, campoEfetivo, situacaoEfetiva, getUserJourney, getNextAction,
   getSitAtend, getTemp, getResponsavel, isAtrasado, isSemAtualizacao, isManualClaim,
   allJourneyStages, currentStage, getAgenteProdutor, getAgentesEfetivo, distinctGruposProdutores, grupoProdutor,
+  distinctComputed, claimTemFlagHistorico,
 } from "../logic/claims";
 
 const DEFAULT_TEMP_OPTIONS = ["Tranquilo", "Moderado", "Grave", "Em atenção"];
@@ -38,6 +39,7 @@ export function Sinistros() {
   const claims = useMemo(() => visibleClaims(records.corp_claims, overrides, currentUser), [records.corp_claims, overrides, currentUser]);
   const agenteOptions = getAgentesEfetivo(config, overrides, claims);
   const grupoProdutorOptions = distinctGruposProdutores(overrides, claims);
+  const oficinaOptions = distinctComputed(claims, (x) => campoEfetivo(overrides, x, "oficina"));
 
   function updatePref(next) { setPref(next); saveCols(next); }
 
@@ -87,6 +89,11 @@ export function Sinistros() {
       const ap = getAgenteProdutor(overrides, c.id);
       if (!ap || !(ap.produtores || []).some((p) => grupoProdutor(p) === lf.grupoProdutor)) return false;
     }
+    if (except !== "oficina" && lf.oficina && lf.oficina !== "todas") {
+      if (campoEfetivo(overrides, c, "oficina") !== lf.oficina) return false;
+    }
+    if (except !== "aguardandoRetornoHist" && lf.aguardandoRetornoHist && !claimTemFlagHistorico(overrides, c.id, "aguardandoRetorno")) return false;
+    if (except !== "limitacaoComunicacaoHist" && lf.limitacaoComunicacaoHist && !claimTemFlagHistorico(overrides, c.id, "limitacaoComunicacao")) return false;
     if (except !== "texto" && q) {
       const hay = [campoEfetivo(overrides, c, "segurado"), campoEfetivo(overrides, c, "placa"), campoEfetivo(overrides, c, "numsin"), campoEfetivo(overrides, c, "numapo"), campoEfetivo(overrides, c, "cia"), c.partyType, campoEfetivo(overrides, c, "oficina"), campoEfetivo(overrides, c, "ramo")].join(" ").toLowerCase();
       if (hay.indexOf(q) < 0) return false;
@@ -101,6 +108,8 @@ export function Sinistros() {
   const baseManual = claims.filter((c) => passa(c, "manual"));
   const baseAberto = claims.filter((c) => passa(c, "aberto"));
   const baseCaminho = claims.filter((c) => passa(c, "caminho"));
+  const baseAguardHist = claims.filter((c) => passa(c, "aguardandoRetornoHist"));
+  const baseLimComHist = claims.filter((c) => passa(c, "limitacaoComunicacaoHist"));
 
   const cntTipo = {}; let totalNaoFinal = 0;
   baseTipo.forEach((c) => {
@@ -124,6 +133,8 @@ export function Sinistros() {
   const qtdSemAtu = baseEspec.filter((c) => isSemAtualizacao(overrides, c)).length;
   const qtdManual = baseManual.filter(isManualClaim).length;
   const qtdAberto = baseAberto.filter((c) => { const l = situacaoEfetiva(overrides, c).label; return l === "Pendente" || l === "Em andamento"; }).length;
+  const qtdAguardHist = baseAguardHist.filter((c) => claimTemFlagHistorico(overrides, c.id, "aguardandoRetorno")).length;
+  const qtdLimComHist = baseLimComHist.filter((c) => claimTemFlagHistorico(overrides, c.id, "limitacaoComunicacao")).length;
 
   const stageNames = allJourneyStages(templates, atendTemplate);
   const stageCounts = {}; let stageTotal = 0;
@@ -172,6 +183,9 @@ export function Sinistros() {
       const ap = getAgenteProdutor(overrides, c.id);
       if (!ap || !(ap.produtores || []).some((p) => grupoProdutor(p) === lf.grupoProdutor)) return false;
     }
+    if (lf.oficina && lf.oficina !== "todas" && campoEfetivo(overrides, c, "oficina") !== lf.oficina) return false;
+    if (lf.aguardandoRetornoHist && !claimTemFlagHistorico(overrides, c.id, "aguardandoRetorno")) return false;
+    if (lf.limitacaoComunicacaoHist && !claimTemFlagHistorico(overrides, c.id, "limitacaoComunicacao")) return false;
     if (!q) return true;
     return [campoEfetivo(overrides, c, "segurado"), campoEfetivo(overrides, c, "placa"), campoEfetivo(overrides, c, "numsin"), campoEfetivo(overrides, c, "numapo"), campoEfetivo(overrides, c, "cia"), c.partyType, campoEfetivo(overrides, c, "oficina"), campoEfetivo(overrides, c, "ramo")].join(" ").toLowerCase().indexOf(q) >= 0;
   });
@@ -190,6 +204,9 @@ export function Sinistros() {
   if (lf.caminho && lf.caminho !== "todos") activeCount++;
   if (lf.agente && lf.agente !== "todos") activeCount++;
   if (lf.grupoProdutor && lf.grupoProdutor !== "todos") activeCount++;
+  if (lf.oficina && lf.oficina !== "todas") activeCount++;
+  if (lf.aguardandoRetornoHist) activeCount++;
+  if (lf.limitacaoComunicacaoHist) activeCount++;
 
   const allCols = getAllCols({ overrides, allClaimsRaw, navigate });
 
@@ -273,6 +290,8 @@ export function Sinistros() {
               <div className={"chip-btn" + (lf.semAtu ? " active" : "")} onClick={() => patchListFilter({ semAtu: !lf.semAtu })}>🔕 Sem atualização ({qtdSemAtu})</div>
               <div className={"chip-btn" + (lf.manual ? " active" : "")} onClick={() => patchListFilter({ manual: !lf.manual })}>✎ Criados manualmente ({qtdManual})</div>
               <div className={"chip-btn" + (lf.aberto ? " active" : "")} onClick={() => patchListFilter({ aberto: !lf.aberto })}>📂 Em aberto (Pendente/Em andamento) ({qtdAberto})</div>
+              <div className={"chip-btn" + (lf.aguardandoRetornoHist ? " active" : "")} onClick={() => patchListFilter({ aguardandoRetornoHist: !lf.aguardandoRetornoHist })}>⏳ Aguardando retorno ({qtdAguardHist})</div>
+              <div className={"chip-btn" + (lf.limitacaoComunicacaoHist ? " active" : "")} onClick={() => patchListFilter({ limitacaoComunicacaoHist: !lf.limitacaoComunicacaoHist })}>🚧 Limitação de comunicação ({qtdLimComHist})</div>
             </div>
           </div>
 
@@ -317,6 +336,16 @@ export function Sinistros() {
                 {grupoProdutorOptions.map((g) => <option key={g} value={g}>{g}</option>)}
               </select>
               <span className="muted" style={{ fontSize: 11 }}>(dados de processos já buscados — importe em lote em Configurações se faltar algum)</span>
+            </div>
+          </div>
+
+          <div className="filter-group">
+            <div className="filter-group-title">Oficina</div>
+            <div className="chips" style={{ alignItems: "center" }}>
+              <select className="inline" style={{ minWidth: 220 }} value={lf.oficina} onChange={(e) => patchListFilter({ oficina: e.target.value })}>
+                <option value="todas">Oficina: todas</option>
+                {oficinaOptions.map((o) => <option key={o} value={o}>{o}</option>)}
+              </select>
             </div>
           </div>
         </div>
