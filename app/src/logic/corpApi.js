@@ -54,6 +54,38 @@ function fetchSinistros(cfg, params) {
 }
 export function testConnection(cfg) { setToken(""); return login(cfg).then(() => true); }
 
+// Consulta AO VIVO no CORP por nome/placa, sem gravar nada aqui (a pedido
+// do usuário: trazer a base inteira de clientes pra sincronizar ficaria
+// pesado sem necessidade — a maior parte nunca seria usada; melhor buscar
+// só quando precisar). Não existe endpoint de busca por texto livre
+// documentado no CORP — reaproveita /sinistros com os mesmos parâmetros de
+// período já usados na sincronização (ver syncAll), tentando também
+// `segurado`/`placa` como filtro; se o CORP ignorar esses parâmetros (não
+// suportados), o filtro abaixo garante o resultado certo mesmo assim, só
+// que varrendo mais registros. Busca só a 1ª página de cada tipo (S/A/T) —
+// é uma consulta pontual, não uma sincronização.
+export function consultarCorp(cfg, { termo, dataInicial, dataFinal }) {
+  const TIPOS = ["S", "A", "T"];
+  const buscas = TIPOS.map((tipo) => fetchSinistros(cfg, {
+    tipo_sinistro: tipo, data_inicial: dataInicial, data_final: dataFinal,
+    segurado: termo, placa: termo, qtd_pag: 100, pagina: 1,
+  }).then((resp) => (Array.isArray(resp) ? resp : ((resp && (resp.sinistros || resp.sinistro || resp.dados || resp.data || resp.itens || resp.registros)) || []))));
+  return Promise.all(buscas).then((paginas) => {
+    const q = String(termo || "").trim().toLowerCase();
+    const todos = paginas.flat();
+    const filtrados = q
+      ? todos.filter((r) => String(r.segurado || "").toLowerCase().indexOf(q) >= 0 || String(r.placa || "").toLowerCase().indexOf(q) >= 0)
+      : todos;
+    // Dedup — o mesmo registro pode repetir entre as 3 buscas por tipo.
+    const seen = new Set(); const out = [];
+    filtrados.forEach((r) => {
+      const chave = `${r.codfil}|${r.nosnum}|${r.tipo}`;
+      if (!seen.has(chave)) { seen.add(chave); out.push(r); }
+    });
+    return out;
+  });
+}
+
 // GET /documento?codfil=&nosnum= — endpoint separado do CORP (não é o mesmo
 // de /sinistros) que traz, entre outras coisas, a lista de agente/produtor
 // vinculada ao documento (apólice/proposta), em body.documento[0].prod_docs.

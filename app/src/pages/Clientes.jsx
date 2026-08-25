@@ -2,6 +2,7 @@ import { useMemo, useState } from "react";
 import { useData } from "../data/DataProvider.jsx";
 import { useHashRoute } from "../hooks/useHashRoute";
 import { EmptyState } from "../components/EmptyState.jsx";
+import { ConsultaCorpBox } from "../components/ConsultaCorpBox.jsx";
 import { visibleClaims } from "../logic/claims";
 import {
   listaClientes, clienteClaims, clienteComsCliente, clienteAvaliacaoMedia,
@@ -9,9 +10,10 @@ import {
 
 // Módulo Clientes (Fase 3) — mesmo padrão de Oficinas.jsx/Seguradoras.jsx.
 export function Clientes() {
-  const { records } = useData();
+  const { records, config } = useData();
   const { navigate } = useHashRoute();
   const [busca, setBusca] = useState("");
+  const [consultaCorpAberta, setConsultaCorpAberta] = useState(false);
 
   const claims = visibleClaims(records.corp_claims);
   const overrides = records.corp_overrides || {};
@@ -40,7 +42,17 @@ export function Clientes() {
           <h1>Clientes</h1>
           <p>{linhas.length} cliente(s) — cadastro, reclamações, comunicação e avaliação</p>
         </div>
+        <button className="btn sec sm" onClick={() => setConsultaCorpAberta((v) => !v)}>
+          {consultaCorpAberta ? "▲ Ocultar consulta no CORP" : "🔍 Consultar no CORP"}
+        </button>
       </div>
+
+      {consultaCorpAberta && (
+        <div className="card">
+          <h3 style={{ marginTop: 0 }}>Consultar no CORP</h3>
+          <ConsultaCorpBox config={config} />
+        </div>
+      )}
 
       <div className="card">
         <input placeholder="Buscar cliente por nome..." value={busca} onChange={(e) => setBusca(e.target.value)} style={{ maxWidth: 360 }} />
