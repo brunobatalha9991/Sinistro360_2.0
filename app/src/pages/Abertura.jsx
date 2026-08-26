@@ -163,8 +163,8 @@ export function Abertura() {
   const actions = useOverrideActions();
   const clienteActions = useClienteActions();
 
-  const claims = visibleClaims(records.corp_claims);
   const overrides = records.corp_overrides || {};
+  const claims = visibleClaims(records.corp_claims, overrides, currentUser);
   const users = records.corp_users || [];
   const templates = config.corp_journey_templates || {};
 

@@ -17,13 +17,13 @@ export const reportClaimsTool = {
   },
   requiresConfirmation: false,
   run(args, ctx) {
-    const { records, config } = ctx;
+    const { records, config, currentUser } = ctx;
     const overrides = records.corp_overrides || {};
     const atendTemplateCfg = config && config.corp_atendimento_template;
     const groupBy = args.groupBy === "cia" || args.groupBy === "temperatura" ? args.groupBy : "situacao";
     const filtroCia = String(args.filterCia || "").trim().toLowerCase();
 
-    let claims = visibleClaims(records.corp_claims);
+    let claims = visibleClaims(records.corp_claims, overrides, currentUser);
     if (filtroCia) {
       claims = claims.filter((c) => String(campoEfetivo(overrides, c, "cia") || "").toLowerCase().indexOf(filtroCia) >= 0);
     }

@@ -49,7 +49,7 @@ export function Configuracoes() {
   const { currentUser } = useAuth();
   const actions = useOverrideActions();
 
-  const claims = visibleClaims(records.corp_claims);
+  const claims = visibleClaims(records.corp_claims, records.corp_overrides, currentUser);
   const admin = isAdmin(currentUser);
   const templates = config.corp_journey_templates || {};
 

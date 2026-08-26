@@ -1,6 +1,7 @@
 import { useMemo, useState } from "react";
 import { useData } from "../data/DataProvider.jsx";
 import { useHashRoute } from "../hooks/useHashRoute";
+import { useAuth } from "../hooks/useAuth";
 import { EmptyState } from "../components/EmptyState.jsx";
 import { ConsultaClienteCorpBox } from "../components/ConsultaClienteCorpBox.jsx";
 import { useClienteActions } from "../hooks/useClienteActions";
@@ -13,11 +14,12 @@ import {
 export function Clientes() {
   const { records, config } = useData();
   const { navigate } = useHashRoute();
+  const { currentUser } = useAuth();
   const clienteActions = useClienteActions();
   const [busca, setBusca] = useState("");
   const [consultaCorpAberta, setConsultaCorpAberta] = useState(false);
 
-  const claims = visibleClaims(records.corp_claims);
+  const claims = visibleClaims(records.corp_claims, records.corp_overrides, currentUser);
   const overrides = records.corp_overrides || {};
   const ocorrencias = records.corp_cliente_ocorrencias || [];
   const cadastros = records.corp_clientes || {};

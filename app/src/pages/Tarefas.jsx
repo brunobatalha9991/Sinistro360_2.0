@@ -36,7 +36,7 @@ export function Tarefas() {
   const actions = useTasksActions();
   const filter = useStore(taskFilterStore);
 
-  const claims = visibleClaims(records.corp_claims);
+  const claims = visibleClaims(records.corp_claims, records.corp_overrides, currentUser);
   const users = records.corp_users || [];
   const taskTypes = config.corp_task_types && config.corp_task_types.length ? config.corp_task_types : DEFAULT_TASK_TYPES;
   const taskFlags = config.corp_task_flags && config.corp_task_flags.length ? config.corp_task_flags : TASK_FLAGS_DEFAULT;

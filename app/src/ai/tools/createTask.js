@@ -36,7 +36,7 @@ export const createTaskTool = {
     let processo = null;
     const pq = String(args.processoQuery || "").trim().toLowerCase();
     if (pq) {
-      processo = visibleClaims(records.corp_claims).find(
+      processo = visibleClaims(records.corp_claims, overrides, currentUser).find(
         (c) => [c.segurado, c.placa, c.numsin].join(" ").toLowerCase().indexOf(pq) >= 0
       ) || null;
     }

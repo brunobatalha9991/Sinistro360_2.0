@@ -1,6 +1,7 @@
 import { useMemo, useState } from "react";
 import { useData } from "../data/DataProvider.jsx";
 import { useHashRoute } from "../hooks/useHashRoute";
+import { useAuth } from "../hooks/useAuth";
 import { EmptyState } from "../components/EmptyState.jsx";
 import { DonutChart } from "../components/charts/DonutChart.jsx";
 import { Legend } from "../components/charts/Legend.jsx";
@@ -30,11 +31,12 @@ function colorForTemp(map, t, i) { return map[t] || PALETTE[i % PALETTE.length];
 export function Dashboard() {
   const { records, config } = useData();
   const { navigate } = useHashRoute();
+  const { currentUser } = useAuth();
   const [dashFilter, setDashFilter] = useState(DEFAULT_DASH_FILTER);
 
-  const claims = useMemo(() => visibleClaims(records.corp_claims), [records.corp_claims]);
-  const allClaimsRaw = records.corp_claims || [];
   const overrides = records.corp_overrides || {};
+  const claims = useMemo(() => visibleClaims(records.corp_claims, overrides, currentUser), [records.corp_claims, overrides, currentUser]);
+  const allClaimsRaw = records.corp_claims || [];
   const templates = config.corp_journey_templates || {};
   const atendTemplate = config.corp_atendimento_template;
 

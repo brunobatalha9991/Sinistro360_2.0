@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { useData } from "../data/DataProvider.jsx";
+import { useAuth } from "../hooks/useAuth";
 import { visibleClaims } from "../logic/claims";
 import { todayISO } from "../logic/format";
 import { testConnection, syncAll } from "../logic/corpApi";
@@ -12,8 +13,9 @@ function fieldsToBR(iso) {
 
 export function Integracao() {
   const { records, config, saveRecord, saveConfig } = useData();
+  const { currentUser } = useAuth();
   const cfg = config.corp_cfg || {};
-  const claims = visibleClaims(records.corp_claims);
+  const claims = visibleClaims(records.corp_claims, records.corp_overrides, currentUser);
 
   const [url, setUrl] = useState(cfg.url || "");
   const [aplicacao, setAplicacao] = useState(cfg.aplicacao || "");

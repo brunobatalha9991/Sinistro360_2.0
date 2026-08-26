@@ -1,6 +1,7 @@
 import { useMemo, useState } from "react";
 import { useData } from "../data/DataProvider.jsx";
 import { useHashRoute } from "../hooks/useHashRoute";
+import { useAuth } from "../hooks/useAuth";
 import { EmptyState } from "../components/EmptyState.jsx";
 import { visibleClaims } from "../logic/claims";
 import {
@@ -11,9 +12,10 @@ import {
 export function Seguradoras() {
   const { records } = useData();
   const { navigate } = useHashRoute();
+  const { currentUser } = useAuth();
   const [busca, setBusca] = useState("");
 
-  const claims = visibleClaims(records.corp_claims);
+  const claims = visibleClaims(records.corp_claims, records.corp_overrides, currentUser);
   const overrides = records.corp_overrides || {};
   const ocorrencias = records.corp_seguradora_ocorrencias || [];
 

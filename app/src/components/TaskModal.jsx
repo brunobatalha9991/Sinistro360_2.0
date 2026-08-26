@@ -269,7 +269,7 @@ export function TaskModal() {
 
   const tasks = records.corp_tasks || [];
   const users = records.corp_users || [];
-  const claims = visibleClaims(records.corp_claims);
+  const claims = visibleClaims(records.corp_claims, records.corp_overrides, currentUser);
   const taskTypes = (config.corp_task_types && config.corp_task_types.length ? config.corp_task_types : ["Comunicação", "Lembrete", "Tarefa", "Mesa de Atendimento"]);
   const editing = open && taskId ? tasks.find((t) => t.id === taskId) : null;
   const souOrigem = editing ? editing.origem === currentUser.id : true;

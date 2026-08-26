@@ -27,7 +27,7 @@ export function Oficina() {
   const actions = useOficinaActions();
   const [tab, setTab] = useState("cadastro");
 
-  const claims = visibleClaims(records.corp_claims);
+  const claims = visibleClaims(records.corp_claims, records.corp_overrides, currentUser);
   const overrides = records.corp_overrides || {};
   const canEdit = canEditRole(currentUser);
 

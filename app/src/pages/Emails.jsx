@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { useData } from "../data/DataProvider.jsx";
 import { useHashRoute } from "../hooks/useHashRoute";
+import { useAuth } from "../hooks/useAuth";
 import { useOverrideActions } from "../hooks/useOverrideActions";
 import { useEmailStateActions } from "../hooks/useEmailStateActions";
 import { EmptyState } from "../components/EmptyState.jsx";
@@ -52,11 +53,12 @@ function VincularEmailBox({ onVincular, claims }) {
 export function Emails() {
   const { records, config } = useData();
   const { navigate } = useHashRoute();
+  const { currentUser } = useAuth();
   const actions = useOverrideActions();
   const emailState = useEmailStateActions();
 
-  const claims = visibleClaims(records.corp_claims).filter((c) => !isManualClaim(c));
   const overrides = records.corp_overrides || {};
+  const claims = visibleClaims(records.corp_claims, overrides, currentUser).filter((c) => !isManualClaim(c));
   const configurado = isGmailConfigured(config);
 
   const [conta, setConta] = useState(getGmailAccountEmail());

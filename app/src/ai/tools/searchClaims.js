@@ -18,7 +18,7 @@ export const searchClaimsTool = {
   },
   requiresConfirmation: false,
   run(args, ctx) {
-    const { records, config } = ctx;
+    const { records, config, currentUser } = ctx;
     const overrides = records.corp_overrides || {};
     const templates = config.corp_journey_templates || {};
     const atendTemplate = config.corp_atendimento_template;
@@ -28,7 +28,7 @@ export const searchClaimsTool = {
     const ciaFiltro = String(args.cia || "").trim().toLowerCase();
     const limit = Math.min(Math.max(Number(args.limit) || 10, 1), 20);
 
-    let claims = visibleClaims(records.corp_claims);
+    let claims = visibleClaims(records.corp_claims, overrides, currentUser);
     if (q) {
       claims = claims.filter((c) => [c.segurado, c.placa, c.numsin].join(" ").toLowerCase().indexOf(q) >= 0);
     }
