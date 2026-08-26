@@ -68,6 +68,12 @@ export function canEdit(user) {
   return r === "analista" || r === "atendente";
 }
 
+// Quem pode ser Responsável por um processo — a pedido do usuário, "Consulta"
+// nunca aparece no seletor de Responsável (Visão geral, Abertura, atribuição
+// em massa), mesmo com VIP concedido — VIP dá acesso, não muda a função da
+// pessoa. Baseado no papel de verdade (u.role), não em isAdmin()/canEdit().
+export function podeSerResponsavel(user) { return !!(user && user.role !== "consulta"); }
+
 // Porte 1:1 das guardas de rota do render() original: impede acessar por URL
 // uma tela fora do que o papel/usuário tem permissão de ver. VIP passa por
 // todas essas guardas como se fosse admin, mesmo com currentRole/role

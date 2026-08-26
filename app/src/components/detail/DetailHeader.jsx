@@ -3,6 +3,7 @@ import { PartyBadge } from "../PartyBadge.jsx";
 import { EmailViewerModal } from "../EmailViewerModal.jsx";
 import { HeaderLayoutGrid } from "./HeaderLayoutGrid.jsx";
 import { useData } from "../../data/DataProvider.jsx";
+import { podeSerResponsavel } from "../../data/auth";
 import { setDemandaPrefill } from "../../state/taskModal";
 import { setComsPrefill } from "../../state/comsPrefill";
 import { setAberturaPrefill } from "../../state/aberturaPrefill";
@@ -89,7 +90,7 @@ function ResponsavelBox({ c, users, overrides, actions, canEdit }) {
         }}
       >
         <option value="">— Sem responsável —</option>
-        {users.map((u) => <option key={u.id} value={u.id}>{u.nome} ({u.role})</option>)}
+        {users.filter(podeSerResponsavel).map((u) => <option key={u.id} value={u.id}>{u.nome} ({u.role})</option>)}
       </select>
     </div>
   );

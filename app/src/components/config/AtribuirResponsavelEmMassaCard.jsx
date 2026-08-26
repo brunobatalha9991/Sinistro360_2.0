@@ -1,5 +1,6 @@
 import { useMemo, useState } from "react";
 import { situacaoEfetiva, getResponsavel } from "../../logic/claims";
+import { podeSerResponsavel } from "../../data/auth";
 import { txt } from "../../logic/format";
 
 // Um bloco independente por situação (Pendente / Em andamento) — cada um
@@ -41,7 +42,7 @@ function BlocoStatus({ status, claims, overrides, users, actions, canEdit, atend
       <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap", marginTop: 8 }}>
         <select className="inline" style={{ minWidth: 220 }} value={usuarioId} onChange={(e) => setUsuarioId(e.target.value)}>
           <option value="">Selecione o responsável...</option>
-          {users.map((u) => <option key={u.id} value={u.id}>{u.nome} ({u.role})</option>)}
+          {users.filter(podeSerResponsavel).map((u) => <option key={u.id} value={u.id}>{u.nome} ({u.role})</option>)}
         </select>
         <button className="btn" onClick={aplicar} disabled={!semResponsavel.length || !usuarioId}>Aplicar em "{status}"</button>
       </div>

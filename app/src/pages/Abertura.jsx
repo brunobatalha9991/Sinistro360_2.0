@@ -7,7 +7,7 @@ import { useClienteActions } from "../hooks/useClienteActions";
 import { EmptyState } from "../components/EmptyState.jsx";
 import { ConsultaCorpBox } from "../components/ConsultaCorpBox.jsx";
 import { ProcSearch } from "../components/ProcSearch.jsx";
-import { canEdit as canEditRole } from "../data/auth";
+import { canEdit as canEditRole, podeSerResponsavel } from "../data/auth";
 import {
   distinctComputed, partyTypeFromTipo, defaultRamoTemplate, visibleClaims,
   campoEfetivo, getAgenteProdutor, getAgentesEfetivo, distinctProdutores,
@@ -481,7 +481,7 @@ export function Abertura() {
           <div className="field"><label>Responsável{exigeVinculos ? " *" : ""}</label>
             <select value={responsavelId} onChange={(e) => setResponsavelId(e.target.value)}>
               <option value="">— Sem responsável —</option>
-              {users.map((u) => <option key={u.id} value={u.id}>{u.nome}</option>)}
+              {users.filter(podeSerResponsavel).map((u) => <option key={u.id} value={u.id}>{u.nome}</option>)}
             </select>
           </div>
         </div>
