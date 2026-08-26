@@ -428,13 +428,22 @@ export function claimVisivelParaUsuario(overrides, c, user) {
   const ag = user.agentesVinculados || [];
   const pr = user.produtoresVinculados || [];
   const gr = user.gruposProdutoresVinculados || [];
-  // Vínculo por agente já libera tudo que estiver debaixo dele (produtores
-  // e grupos de produtores inclusos) — a pedido do usuário, é assim que a
-  // hierarquia funciona no CORP: produtor/grupo pertence a um agente.
+  // Produtor/Grupo é mais específico que Agente — a pedido do usuário
+  // (bug relatado 2026-08-26): antes, com Agente E Produtor marcados ao
+  // mesmo tempo pro mesmo usuário, o vínculo por Agente sozinho já liberava
+  // TODOS os produtores debaixo dele (era um "ou"), tornando o vínculo por
+  // Produtor inútil sempre que o Agente também estivesse marcado. Agora,
+  // sempre que Produtor e/ou Grupo estiverem marcados, a visibilidade fica
+  // restrita a eles (Agente marcado junto não amplia mais o acesso). Agente
+  // sozinho (sem nenhum Produtor/Grupo marcado) continua liberando tudo que
+  // estiver debaixo dele, como sempre.
+  if (pr.length > 0 || gr.length > 0) {
+    const bateProdutor = pr.length > 0 && (ap.produtores || []).some((p) => pr.indexOf(p) >= 0);
+    const bateGrupo = gr.length > 0 && (ap.produtores || []).some((p) => gr.indexOf(grupoProdutor(p)) >= 0);
+    return bateProdutor || bateGrupo;
+  }
   const bateAgente = ag.length > 0 && (ap.agentes || []).some((a) => ag.indexOf(a) >= 0);
-  const bateProdutor = pr.length > 0 && (ap.produtores || []).some((p) => pr.indexOf(p) >= 0);
-  const bateGrupo = gr.length > 0 && (ap.produtores || []).some((p) => gr.indexOf(grupoProdutor(p)) >= 0);
-  return bateAgente || bateProdutor || bateGrupo;
+  return bateAgente;
 }
 
 // `overrides`/`currentUser` são opcionais (retrocompatível com as várias

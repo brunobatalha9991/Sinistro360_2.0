@@ -52,6 +52,29 @@ describe("claimVisivelParaUsuario", () => {
     expect(claimVisivelParaUsuario(ovr, { id: "c5" }, u)).toBe(true);
     expect(claimVisivelParaUsuario(overrides, { id: "c1" }, u)).toBe(false);
   });
+  // Bug relatado 2026-08-26: c1 e c2 são do mesmo agente ("AGENTE A"), mas
+  // com produtores diferentes ("PRODUTOR X" e "PRODUTOR Z"). Um usuário com
+  // Agente E Produtor marcados ao mesmo tempo só pode ver o processo do
+  // produtor específico — o Agente marcado junto não pode "vazar" acesso
+  // aos demais produtores do mesmo agente.
+  it("agente E produtor marcados juntos: produtor restringe, agente não amplia", () => {
+    const ovr = {
+      c1: { agenteProdutor: { agentes: ["AGENTE A"], produtores: ["PRODUTOR X"] } },
+      c2: { agenteProdutor: { agentes: ["AGENTE A"], produtores: ["PRODUTOR Z"] } },
+    };
+    const u = { role: "consulta", agentesVinculados: ["AGENTE A"], produtoresVinculados: ["PRODUTOR X"] };
+    expect(claimVisivelParaUsuario(ovr, { id: "c1" }, u)).toBe(true);
+    expect(claimVisivelParaUsuario(ovr, { id: "c2" }, u)).toBe(false);
+  });
+  it("agente E grupo marcados juntos: grupo restringe, agente não amplia", () => {
+    const ovr = {
+      c1: { agenteProdutor: { agentes: ["AGENTE C"], produtores: ["LORENA / DANIELA DE SÁ - GRAND ROSA"] } },
+      c2: { agenteProdutor: { agentes: ["AGENTE C"], produtores: ["OUTRO PRODUTOR - BATALHA"] } },
+    };
+    const u = { role: "consulta", agentesVinculados: ["AGENTE C"], gruposProdutoresVinculados: ["LORENA / DANIELA DE SÁ"] };
+    expect(claimVisivelParaUsuario(ovr, { id: "c1" }, u)).toBe(true);
+    expect(claimVisivelParaUsuario(ovr, { id: "c2" }, u)).toBe(false);
+  });
 });
 
 describe("visibleClaims", () => {

@@ -109,7 +109,7 @@ function VinculoAgenteProdutorModal({ user, agentesDisponiveis, produtoresDispon
           <button className="btn sec xs" onClick={onClose}>✕ Fechar</button>
         </div>
         <p className="muted" style={{ fontSize: 12, marginBottom: 14 }}>
-          Vincular a um agente já libera tudo que estiver debaixo dele (produtores e grupos de produtores inclusos). Sem nenhum vínculo marcado, este usuário continua vendo todos os processos. (Qtd. de agentes: {qtdAg}, produtores: {qtdPr}, grupos: {qtdGr})
+          Marcar só um agente (sem nenhum produtor/grupo marcado) libera tudo que estiver debaixo dele. Se marcar também um produtor ou grupo específico, a visibilidade fica restrita a esse produtor/grupo — o agente marcado junto não amplia mais o acesso. Sem nenhum vínculo marcado, este usuário continua vendo todos os processos. (Qtd. de agentes: {qtdAg}, produtores: {qtdPr}, grupos: {qtdGr})
         </p>
 
         <div className="grid c3">
