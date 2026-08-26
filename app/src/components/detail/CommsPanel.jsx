@@ -10,42 +10,58 @@ import { MensagemTemplateModal } from "./MensagemTemplateModal.jsx";
 
 const MEIOS = ["Telefone", "WhatsApp", "E-mail", "Presencial", "Outro"];
 const TITULO_AVULSO = "__avulso__";
-const CANAL_LABEL = { Cliente: "o Cliente", Oficina: "a Oficina", Seguradora: "a Seguradora" };
-const CANAL_BADGE = { Cliente: "green", Oficina: "amber", Seguradora: "purple" };
+const CANAL_INTERNA = "Comunicação Interna Corretora";
+const CANAL_BADGE = { Cliente: "green", Oficina: "amber", Seguradora: "purple", [CANAL_INTERNA]: "gray" };
 
 function blankBox() {
   return { texto: "", meio: MEIOS[0], aguardandoRetorno: false, limitacaoComunicacao: false, avaliacao: 0, motivoAvaliacao: "" };
 }
 
-function ComunicacaoBox({ canal, box, onChange, comAvaliacao, comLimitacao }) {
+// Cada caixa nasce oculta (a pedido do usuário: o formulário de registro
+// ficava grande demais com as 4 sempre abertas) — "Ver"/"Ocultar" próprios,
+// sem depender do componente pai (fecha sozinha ao reabrir o formulário,
+// porque desmonta junto com ele). O selo "preenchido" ajuda a lembrar o que
+// já foi escrito mesmo com a caixa fechada.
+function ComunicacaoBox({ titulo, subtitulo, box, onChange, comAvaliacao, comLimitacao }) {
+  const [aberto, setAberto] = useState(false);
   function set(patch) { onChange({ ...box, ...patch }); }
+  const preenchido = !!box.texto.trim();
   return (
-    <div style={{ border: "1px solid var(--border)", borderRadius: 8, padding: 12 }}>
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8, flexWrap: "wrap", marginBottom: 8 }}>
-        <b style={{ fontSize: 13 }}>Comunicação com {CANAL_LABEL[canal]}</b>
-        <select value={box.meio} onChange={(e) => set({ meio: e.target.value })} style={{ width: "auto" }}>
-          {MEIOS.map((o) => <option key={o} value={o}>{o}</option>)}
-        </select>
+    <div style={{ border: "1px solid var(--border)", borderRadius: 8 }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8, flexWrap: "wrap", padding: "10px 12px" }}>
+        <div>
+          <b style={{ fontSize: 13 }}>{titulo}</b>
+          {subtitulo && <div className="muted" style={{ fontSize: 11.5 }}>{subtitulo}</div>}
+          {!aberto && preenchido && <span className="badge green" style={{ marginLeft: 6, fontSize: 10 }}>preenchido</span>}
+        </div>
+        <button type="button" className="btn sec xs" onClick={() => setAberto((v) => !v)}>{aberto ? "Ocultar" : "Ver"}</button>
       </div>
-      <textarea rows={3} placeholder="Descreva a comunicação realizada..." value={box.texto} onChange={(e) => set({ texto: e.target.value })} />
-      {comAvaliacao && (
-        <div style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap", marginTop: 8 }}>
-          <StarRating value={box.avaliacao} onChange={(v) => set({ avaliacao: v })} />
-          <input placeholder="Motivo da avaliação (opcional)" value={box.motivoAvaliacao} onChange={(e) => set({ motivoAvaliacao: e.target.value })} style={{ flex: 1, minWidth: 160 }} />
+      {aberto && (
+        <div style={{ padding: "0 12px 12px" }}>
+          <select value={box.meio} onChange={(e) => set({ meio: e.target.value })} style={{ width: "auto", marginBottom: 8 }}>
+            {MEIOS.map((o) => <option key={o} value={o}>{o}</option>)}
+          </select>
+          <textarea rows={3} placeholder="Descreva a comunicação realizada..." value={box.texto} onChange={(e) => set({ texto: e.target.value })} />
+          {comAvaliacao && (
+            <div style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap", marginTop: 8 }}>
+              <StarRating value={box.avaliacao} onChange={(v) => set({ avaliacao: v })} />
+              <input placeholder="Motivo da avaliação (opcional)" value={box.motivoAvaliacao} onChange={(e) => set({ motivoAvaliacao: e.target.value })} style={{ flex: 1, minWidth: 160 }} />
+            </div>
+          )}
+          <div style={{ display: "flex", gap: 14, flexWrap: "wrap", marginTop: 8 }}>
+            <label style={{ display: "flex", gap: 6, alignItems: "center", fontSize: 12.5, cursor: "pointer" }}>
+              <input type="checkbox" checked={box.aguardandoRetorno} onChange={() => set({ aguardandoRetorno: !box.aguardandoRetorno })} />
+              Aguardando retorno
+            </label>
+            {comLimitacao && (
+              <label style={{ display: "flex", gap: 6, alignItems: "center", fontSize: 12.5, cursor: "pointer" }} title="Marca essa interação como evidência de limitação de comunicação da oficina — contabilizado no módulo Oficinas">
+                <input type="checkbox" checked={box.limitacaoComunicacao} onChange={() => set({ limitacaoComunicacao: !box.limitacaoComunicacao })} />
+                Limitação de comunicação
+              </label>
+            )}
+          </div>
         </div>
       )}
-      <div style={{ display: "flex", gap: 14, flexWrap: "wrap", marginTop: 8 }}>
-        <label style={{ display: "flex", gap: 6, alignItems: "center", fontSize: 12.5, cursor: "pointer" }}>
-          <input type="checkbox" checked={box.aguardandoRetorno} onChange={() => set({ aguardandoRetorno: !box.aguardandoRetorno })} />
-          Aguardando retorno
-        </label>
-        {comLimitacao && (
-          <label style={{ display: "flex", gap: 6, alignItems: "center", fontSize: 12.5, cursor: "pointer" }} title="Marca essa interação como evidência de limitação de comunicação da oficina — contabilizado no módulo Oficinas">
-            <input type="checkbox" checked={box.limitacaoComunicacao} onChange={() => set({ limitacaoComunicacao: !box.limitacaoComunicacao })} />
-            Limitação de comunicação
-          </label>
-        )}
-      </div>
     </div>
   );
 }
@@ -111,14 +127,68 @@ function SugestaoClienteBox({ titulo, oficinaTexto, seguradoraTexto }) {
   );
 }
 
+// Edição de uma comunicação já registrada (a pedido do usuário) — Título/
+// Data/Meio/Texto e, quando aplicável, Avaliação. "Aguardando retorno" e
+// "Limitação de comunicação" ficam de fora de propósito: eles têm regra
+// própria de métrica (ver toggleFlag/comFlagContaComoMetrica em CommsPanel/
+// claims.js) e continuam se alterando só pelo clique no selo da lista, pra
+// não pular essa regra editando o campo direto aqui. Canal não é editável
+// (evita reclassificar uma comunicação de Oficina pra Cliente, por ex.).
+function EditarComunicacaoForm({ m, onSalvar, onCancelar }) {
+  const [titulo, setTitulo] = useState(m.titulo || "");
+  const [data, setData] = useState(m.date || todayISO());
+  const [meio, setMeio] = useState(m.meio || MEIOS[0]);
+  const [texto, setTexto] = useState(m.text || "");
+  const temAvaliacao = typeof m.avaliacao === "number";
+  const [avaliacao, setAvaliacao] = useState(m.avaliacao || 0);
+  const [motivoAvaliacao, setMotivoAvaliacao] = useState(m.motivoAvaliacao || "");
+
+  function salvar() {
+    if (!texto.trim()) { alert("Informe o texto da comunicação."); return; }
+    onSalvar({
+      titulo: titulo.trim(), date: data, meio, text: texto.trim(),
+      ...(temAvaliacao ? { avaliacao, motivoAvaliacao: motivoAvaliacao.trim() } : {}),
+    });
+  }
+
+  return (
+    <div style={{ border: "1px solid var(--brand)", borderRadius: 8, padding: 12, marginTop: 8, background: "var(--surface-2)" }}>
+      <div className="grid c2">
+        <div className="field"><label>Título</label><input value={titulo} onChange={(e) => setTitulo(e.target.value)} /></div>
+        <div className="field"><label>Data</label><input type="date" value={data} onChange={(e) => setData(e.target.value)} /></div>
+      </div>
+      <div className="field"><label>Meio</label>
+        <select value={meio} onChange={(e) => setMeio(e.target.value)} style={{ width: "auto" }}>
+          {MEIOS.map((o) => <option key={o} value={o}>{o}</option>)}
+        </select>
+      </div>
+      <div className="field"><label>Texto</label><textarea rows={3} value={texto} onChange={(e) => setTexto(e.target.value)} /></div>
+      {temAvaliacao && (
+        <div style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap", marginTop: 8 }}>
+          <StarRating value={avaliacao} onChange={setAvaliacao} />
+          <input placeholder="Motivo da avaliação (opcional)" value={motivoAvaliacao} onChange={(e) => setMotivoAvaliacao(e.target.value)} style={{ flex: 1, minWidth: 160 }} />
+        </div>
+      )}
+      <div style={{ display: "flex", gap: 8, marginTop: 10 }}>
+        <button type="button" className="btn xs" onClick={salvar}>Salvar edição</button>
+        <button type="button" className="btn ghost xs" onClick={onCancelar}>Cancelar</button>
+      </div>
+    </div>
+  );
+}
+
 // Porte 1:1 de commsPanel() do HTML original (histórico de comunicações),
-// evoluído a pedido do usuário: três caixas fixas (Cliente/Oficina/
-// Seguradora, cada uma com seu próprio Meio), avaliação em estrelas +
-// motivo em Oficina/Seguradora (base pra um ranking futuro de desempenho,
-// ainda não construído), "Aguardando retorno" nas três (pra filtrar depois)
-// e uma quarta caixa com sugestão de mensagem pro cliente via IA. Título e
-// Data ficam compartilhados; um único "Registrar" cria uma entrada no
-// histórico pra cada caixa preenchida naquele momento.
+// evoluído a pedido do usuário: quatro caixas fixas (Cliente/Oficina/
+// Seguradora/Comunicação Interna Corretora, cada uma com seu próprio Meio,
+// e cada uma oculta por padrão — "Ver"/"Ocultar" — pra não sobrecarregar o
+// formulário), avaliação em estrelas + motivo em Cliente/Oficina/Seguradora
+// (base pra um ranking futuro de desempenho, ainda não construído),
+// "Aguardando retorno" nas 4 (pra filtrar depois) e uma última caixa com
+// sugestão de mensagem pro cliente via IA. Título e Data ficam
+// compartilhados; um único "Registrar" cria uma entrada no histórico pra
+// cada caixa preenchida naquele momento. Editar/excluir uma entrada já
+// registrada usa a mesma permissão de escrita do resto do processo
+// (canEdit — Administrador/Atendente/Analista; Consulta nunca edita nada).
 export function CommsPanel({ c, overrides, actions, canEdit, config, clientes }) {
   const { currentUser } = useAuth();
   const [msgModalOpen, setMsgModalOpen] = useState(false);
@@ -126,6 +196,7 @@ export function CommsPanel({ c, overrides, actions, canEdit, config, clientes })
   // deixa o Histórico já registrado mais visual, sem o formulário sempre
   // ocupando a tela. Fecha sozinha depois de registrar com sucesso.
   const [registrarAberto, setRegistrarAberto] = useState(false);
+  const [editingId, setEditingId] = useState(null);
   const list = loadComms(overrides, c.id).slice().reverse();
   const templates = (config && config.corp_journey_templates) || {};
   const atendTemplateCfg = config && config.corp_atendimento_template;
@@ -145,6 +216,7 @@ export function CommsPanel({ c, overrides, actions, canEdit, config, clientes })
   });
   const [boxOficina, setBoxOficina] = useState(blankBox);
   const [boxSeguradora, setBoxSeguradora] = useState(blankBox);
+  const [boxCorretora, setBoxCorretora] = useState(blankBox);
 
   const tituloResolvido = titulo === TITULO_AVULSO ? tituloAvulso.trim() : titulo;
 
@@ -155,6 +227,7 @@ export function CommsPanel({ c, overrides, actions, canEdit, config, clientes })
       { canal: "Cliente", box: boxCliente, comAvaliacao: true },
       { canal: "Oficina", box: boxOficina, comAvaliacao: true },
       { canal: "Seguradora", box: boxSeguradora, comAvaliacao: true },
+      { canal: CANAL_INTERNA, box: boxCorretora, comAvaliacao: false },
     ];
     const novos = candidatos.filter(({ box }) => box.texto.trim()).map(({ canal, box, comAvaliacao }) => ({
       id: "cm_" + Math.random().toString(36).slice(2, 9), titulo: tituloResolvido, canal, meio: box.meio, date: data,
@@ -163,11 +236,11 @@ export function CommsPanel({ c, overrides, actions, canEdit, config, clientes })
       ...(comAvaliacao ? { avaliacao: box.avaliacao || 0, motivoAvaliacao: (box.motivoAvaliacao || "").trim() } : {}),
       who: (currentUser && currentUser.nome) || "—", at: new Date().toISOString(),
     }));
-    if (!novos.length) { alert("Preencha ao menos uma das comunicações (Cliente, Oficina ou Seguradora)."); return; }
+    if (!novos.length) { alert("Preencha ao menos uma das comunicações (Cliente, Oficina, Seguradora ou Comunicação Interna Corretora)."); return; }
     const arr = [...loadComms(overrides, c.id), ...novos];
     actions.saveComms(c.id, arr);
     actions.logAudit(c.id, "Comunicação registrada", `${tituloResolvido} — ${novos.map((n) => n.canal).join(", ")}`);
-    setBoxCliente(blankBox()); setBoxOficina(blankBox()); setBoxSeguradora(blankBox());
+    setBoxCliente(blankBox()); setBoxOficina(blankBox()); setBoxSeguradora(blankBox()); setBoxCorretora(blankBox());
     setTitulo(etapaAtual); setTituloAvulso("");
     setRegistrarAberto(false);
   }
@@ -179,6 +252,15 @@ export function CommsPanel({ c, overrides, actions, canEdit, config, clientes })
     const arr = loadComms(overrides, c.id).filter((x) => x.id !== id);
     actions.saveComms(c.id, arr);
     actions.logAudit(c.id, "Comunicação excluída", "");
+  }
+  function salvarEdicao(id, patch) {
+    if (!canEdit) { alert("Seu perfil é apenas de consulta. Você pode visualizar, mas não editar processos."); return; }
+    const arr = loadComms(overrides, c.id).map((m) => (
+      m.id === id ? { ...m, ...patch, editadoPor: (currentUser && currentUser.nome) || "—", editadoEm: new Date().toISOString() } : m
+    ));
+    actions.saveComms(c.id, arr);
+    actions.logAudit(c.id, "Comunicação editada", patch.titulo || "");
+    setEditingId(null);
   }
 
   // "Aguardando retorno" e "Limitação de comunicação" podem ser
@@ -224,7 +306,7 @@ export function CommsPanel({ c, overrides, actions, canEdit, config, clientes })
             <div className="card" style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 8 }}>
               <div>
                 <h3 style={{ margin: 0 }}>Registrar comunicação</h3>
-                <p className="muted" style={{ margin: "2px 0 0", fontSize: 12 }}>Registra uma nova comunicação com cliente, oficina e/ou seguradora.</p>
+                <p className="muted" style={{ margin: "2px 0 0", fontSize: 12 }}>Registra uma nova comunicação com cliente, oficina, seguradora e/ou internamente na corretora.</p>
               </div>
               <button className="btn sm" onClick={() => setRegistrarAberto(true)}>+ Registrar comunicação</button>
             </div>
@@ -251,9 +333,10 @@ export function CommsPanel({ c, overrides, actions, canEdit, config, clientes })
               </div>
 
               <div style={{ display: "flex", flexDirection: "column", gap: 12, marginTop: 4 }}>
-                <ComunicacaoBox canal="Cliente" box={boxCliente} onChange={setBoxCliente} comAvaliacao />
-                <ComunicacaoBox canal="Oficina" box={boxOficina} onChange={setBoxOficina} comAvaliacao comLimitacao />
-                <ComunicacaoBox canal="Seguradora" box={boxSeguradora} onChange={setBoxSeguradora} comAvaliacao />
+                <ComunicacaoBox titulo="Comunicação com o Cliente" box={boxCliente} onChange={setBoxCliente} comAvaliacao />
+                <ComunicacaoBox titulo="Comunicação com a Oficina" box={boxOficina} onChange={setBoxOficina} comAvaliacao comLimitacao />
+                <ComunicacaoBox titulo="Comunicação com a Seguradora" box={boxSeguradora} onChange={setBoxSeguradora} comAvaliacao />
+                <ComunicacaoBox titulo={CANAL_INTERNA} subtitulo="Comunicação / Feedback / Observações" box={boxCorretora} onChange={setBoxCorretora} />
                 <SugestaoClienteBox titulo={tituloResolvido} oficinaTexto={boxOficina.texto} seguradoraTexto={boxSeguradora.texto} />
               </div>
 
@@ -269,6 +352,7 @@ export function CommsPanel({ c, overrides, actions, canEdit, config, clientes })
           <span className="tag-manual">Registro manual preservado na sincronização</span>
         </div>
         {!list.length ? <EmptyState>Nenhuma comunicação registrada.</EmptyState> : list.map((m) => {
+          const editando = editingId === m.id;
           return (
             <div key={m.id} style={{ border: "1px solid var(--line)", borderRadius: 8, padding: 12, marginBottom: 8 }}>
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 6, marginBottom: 6 }}>
@@ -291,16 +375,29 @@ export function CommsPanel({ c, overrides, actions, canEdit, config, clientes })
                   )}
                   <span className="muted" style={{ marginLeft: 8, fontSize: 12 }}>{m.meio} • {fmtDateBR(m.date)}</span>
                 </div>
-                {canEdit && <button className="btn danger xs" onClick={() => excluir(m.id)}>Excluir</button>}
+                {canEdit && !editando && (
+                  <span style={{ display: "flex", gap: 6 }}>
+                    <button className="btn sec xs" onClick={() => setEditingId(m.id)}>✎ Editar</button>
+                    <button className="btn danger xs" onClick={() => excluir(m.id)}>Excluir</button>
+                  </span>
+                )}
               </div>
-              {typeof m.avaliacao === "number" && m.avaliacao > 0 && (
-                <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 6 }}>
-                  <StarRating value={m.avaliacao} onChange={() => {}} readOnly />
-                  {m.motivoAvaliacao && <span className="muted" style={{ fontSize: 12 }}>— {m.motivoAvaliacao}</span>}
-                </div>
+              {editando ? (
+                <EditarComunicacaoForm m={m} onSalvar={(patch) => salvarEdicao(m.id, patch)} onCancelar={() => setEditingId(null)} />
+              ) : (
+                <>
+                  {typeof m.avaliacao === "number" && m.avaliacao > 0 && (
+                    <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 6 }}>
+                      <StarRating value={m.avaliacao} onChange={() => {}} readOnly />
+                      {m.motivoAvaliacao && <span className="muted" style={{ fontSize: 12 }}>— {m.motivoAvaliacao}</span>}
+                    </div>
+                  )}
+                  <div style={{ fontSize: 13, whiteSpace: "pre-wrap" }}>{m.text}</div>
+                  <div className="muted" style={{ fontSize: 11, marginTop: 6 }}>
+                    por {txt(m.who)}{m.editadoPor ? ` • editado por ${txt(m.editadoPor)}` : ""}
+                  </div>
+                </>
               )}
-              <div style={{ fontSize: 13, whiteSpace: "pre-wrap" }}>{m.text}</div>
-              <div className="muted" style={{ fontSize: 11, marginTop: 6 }}>por {txt(m.who)}</div>
             </div>
           );
         })}
