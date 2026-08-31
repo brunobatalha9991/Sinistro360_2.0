@@ -386,6 +386,11 @@ select{appearance:none;-webkit-appearance:none;background-image:url("data:image/
 select.inline,input.inline{width:auto;display:inline-block}
 label{display:block;font-size:12px;color:var(--muted);margin:0 0 5px;font-weight:600}
 .field{margin-bottom:14px}
+/* checkbox/radio não devem herdar width:100%/padding de input — nessa
+   largura, o navegador desenha o marcador nativo (pequeno) centralizado
+   dentro de uma caixa invisível enorme, empurrando o rótulo ao lado pra
+   fora da vista dentro de um flex row. */
+input[type="checkbox"],input[type="radio"]{width:auto;padding:0;flex-shrink:0}
 
 /* ---------- grid utilitário ---------- */
 .grid{display:grid;gap:14px}.grid.c2{grid-template-columns:1fr 1fr}.grid.c3{grid-template-columns:1fr 1fr 1fr}.grid.c4{grid-template-columns:repeat(4,1fr)}
@@ -611,11 +616,35 @@ tr:hover td{background:var(--surface-2)}
 .badge.chip-live select option{ color:#0f172a; background:#ffffff; }
 [data-theme="dark"] .badge.chip-live select option{ color:#e8ecf5; background:#171a24; }
 
+/* Idem pra input[type=date] dentro do chip — sem isso ele mantém o fundo
+   branco/borda cinza padrão de input, e a caixa de data fica com metade
+   pintada (o badge) e metade branca (o input), em vez de uma caixa só. */
+.badge.chip-live input[type="date"]{
+  background:transparent!important;
+  border:1px solid rgba(255,255,255,.5)!important;
+  color:#fff!important;
+  font-weight:700;
+  padding:4px 8px;
+  height:26px;
+  line-height:1;
+  border-radius:7px;
+  box-shadow:none!important;
+  text-shadow:0 1px 1px rgba(0,0,0,.25);
+  color-scheme:dark;
+}
+.badge.chip-live input[type="date"]:focus{
+  outline:none;
+  border-color:#fff!important;
+  box-shadow:0 0 0 2px rgba(255,255,255,.35)!important;
+}
+
 /* No chip ÂMBAR (Em atenção) o fundo é claro: usa texto escuro p/ contraste */
 .badge.chip-live.amber select,
+.badge.chip-live.amber input[type="date"],
 .badge.chip-live.amber .btn.xs{ color:#3a2400!important; text-shadow:none; }
 .badge.chip-live.amber select{ border-color:rgba(58,36,0,.4)!important;
   background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M1 1l4 4 4-4' stroke='%233a2400' stroke-width='1.6' fill='none' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E")!important; }
+.badge.chip-live.amber input[type="date"]{ border-color:rgba(58,36,0,.4)!important; color-scheme:light; }
 .badge.chip-live.amber .btn.xs{ background:rgba(58,36,0,.14); border-color:rgba(58,36,0,.4); }
 .badge.chip-live.amber .btn.xs:hover{ background:rgba(58,36,0,.24); }
 
