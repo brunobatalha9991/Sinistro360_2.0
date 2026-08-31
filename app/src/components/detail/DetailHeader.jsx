@@ -173,7 +173,7 @@ export function DetailHeader({ c, sit, rel, claims, allClaimsRaw, overrides, use
   }
 
   const na = getNextAction(overrides, c.id);
-  const atrasada = isAtrasado(overrides, c);
+  const atrasada = isAtrasado(overrides, c, config.corp_atendimento_template, config.corp_journey_templates);
   const comms = loadComms(overrides, c.id);
   const last = comms.length ? comms[comms.length - 1] : null;
   const semAtualizacao = isSemAtualizacao(overrides, c, config.corp_atendimento_template, config.corp_journey_templates);

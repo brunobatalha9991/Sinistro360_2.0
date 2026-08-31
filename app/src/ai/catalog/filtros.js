@@ -10,7 +10,7 @@ export const CATALOGO_FILTROS = {
     filtros: [
       { campo: "q", label: "Busca por texto", tipo: "texto livre", detalhe: "segurado, placa, nº sinistro, nº apólice, seguradora, tipo, oficina, ramo (campos efetivos)" },
       { campo: "tipo", label: "Tipo de parte", tipo: "chip único", opcoes: "Todos, Segurado, Terceiro, Atendimento" },
-      { campo: "status", label: "Situação do processo", tipo: "chip único", opcoes: "Todos, Em andamento, Pendente, Indenizado, Contatação, Sem indenização", detalhe: "usa a situação EFETIVA (jornada do usuário), não o campo bruto da API CORP. \"Contatação\" = atendimento aberto só pra cobertura ao terceiro, sem indenização ao segurado; conta como desfecho positivo (ver taxa_desfecho_positivo no catálogo de dashboards)" },
+      { campo: "status", label: "Situação do processo", tipo: "chip único", opcoes: "Todos, Em andamento, Pendente, Indenizado, Constatação, Sem indenização", detalhe: "usa a situação EFETIVA (jornada do usuário), não o campo bruto da API CORP. \"Constatação\" = atendimento aberto só pra cobertura ao terceiro, sem indenização ao segurado; conta como desfecho positivo (ver taxa_desfecho_positivo no catálogo de dashboards)" },
       { campo: "etapa", label: "Etapa da jornada", tipo: "chip único dinâmico", detalhe: "gerado a partir de todos os templates de jornada configurados" },
       { campo: "caminho", label: "Caminho (Perda Parcial/Integral)", tipo: "chip único", opcoes: "Todos, Parcial, Integral" },
       { campo: "ocoDe / ocoAte", label: "Data de ocorrência (intervalo)", tipo: "intervalo de data" },

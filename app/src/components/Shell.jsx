@@ -79,7 +79,7 @@ export function Shell({ route, param, crumb, currentUser, currentRole, onNavigat
     onNavigate(target);
   }
 
-  const { records } = useData();
+  const { records, config } = useData();
   const { isRealVip, vipViewActive, toggleVipView } = useAuth();
   const { alarmes: alarmesHora, dismiss: dismissAlarmeHora, dismissAll: dismissAllAlarmeHora } = useHorarioAlarme(currentUser);
   const { alarmes: alarmesTarefa, dismiss: dismissAlarmeTarefa, dismissAll: dismissAllAlarmeTarefa, markViewed: markViewedAlarmeTarefa } = useTarefaAlarme(currentUser);
@@ -89,7 +89,9 @@ export function Shell({ route, param, crumb, currentUser, currentRole, onNavigat
   const isDark = theme === "dark";
 
   const overrides = records.corp_overrides || {};
-  const atrasadosGlobal = visibleClaims(records.corp_claims).filter((c) => isAtrasado(overrides, c)).length;
+  const templates = config.corp_journey_templates || {};
+  const atendTemplate = config.corp_atendimento_template;
+  const atrasadosGlobal = visibleClaims(records.corp_claims).filter((c) => isAtrasado(overrides, c, atendTemplate, templates)).length;
   const demandaUnread = demandaUnreadCount(records.corp_demandas);
   const notifUnread = myUnreadCount(records.corp_notifs, currentUser);
 

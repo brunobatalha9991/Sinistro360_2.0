@@ -6,7 +6,7 @@ import { diasEntre, mediaArr } from "./format";
 import { isAdmin } from "../data/auth";
 
 export const STATUS_DEFAULT = ["Aguardando", "Em andamento", "Concluído"];
-const CONCLUSAO_STATUS = ["Aguardando", "Indenizado", "Sem Indenização", "Contatação"];
+const CONCLUSAO_STATUS = ["Aguardando", "Indenizado", "Sem Indenização", "Constatação"];
 
 // Uma etapa é "concluída" (verde) quando o status bate com step.doneStatuses,
 // configurado pelo admin em Configurações → Jornadas (nem sempre o nome do
@@ -33,18 +33,18 @@ export function stepStatusEhNegativa(step, status) {
   const s = String(status).toLowerCase();
   return s.indexOf("cancel") >= 0 || s.indexOf("sem indeniz") >= 0;
 }
-// "Contatação" (a pedido do usuário, 2026-08-31): desfecho de Perda Parcial/
+// "Constatação" (a pedido do usuário, 2026-08-31): desfecho de Perda Parcial/
 // Integral em que o atendimento foi aberto só pra dar cobertura ao terceiro —
 // não há indenização ao segurado, mas também não é negativo (ver
 // isFinalizado/statusColorMap, onde entra como um 3º grupo, ao lado de
 // Indenizado/Sem Indenização). Mesmo critério de configuração por
-// step.contatacaoStatuses (Configurações → Jornadas) ou, sem configurar
-// ainda, por texto ("contat...").
-export function stepStatusEhContatacao(step, status) {
+// step.constatacaoStatuses (Configurações → Jornadas) ou, sem configurar
+// ainda, por texto ("constat...").
+export function stepStatusEhConstatacao(step, status) {
   if (!status) return false;
-  if (step && Array.isArray(step.contatacaoStatuses)) return step.contatacaoStatuses.indexOf(status) >= 0;
+  if (step && Array.isArray(step.constatacaoStatuses)) return step.constatacaoStatuses.indexOf(status) >= 0;
   const s = String(status).toLowerCase();
-  return s.indexOf("contat") >= 0;
+  return s.indexOf("constat") >= 0;
 }
 // "Resolvida" = a etapa já teve um desfecho, positivo (verde) ou negativo
 // (vermelho) — usada pra achar a etapa atual (a primeira ainda sem
@@ -81,13 +81,13 @@ export function defaultRamoTemplate() {
       { id: "rep_autorizados", title: "Reparos autorizados", statusOptions: [...STATUS_DEFAULT] },
       { id: "pecas", title: "Peças", statusOptions: [...STATUS_DEFAULT] },
       { id: "reparo", title: "Reparo", statusOptions: [...STATUS_DEFAULT] },
-      { id: "conclusao", title: "Conclusão", statusOptions: [...CONCLUSAO_STATUS], doneStatuses: ["Indenizado"], negativoStatuses: ["Sem Indenização"], contatacaoStatuses: ["Contatação"] },
+      { id: "conclusao", title: "Conclusão", statusOptions: [...CONCLUSAO_STATUS], doneStatuses: ["Indenizado"], negativoStatuses: ["Sem Indenização"], constatacaoStatuses: ["Constatação"] },
     ],
     integral: [
       { id: "documentacao", title: "Documentação", statusOptions: [...STATUS_DEFAULT] },
       { id: "transf", title: "Transf. do veículo", statusOptions: [...STATUS_DEFAULT] },
       { id: "analise_final", title: "Análise final", statusOptions: [...STATUS_DEFAULT] },
-      { id: "conclusao", title: "Conclusão", statusOptions: [...CONCLUSAO_STATUS], doneStatuses: ["Indenizado"], negativoStatuses: ["Sem Indenização"], contatacaoStatuses: ["Contatação"] },
+      { id: "conclusao", title: "Conclusão", statusOptions: [...CONCLUSAO_STATUS], doneStatuses: ["Indenizado"], negativoStatuses: ["Sem Indenização"], constatacaoStatuses: ["Constatação"] },
     ],
     outros: [{ id: "doc_inicial", title: "Documentação Inicial", statusOptions: [...STATUS_DEFAULT] }],
   };
@@ -380,14 +380,19 @@ export function situacaoEfetiva(overrides, c, atendTemplateCfg, templates) {
   const sdUltima = (uj.steps || {})[ultima.id] || {};
   if (stepStatusEhConcluida(ultima, sdUltima.status)) return { label: "Indenizado", cls: "green" };
   if (stepStatusEhNegativa(ultima, sdUltima.status)) return { label: "Encerrado sem Indenização", cls: "gray" };
-  if (stepStatusEhContatacao(ultima, sdUltima.status)) return { label: "Contatação", cls: "blue" };
+  if (stepStatusEhConstatacao(ultima, sdUltima.status)) return { label: "Constatação", cls: "blue" };
   return { label: "Em andamento", cls: "amber" };
 }
 export function isFinalizado(overrides, c, atendTemplateCfg, templates) {
   const s = situacaoEfetiva(overrides, c, atendTemplateCfg, templates).label;
-  return s === "Indenizado" || s === "Encerrado sem Indenização" || s === "Contatação";
+  return s === "Indenizado" || s === "Encerrado sem Indenização" || s === "Constatação";
 }
-export function isAtrasado(overrides, c) {
+// Processo finalizado (Indenizado/Sem Indenização/Constatação) nunca conta
+// como atrasado — a pedido do usuário, 2026-08-31: um processo já encerrado
+// não deve mais cobrar próxima ação, mesmo que a data registrada tenha
+// ficado no passado antes do encerramento.
+export function isAtrasado(overrides, c, atendTemplateCfg, templates) {
+  if (isFinalizado(overrides, c, atendTemplateCfg, templates)) return false;
   const na = getNextAction(overrides, c.id);
   if (!na || !na.date) return false;
   return na.date < new Date().toISOString().slice(0, 10);
@@ -608,7 +613,7 @@ export function journeyStageLabel(title, statusMap) {
 
 export function currentStage(overrides, templates, atendTemplateCfg, c) {
   const sit = situacaoEfetiva(overrides, c, atendTemplateCfg, templates).label;
-  if (sit === "Indenizado" || sit === "Encerrado sem Indenização" || sit === "Contatação") return "";
+  if (sit === "Indenizado" || sit === "Encerrado sem Indenização" || sit === "Constatação") return "";
   const uj = getUserJourney(overrides, c.id) || {};
   const steps = uj.steps || {};
 
@@ -701,7 +706,7 @@ export function buildAggregation(overrides, rows, keyFn, atendTemplateCfg, templ
     if (uj && uj.caminho === "parcial" && uj.steps && uj.steps.conclusao && uj.steps.conclusao.date) {
       const tmr = diasEntre(c.datavi, uj.steps.conclusao.date); if (tmr != null && tmr >= 0) g.tmrArr.push(tmr);
     }
-    if (isAtrasado(overrides, c)) g.atrasados++;
+    if (isAtrasado(overrides, c, atendTemplateCfg, templates)) g.atrasados++;
     if (isSemAtualizacao(overrides, c, atendTemplateCfg, templates)) g.semAtu++;
     if (situacaoEfetiva(overrides, c, atendTemplateCfg, templates).label === "Indenizado") g.indenizados++;
   });
@@ -723,7 +728,7 @@ export function statusColorMap(cssVarFn) {
     "Em andamento": cssVarFn("--warn", "#f59e0b"), "Indenizado": cssVarFn("--ok", "#16a34a"),
     "Encerrado sem Indenização": cssVarFn("--muted", "#64748b"), "Pendente": cssVarFn("--warn", "#eab308"),
     "Negado": cssVarFn("--danger", "#dc2626"), "Aberto": cssVarFn("--brand", "#2563eb"), "Encerrado": cssVarFn("--muted", "#64748b"),
-    "Contatação": cssVarFn("--brand", "#2563eb"),
+    "Constatação": cssVarFn("--brand", "#2563eb"),
   };
 }
 export function tempColorMap(cssVarFn) {

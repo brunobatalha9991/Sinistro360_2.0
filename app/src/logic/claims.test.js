@@ -4,7 +4,7 @@ import {
   distinctAgentes, distinctProdutores, getAgentesEfetivo,
   grupoProdutor, distinctGruposProdutores, emailAlertaDispensado,
   getPesquisaSatisfacao, pesquisaSatisfacaoCompleta,
-  situacaoEfetiva, isFinalizado, currentStage,
+  situacaoEfetiva, isFinalizado, currentStage, isAtrasado,
 } from "./claims";
 
 const overrides = {
@@ -190,42 +190,77 @@ describe("situacaoEfetiva / isFinalizado — etapa final com id/nome customizado
   });
 });
 
-// "Contatação" (a pedido do usuário, 2026-08-31): 3º desfecho de Perda
+// "Constatação" (a pedido do usuário, 2026-08-31): 3º desfecho de Perda
 // Parcial/Integral, ao lado de Indenizado/Sem Indenização — atendimento
 // aberto só pra cobertura ao terceiro, sem indenização ao segurado. Não é
 // negativo: isFinalizado/currentStage tratam como um desfecho já concluído,
 // e entra como "positivo" nas métricas de Dashboard/Desempenho.
-describe("situacaoEfetiva / isFinalizado — Contatação", () => {
+describe("situacaoEfetiva / isFinalizado — Constatação", () => {
   const templatesConfigurados = {
     Auto: {
       parcial: [
         {
           id: "encerramento", title: "Encerramento",
-          statusOptions: ["Aguard. pesquisa", "Indenizado", "Contatação", "Sem Indenização"],
-          doneStatuses: ["Indenizado"], negativoStatuses: ["Sem Indenização"], contatacaoStatuses: ["Contatação"],
+          statusOptions: ["Aguard. pesquisa", "Indenizado", "Constatação", "Sem Indenização"],
+          doneStatuses: ["Indenizado"], negativoStatuses: ["Sem Indenização"], constatacaoStatuses: ["Constatação"],
         },
       ],
     },
   };
 
-  it("última etapa marcada azul (Contatação) vira 'Contatação', badge azul, e conta como finalizado", () => {
+  it("última etapa marcada azul (Constatação) vira 'Constatação', badge azul, e conta como finalizado", () => {
     const c = { id: "c1", ramo: "Auto" };
-    const overrides = { c1: { journeyUser: { caminho: "parcial", steps: { encerramento: { status: "Contatação" } } } } };
-    expect(situacaoEfetiva(overrides, c, null, templatesConfigurados)).toEqual({ label: "Contatação", cls: "blue" });
+    const overrides = { c1: { journeyUser: { caminho: "parcial", steps: { encerramento: { status: "Constatação" } } } } };
+    expect(situacaoEfetiva(overrides, c, null, templatesConfigurados)).toEqual({ label: "Constatação", cls: "blue" });
     expect(isFinalizado(overrides, c, null, templatesConfigurados)).toBe(true);
   });
 
-  it("template padrão (sem admin configurar nada) também reconhece Contatação pelo texto", () => {
+  it("template padrão (sem admin configurar nada) também reconhece Constatação pelo texto", () => {
     const c = { id: "c1", ramo: "SemTemplateConfigurado" };
-    const overrides = { c1: { journeyUser: { caminho: "parcial", steps: { conclusao: { status: "Contatação" } } } } };
-    expect(situacaoEfetiva(overrides, c, null, {}).label).toBe("Contatação");
+    const overrides = { c1: { journeyUser: { caminho: "parcial", steps: { conclusao: { status: "Constatação" } } } } };
+    expect(situacaoEfetiva(overrides, c, null, {}).label).toBe("Constatação");
     expect(isFinalizado(overrides, c, null, {})).toBe(true);
   });
 
-  it("currentStage some (\"\") quando o processo chegou em Contatação, igual Indenizado/Sem Indenização", () => {
+  it("currentStage some (\"\") quando o processo chegou em Constatação, igual Indenizado/Sem Indenização", () => {
     const c = { id: "c1", ramo: "Auto" };
-    const overrides = { c1: { journeyUser: { caminho: "parcial", steps: { encerramento: { status: "Contatação" } } } } };
+    const overrides = { c1: { journeyUser: { caminho: "parcial", steps: { encerramento: { status: "Constatação" } } } } };
     expect(currentStage(overrides, templatesConfigurados, null, c)).toBe("");
+  });
+
+  // Bug relatado 2026-08-31: caminho "Outros" com etapa de Encerramento
+  // customizada marcada como Constatação continuava contando como atrasado
+  // e o assistente pedia "próxima ação" mesmo com o processo já fechado —
+  // isAtrasado nunca olhava pra isFinalizado.
+  it("vale pra QUALQUER ramo/caminho (inclusive Outros) e some do isAtrasado", () => {
+    const templatesOutros = {
+      Auto: {
+        outros: [
+          { id: "doc", title: "Documentação Inicial", statusOptions: ["Aguardando", "Concluído"] },
+          {
+            id: "encerramento", title: "Encerramento",
+            statusOptions: ["Aguard. pesquisa", "Constatação"],
+            constatacaoStatuses: ["Constatação"],
+          },
+        ],
+      },
+    };
+    const c = { id: "c1", ramo: "Auto" };
+    const overrides = {
+      c1: {
+        journeyUser: { caminho: "outros", steps: { encerramento: { status: "Constatação" } } },
+        nextAction: { date: "2020-01-01" }, // bem no passado — venceria se o processo não estivesse encerrado
+      },
+    };
+    expect(situacaoEfetiva(overrides, c, null, templatesOutros)).toEqual({ label: "Constatação", cls: "blue" });
+    expect(isFinalizado(overrides, c, null, templatesOutros)).toBe(true);
+    expect(isAtrasado(overrides, c, null, templatesOutros)).toBe(false);
+  });
+
+  it("isAtrasado continua true pra processo em aberto com próxima ação vencida", () => {
+    const c = { id: "c1", ramo: "Auto" };
+    const overrides = { c1: { nextAction: { date: "2020-01-01" } } };
+    expect(isAtrasado(overrides, c, null, {})).toBe(true);
   });
 });
 

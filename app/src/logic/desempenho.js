@@ -140,21 +140,21 @@ function proximasAcoesRegistradasNoPeriodo(claims, overrides, historico, usuario
 // campo "situação mudou em X", este é o timestamp mais confiável que o
 // sistema já grava.
 function finalizadosNoPeriodo(claims, overrides, templates, atendTemplateCfg, historico, usuarioId, periodoInicioISO, periodoFimISO) {
-  let indenizados = 0, semIndenizacao = 0, contatacoes = 0;
+  let indenizados = 0, semIndenizacao = 0, constatacoes = 0;
   const claimIds = [];
   (claims || []).forEach((c) => {
     const sit = situacaoEfetiva(overrides, c, atendTemplateCfg, templates).label;
-    if (sit !== "Indenizado" && sit !== "Encerrado sem Indenização" && sit !== "Contatação") return;
+    if (sit !== "Indenizado" && sit !== "Encerrado sem Indenização" && sit !== "Constatação") return;
     const step = ultimaEtapaEfetiva(overrides, templates, atendTemplateCfg, c);
     if (!step) return;
     const sd = ((getUserJourney(overrides, c.id) || {}).steps || {})[step.id];
     const concludedAt = sd && sd.concludedAt;
     if (!dentroPeriodo(concludedAt, periodoInicioISO, periodoFimISO)) return;
     if (!eventoDoUsuario(historico, c.id, concludedAt, usuarioId)) return;
-    if (sit === "Indenizado") indenizados++; else if (sit === "Contatação") contatacoes++; else semIndenizacao++;
+    if (sit === "Indenizado") indenizados++; else if (sit === "Constatação") constatacoes++; else semIndenizacao++;
     claimIds.push(c.id);
   });
-  return { indenizados, semIndenizacao, contatacoes, total: indenizados + semIndenizacao + contatacoes, claimIds };
+  return { indenizados, semIndenizacao, constatacoes, total: indenizados + semIndenizacao + constatacoes, claimIds };
 }
 
 // Tarefas de Comunicação interna (origem OU destinatário) criadas no
@@ -193,7 +193,7 @@ export function calcularMetricasUsuario({
   const claimIdsNoPeriodo = [...new Set(intervalos.map((h) => h.claimId))];
 
   const estoqueAtual = estoqueAtualDoUsuario(claims, overrides, usuarioId, atendTemplateCfg, templates);
-  const atrasadosAtual = estoqueAtual.filter((c) => isAtrasado(overrides, c));
+  const atrasadosAtual = estoqueAtual.filter((c) => isAtrasado(overrides, c, atendTemplateCfg, templates));
   const semHistorico = estoqueAtual.filter((c) => !getHistoricoDoProcesso(historico, c.id).length);
   const pendentesAtual = estoqueAtual.filter((c) => situacaoEfetiva(overrides, c, atendTemplateCfg, templates).label === "Pendente").length;
   const emAndamentoAtual = estoqueAtual.length - pendentesAtual;
@@ -238,7 +238,7 @@ export function calcularMetricasUsuario({
     finalizadosNoPeriodo: finalizados.total,
     indenizadosNoPeriodo: finalizados.indenizados,
     semIndenizacaoNoPeriodo: finalizados.semIndenizacao,
-    contatacoesNoPeriodo: finalizados.contatacoes,
+    constatacoesNoPeriodo: finalizados.constatacoes,
     tarefasNoPeriodo: tarefasQtd,
     assistenciasNoPeriodo: assistenciasQtd,
     claimIdsEstoqueAtual: estoqueAtual.map((c) => c.id),

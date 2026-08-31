@@ -98,7 +98,7 @@ export function Sinistros() {
     if (except !== "etapa" && lf.etapa !== "todos" && currentStage(overrides, templates, atendTemplate, c) !== lf.etapa) return false;
     if (except !== "especial") {
       if (lf.pa) { const na = getNextAction(overrides, c.id); if (!na || !na.date || na.date > lf.pa) return false; }
-      if (lf.atrasado && !isAtrasado(overrides, c)) return false;
+      if (lf.atrasado && !isAtrasado(overrides, c, atendTemplate, templates)) return false;
       if (lf.semAtu && !isSemAtualizacao(overrides, c, atendTemplate, templates)) return false;
     }
     if (except !== "manual" && lf.manual && !isManualClaim(c)) return false;
@@ -177,13 +177,13 @@ export function Sinistros() {
   baseStatus.forEach((c) => { const lb = situacaoEfetiva(overrides, c, atendTemplate, templates).label; cntStatus[lb] = (cntStatus[lb] || 0) + 1; });
   const cs = (key) => (key === "todos" ? baseStatus.length : cntStatus[key] || 0);
 
-  const statusChips = [["todos", "Todos"], ["Em andamento", "Em andamento"], ["Pendente", "Pendentes"], ["Indenizado", "Indenizados"], ["Contatação", "Contatação"], ["Encerrado sem Indenização", "Sem indenização"]];
+  const statusChips = [["todos", "Todos"], ["Em andamento", "Em andamento"], ["Pendente", "Pendentes"], ["Indenizado", "Indenizados"], ["Constatação", "Constatação"], ["Encerrado sem Indenização", "Sem indenização"]];
   const tipoChips = [["todos", "Todos os tipos"], ["Segurado", "Segurados"], ["Terceiro", "Terceiros"], ["Aviso", "Atendimentos"]];
 
   const qtdParcial = baseCaminho.filter((c) => (getUserJourney(overrides, c.id) || {}).caminho === "parcial").length;
   const qtdIntegral = baseCaminho.filter((c) => (getUserJourney(overrides, c.id) || {}).caminho === "integral").length;
   const qtdOutros = baseCaminho.filter((c) => (getUserJourney(overrides, c.id) || {}).caminho === "outros").length;
-  const qtdAtrasado = baseEspec.filter((c) => isAtrasado(overrides, c)).length;
+  const qtdAtrasado = baseEspec.filter((c) => isAtrasado(overrides, c, atendTemplate, templates)).length;
   const qtdSemAtu = baseEspec.filter((c) => isSemAtualizacao(overrides, c, atendTemplate, templates)).length;
   const qtdManual = baseManual.filter(isManualClaim).length;
   const qtdAberto = baseAberto.filter((c) => { const l = situacaoEfetiva(overrides, c, atendTemplate, templates).label; return l === "Pendente" || l === "Em andamento"; }).length;
@@ -206,7 +206,7 @@ export function Sinistros() {
     if (lf.tipo !== "todos" && c.partyType !== lf.tipo) return false;
     if (lf.etapa !== "todos" && currentStage(overrides, templates, atendTemplate, c) !== lf.etapa) return false;
     if (lf.pa) { const na = getNextAction(overrides, c.id); if (!na || !na.date || na.date > lf.pa) return false; }
-    if (lf.atrasado && !isAtrasado(overrides, c)) return false;
+    if (lf.atrasado && !isAtrasado(overrides, c, atendTemplate, templates)) return false;
     if (lf.semAtu && !isSemAtualizacao(overrides, c, atendTemplate, templates)) return false;
     if (lf.manual && !isManualClaim(c)) return false;
     if (lf.caminho && lf.caminho !== "todos" && (getUserJourney(overrides, c.id) || {}).caminho !== lf.caminho) return false;

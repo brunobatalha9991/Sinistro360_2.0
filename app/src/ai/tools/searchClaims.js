@@ -11,7 +11,7 @@ export const searchClaimsTool = {
     type: "OBJECT",
     properties: {
       query: { type: "STRING", description: "Texto livre: nome do segurado, placa ou número do sinistro." },
-      situacao: { type: "STRING", description: "Filtra pela situação efetiva, ex.: 'Em andamento', 'Indenizado', 'Contatação', 'Pendente', 'Encerrado sem Indenização'." },
+      situacao: { type: "STRING", description: "Filtra pela situação efetiva, ex.: 'Em andamento', 'Indenizado', 'Constatação', 'Pendente', 'Encerrado sem Indenização'." },
       cia: { type: "STRING", description: "Filtra pela seguradora (campo 'cia')." },
       limit: { type: "INTEGER", description: "Máximo de resultados (padrão 10, máximo 20)." },
     },

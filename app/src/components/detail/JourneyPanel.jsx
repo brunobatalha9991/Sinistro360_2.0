@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import {
   getAtendTemplate, getRamoTemplate, getComunsSteps, getOutrosSteps, getUserJourney, isAtendimento, STATUS_DEFAULT, getJourneyNotes,
-  stepStatusEhConcluida, stepStatusEhNegativa, stepDateConfig, stepHoraConfig,
+  stepStatusEhConcluida, stepStatusEhNegativa, stepStatusEhConstatacao, stepDateConfig, stepHoraConfig,
 } from "../../logic/claims";
 import { fmtDateHoraBR } from "../../logic/format";
 
@@ -59,9 +59,12 @@ export function JourneyPanel({ c, overrides, config, actions, canEdit, isAdminUs
       sd.hora = "";
       const concluida = stepStatusEhConcluida(step, value);
       const negativa = !concluida && stepStatusEhNegativa(step, value);
-      if (concluida || negativa) {
-        // concludedAt marca quando a etapa teve UM desfecho, positivo ou
-        // negativo — usado pelo módulo Oficinas (tempo médio de reparo) e
+      const constatacao = !concluida && !negativa && stepStatusEhConstatacao(step, value);
+      if (concluida || negativa || constatacao) {
+        // concludedAt marca quando a etapa teve UM desfecho — positivo,
+        // negativo, ou "Constatação" (a pedido do usuário, 2026-08-31: mesmo
+        // tratamento do desfecho positivo, já que também encerra o
+        // processo) — usado pelo módulo Oficinas (tempo médio de reparo) e
         // pelo módulo Desempenho (data do desfecho do processo, ver
         // ultimaEtapaEfetiva em logic/claims.js).
         sd.concludedAt = agora;
@@ -69,8 +72,9 @@ export function JourneyPanel({ c, overrides, config, actions, canEdit, isAdminUs
         // Só exige (e avisa sobre) a data quando este status realmente tem
         // campo de data configurado (ver stepDateConfig) — etapa sem esse
         // campo resolve/minimiza na hora, sem alerta nenhum. O aviso só faz
-        // sentido pro desfecho positivo (a redação já assume "concluída").
-        if (concluida && stepDateConfig(step, value).show) {
+        // sentido pro desfecho positivo/Constatação (a redação já assume
+        // "concluída"); negativo nunca exige data.
+        if ((concluida || constatacao) && stepDateConfig(step, value).show) {
           alert("Etapa concluída — preencha a data de conclusão. A etapa só minimiza automaticamente depois que a data for informada.");
         }
       } else {
@@ -131,7 +135,7 @@ export function JourneyPanel({ c, overrides, config, actions, canEdit, isAdminUs
     if (step.type === "caminho") return !!uj.caminho;
     const sd = steps[step.id] || {};
     if (step.branch) return !!sd.status;
-    if (stepStatusEhConcluida(step, sd.status)) {
+    if (stepStatusEhConcluida(step, sd.status) || stepStatusEhConstatacao(step, sd.status)) {
       return !stepDateConfig(step, sd.status).show || !!(sd.date && sd.date.trim());
     }
     return stepStatusEhNegativa(step, sd.status);
@@ -202,14 +206,15 @@ export function JourneyPanel({ c, overrides, config, actions, canEdit, isAdminUs
           const sd = steps[step.id] || { status: "", date: "", note: "" };
           const done = stepStatusEhConcluida(step, sd.status);
           const negativo = !done && stepStatusEhNegativa(step, sd.status);
+          const constatacao = !done && !negativo && stepStatusEhConstatacao(step, sd.status);
           const dateCfg = stepDateConfig(step, sd.status);
           const horaCfg = stepHoraConfig(step, sd.status);
           return (
             <div className="jstep" key={step.id}>
-              <div className={"jdot " + (done ? "done" : negativo ? "negativo" : sd.status ? "current" : "")}>
-                <span>{done ? "✓" : negativo ? "✕" : sd.status ? "●" : ""}</span>
+              <div className={"jdot " + (done ? "done" : negativo ? "negativo" : constatacao ? "constatacao" : sd.status ? "current" : "")}>
+                <span>{done ? "✓" : negativo ? "✕" : constatacao ? "◆" : sd.status ? "●" : ""}</span>
               </div>
-              <div className={"jbody" + (done ? " done" : negativo ? " negativo" : "")}>
+              <div className={"jbody" + (done ? " done" : negativo ? " negativo" : constatacao ? " constatacao" : "")}>
                 <div className="jhead">
                   <h4>{step.title}</h4>
                   <button type="button" className="btn sec xs" onClick={() => toggle(step.id)}>{open ? "▾ Ocultar detalhes" : "▸ Ver detalhes"}</button>
@@ -229,7 +234,7 @@ export function JourneyPanel({ c, overrides, config, actions, canEdit, isAdminUs
                           <label>{dateCfg.label}</label>
                           <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
                             <input type="date" className="inline" value={sd.date || ""} onChange={(e) => setStepField(step.id, "date", e.target.value)} />
-                            {!done && (
+                            {!done && !constatacao && (
                               <button
                                 type="button" className={"btn xs" + (sd.foraDoPrazo ? "" : " sec")}
                                 title="Marcar/desmarcar esta etapa como fora do prazo"

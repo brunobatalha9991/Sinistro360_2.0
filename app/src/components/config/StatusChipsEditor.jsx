@@ -14,7 +14,7 @@ export function StatusChipsEditor({ step, onChangeStep, horaOption }) {
   const options = step.statusOptions || [];
   const doneStatuses = step.doneStatuses || [];
   const negativoStatuses = step.negativoStatuses || [];
-  const contatacaoStatuses = step.contatacaoStatuses || [];
+  const constatacaoStatuses = step.constatacaoStatuses || [];
   const dateByStatus = step.dateByStatus || {};
   const horaByStatus = step.horaByStatus || {};
   const [draft, setDraft] = useState("");
@@ -30,7 +30,7 @@ export function StatusChipsEditor({ step, onChangeStep, horaOption }) {
     // não perder o que já estava configurado só porque o texto mudou.
     if (doneStatuses.indexOf(atual) >= 0) patch.doneStatuses = doneStatuses.map((s) => (s === atual ? novo : s));
     if (negativoStatuses.indexOf(atual) >= 0) patch.negativoStatuses = negativoStatuses.map((s) => (s === atual ? novo : s));
-    if (contatacaoStatuses.indexOf(atual) >= 0) patch.contatacaoStatuses = contatacaoStatuses.map((s) => (s === atual ? novo : s));
+    if (constatacaoStatuses.indexOf(atual) >= 0) patch.constatacaoStatuses = constatacaoStatuses.map((s) => (s === atual ? novo : s));
     if (dateByStatus[atual]) {
       const nd = { ...dateByStatus }; nd[novo] = nd[atual]; delete nd[atual];
       patch.dateByStatus = nd;
@@ -46,7 +46,7 @@ export function StatusChipsEditor({ step, onChangeStep, horaOption }) {
     const patch = { statusOptions: options.filter((_, idx) => idx !== i) };
     if (doneStatuses.indexOf(removido) >= 0) patch.doneStatuses = doneStatuses.filter((s) => s !== removido);
     if (negativoStatuses.indexOf(removido) >= 0) patch.negativoStatuses = negativoStatuses.filter((s) => s !== removido);
-    if (contatacaoStatuses.indexOf(removido) >= 0) patch.contatacaoStatuses = contatacaoStatuses.filter((s) => s !== removido);
+    if (constatacaoStatuses.indexOf(removido) >= 0) patch.constatacaoStatuses = constatacaoStatuses.filter((s) => s !== removido);
     if (dateByStatus[removido]) { const nd = { ...dateByStatus }; delete nd[removido]; patch.dateByStatus = nd; }
     if (horaByStatus[removido]) { const nh = { ...horaByStatus }; delete nh[removido]; patch.horaByStatus = nh; }
     onChangeStep(patch);
@@ -57,16 +57,16 @@ export function StatusChipsEditor({ step, onChangeStep, horaOption }) {
   }
   function setMarcacao(status, valor) {
     // valor: "" | "verde" | "vermelho" | "azul" — nunca mais de uma ao mesmo
-    // tempo pro mesmo status. "azul" = Contatação (a pedido do usuário,
+    // tempo pro mesmo status. "azul" = Constatação (a pedido do usuário,
     // 2026-08-31): desfecho positivo sem indenização ao segurado (cobertura
-    // ao terceiro) — ver stepStatusEhContatacao em logic/claims.js.
+    // ao terceiro) — ver stepStatusEhConstatacao em logic/claims.js.
     const nd = doneStatuses.filter((s) => s !== status);
     const nn = negativoStatuses.filter((s) => s !== status);
-    const nc = contatacaoStatuses.filter((s) => s !== status);
+    const nc = constatacaoStatuses.filter((s) => s !== status);
     if (valor === "verde") nd.push(status);
     if (valor === "vermelho") nn.push(status);
     if (valor === "azul") nc.push(status);
-    onChangeStep({ doneStatuses: nd, negativoStatuses: nn, contatacaoStatuses: nc });
+    onChangeStep({ doneStatuses: nd, negativoStatuses: nn, constatacaoStatuses: nc });
   }
   function setDateConfig(status, patch) {
     const atual = dateByStatus[status] || { show: true, label: "Data" };
@@ -81,7 +81,7 @@ export function StatusChipsEditor({ step, onChangeStep, horaOption }) {
     <>
       <div style={{ display: "flex", flexDirection: "column", gap: 8, marginBottom: 8 }}>
         {options.map((op, i) => {
-          const marcacao = doneStatuses.indexOf(op) >= 0 ? "verde" : negativoStatuses.indexOf(op) >= 0 ? "vermelho" : contatacaoStatuses.indexOf(op) >= 0 ? "azul" : "";
+          const marcacao = doneStatuses.indexOf(op) >= 0 ? "verde" : negativoStatuses.indexOf(op) >= 0 ? "vermelho" : constatacaoStatuses.indexOf(op) >= 0 ? "azul" : "";
           const dcfg = dateByStatus[op] || { show: true, label: "Data" };
           const hcfg = horaByStatus[op] || { show: false, label: "Horário" };
           return (
@@ -99,7 +99,7 @@ export function StatusChipsEditor({ step, onChangeStep, horaOption }) {
                   <select className="inline" value={marcacao} onChange={(e) => setMarcacao(op, e.target.value)}>
                     <option value="">— normal —</option>
                     <option value="verde">✓ Concluída (verde)</option>
-                    <option value="azul">◆ Contatação (azul)</option>
+                    <option value="azul">◆ Constatação (azul)</option>
                     <option value="vermelho">✕ Encerramento negativo (vermelho)</option>
                   </select>
                 </label>
