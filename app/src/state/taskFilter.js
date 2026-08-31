@@ -9,5 +9,5 @@ import { createStore } from "./createStore";
 // entre a ordenação automática e a reordenação manual por arrasto ↑/↓).
 export const taskFilterStore = createStore({
   status: "todas", urg: "todas", tipo: "todas", tipoAtendimento: "todas", stale: false, verArquivadas: false, q: "",
-  usuarioId: "eu", papel: "ambos", showFilters: true, ordemManual: false,
+  usuarioId: "eu", papel: "ambos", showFilters: true, ordemManual: false, proximaAcaoAte: "",
 });

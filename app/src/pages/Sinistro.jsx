@@ -116,7 +116,7 @@ export function Sinistro() {
       case "proxima": return <NextActionPanel c={c} overrides={overrides} actions={trackedActions} canEdit={canEdit} />;
       case "auditoria": return isConsulta ? null : <AuditPanel c={c} overrides={overrides} records={records} />;
       case "vinculos": return <LinksPanel c={c} claims={claims} allClaimsRaw={allClaimsRaw} overrides={overrides} actions={trackedActions} navigate={navigate} setDetailTab={setDetailTab} />;
-      case "satisfacao": return <PesquisaSatisfacaoPanel c={c} overrides={overrides} actions={trackedActions} canEdit={canEdit} atendTemplateCfg={config.corp_atendimento_template} />;
+      case "satisfacao": return <PesquisaSatisfacaoPanel c={c} overrides={overrides} actions={trackedActions} canEdit={canEdit} atendTemplateCfg={config.corp_atendimento_template} templates={config.corp_journey_templates} />;
       case "anexos": return <AnexosPanel c={c} overrides={overrides} config={config} actions={trackedActions} canEdit={canEdit} currentUser={currentUser} />;
       case "geral": return <GeralPanel c={c} claims={claims} overrides={overrides} actions={trackedActions} canEdit={canEdit} config={config} navigate={navigate} />;
       case "financeiro": return <FinancePanel c={c} overrides={overrides} actions={trackedActions} canEdit={canEdit} />;

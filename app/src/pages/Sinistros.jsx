@@ -3,7 +3,7 @@ import { useData } from "../data/DataProvider.jsx";
 import { useHashRoute } from "../hooks/useHashRoute";
 import { useAuth } from "../hooks/useAuth";
 import { useListFilter } from "../hooks/useListFilter";
-import { patchListFilter, resetListFilter } from "../state/listFilter";
+import { patchListFilter, resetListFilter, toggleFilterGroup } from "../state/listFilter";
 import { isAdmin } from "../data/auth";
 import { EmptyState } from "../components/EmptyState.jsx";
 import { ClaimsTable } from "../components/ClaimsTable.jsx";
@@ -31,11 +31,38 @@ function terceiroSemVinculoSegurado(overrides, allClaimsRaw, c) {
 // Processo Pendente/Em andamento sem Produtor vinculado (a pedido do
 // usuário) — mesmo recorte de situação já usado no filtro de Responsável
 // ("traz apenas Pendente / Em andamento").
-function semProdutorVinculado(overrides, atendTemplate, c) {
-  const label = situacaoEfetiva(overrides, c, atendTemplate).label;
+function semProdutorVinculado(overrides, atendTemplate, templates, c) {
+  const label = situacaoEfetiva(overrides, c, atendTemplate, templates).label;
   if (label !== "Pendente" && label !== "Em andamento") return false;
   const ap = getAgenteProdutor(overrides, c.id);
   return !ap || !(ap.produtores && ap.produtores.length);
+}
+
+// Processo sem nenhuma data de próxima ação definida (a pedido do usuário)
+// — diferente de "Atrasados" (que exige uma data já vencida), este pega
+// quem nem tem prazo registrado ainda, com ou sem próxima ação (título)
+// preenchido.
+function semProximaAcaoDefinida(overrides, c) {
+  const na = getNextAction(overrides, c.id);
+  return !na || !na.date;
+}
+
+// Subgrupo de filtros com Ver/Ocultar próprio (a pedido do usuário: com o
+// card de filtros aberto, ficava "muita coisa" de uma vez) — cada subgrupo
+// começa ocultado (só o título + o botão), e cada um abre/fecha
+// independente dos outros. Estado em listFilter.gruposAbertos (sobrevive à
+// navegação dentro da sessão, igual ao "Ocultar/Mostrar filtros" principal).
+function FilterGroup({ groupKey, title, lf, children }) {
+  const aberto = !!(lf.gruposAbertos && lf.gruposAbertos[groupKey]);
+  return (
+    <div className="filter-group">
+      <div className="filter-group-title" style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: aberto ? 10 : 0 }}>
+        <span>{title}</span>
+        <button type="button" className="btn ghost xs" onClick={() => toggleFilterGroup(groupKey)}>{aberto ? "Ocultar" : "Ver"}</button>
+      </div>
+      {aberto && children}
+    </div>
+  );
 }
 
 export function Sinistros() {
@@ -67,17 +94,17 @@ export function Sinistros() {
   function passa(c, except) {
     const q = (lf.q || "").toLowerCase();
     if (except !== "tipo" && lf.tipo !== "todos" && c.partyType !== lf.tipo) return false;
-    if (except !== "status" && lf.status !== "todos" && situacaoEfetiva(overrides, c, atendTemplate).label !== lf.status) return false;
+    if (except !== "status" && lf.status !== "todos" && situacaoEfetiva(overrides, c, atendTemplate, templates).label !== lf.status) return false;
     if (except !== "etapa" && lf.etapa !== "todos" && currentStage(overrides, templates, atendTemplate, c) !== lf.etapa) return false;
     if (except !== "especial") {
       if (lf.pa) { const na = getNextAction(overrides, c.id); if (!na || !na.date || na.date > lf.pa) return false; }
       if (lf.atrasado && !isAtrasado(overrides, c)) return false;
-      if (lf.semAtu && !isSemAtualizacao(overrides, c, atendTemplate)) return false;
+      if (lf.semAtu && !isSemAtualizacao(overrides, c, atendTemplate, templates)) return false;
     }
     if (except !== "manual" && lf.manual && !isManualClaim(c)) return false;
     if (except !== "caminho" && lf.caminho && lf.caminho !== "todos" && (getUserJourney(overrides, c.id) || {}).caminho !== lf.caminho) return false;
     if (except !== "aberto" && lf.aberto) {
-      const sl = situacaoEfetiva(overrides, c, atendTemplate).label;
+      const sl = situacaoEfetiva(overrides, c, atendTemplate, templates).label;
       if (sl !== "Pendente" && sl !== "Em andamento") return false;
     }
     if (lf.ocoDe && (!c.datoco || c.datoco < lf.ocoDe)) return false;
@@ -85,7 +112,7 @@ export function Sinistros() {
     if (lf.aviDe && (!c.datavi || c.datavi < lf.aviDe)) return false;
     if (lf.aviAte && (!c.datavi || c.datavi > lf.aviAte)) return false;
     if (except !== "responsavel" && lf.responsavel && lf.responsavel !== "todos") {
-      const sitR = situacaoEfetiva(overrides, c, atendTemplate).label;
+      const sitR = situacaoEfetiva(overrides, c, atendTemplate, templates).label;
       if (sitR !== "Pendente" && sitR !== "Em andamento") return false;
       const rP = getResponsavel(overrides, c.id);
       if (lf.responsavel === "__sem__") { if (rP) return false; }
@@ -114,7 +141,8 @@ export function Sinistros() {
     if (except !== "limitacaoComunicacaoHist" && lf.limitacaoComunicacaoHist && !claimTemFlagHistorico(overrides, c.id, "limitacaoComunicacao")) return false;
     if (except !== "foraDoPrazo" && lf.foraDoPrazo && !claimTemEtapaForaDoPrazo(overrides, c.id)) return false;
     if (except !== "terceiroSemVinculo" && lf.terceiroSemVinculo && !terceiroSemVinculoSegurado(overrides, allClaimsRaw, c)) return false;
-    if (except !== "semProdutor" && lf.semProdutor && !semProdutorVinculado(overrides, atendTemplate, c)) return false;
+    if (except !== "semProdutor" && lf.semProdutor && !semProdutorVinculado(overrides, atendTemplate, templates, c)) return false;
+    if (except !== "semProximaAcao" && lf.semProximaAcao && !semProximaAcaoDefinida(overrides, c)) return false;
     if (except !== "texto" && q) {
       const hay = [campoEfetivo(overrides, c, "segurado"), campoEfetivo(overrides, c, "placa"), campoEfetivo(overrides, c, "numsin"), campoEfetivo(overrides, c, "numapo"), campoEfetivo(overrides, c, "cia"), c.partyType, campoEfetivo(overrides, c, "oficina"), campoEfetivo(overrides, c, "ramo")].join(" ").toLowerCase();
       if (hay.indexOf(q) < 0) return false;
@@ -134,10 +162,11 @@ export function Sinistros() {
   const baseForaPrazo = claims.filter((c) => passa(c, "foraDoPrazo"));
   const baseTerceiroSemVinculo = claims.filter((c) => passa(c, "terceiroSemVinculo"));
   const baseSemProdutor = claims.filter((c) => passa(c, "semProdutor"));
+  const baseSemProximaAcao = claims.filter((c) => passa(c, "semProximaAcao"));
 
   const cntTipo = {}; let totalNaoFinal = 0;
   baseTipo.forEach((c) => {
-    if (situacaoEfetiva(overrides, c, atendTemplate).label !== "Indenizado" && situacaoEfetiva(overrides, c, atendTemplate).label !== "Encerrado sem Indenização") {
+    if (situacaoEfetiva(overrides, c, atendTemplate, templates).label !== "Indenizado" && situacaoEfetiva(overrides, c, atendTemplate, templates).label !== "Encerrado sem Indenização") {
       cntTipo[c.partyType] = (cntTipo[c.partyType] || 0) + 1;
       totalNaoFinal++;
     }
@@ -145,7 +174,7 @@ export function Sinistros() {
   const ct = (key) => (key === "todos" ? totalNaoFinal : cntTipo[key] || 0);
 
   const cntStatus = {};
-  baseStatus.forEach((c) => { const lb = situacaoEfetiva(overrides, c, atendTemplate).label; cntStatus[lb] = (cntStatus[lb] || 0) + 1; });
+  baseStatus.forEach((c) => { const lb = situacaoEfetiva(overrides, c, atendTemplate, templates).label; cntStatus[lb] = (cntStatus[lb] || 0) + 1; });
   const cs = (key) => (key === "todos" ? baseStatus.length : cntStatus[key] || 0);
 
   const statusChips = [["todos", "Todos"], ["Em andamento", "Em andamento"], ["Pendente", "Pendentes"], ["Indenizado", "Indenizados"], ["Encerrado sem Indenização", "Sem indenização"]];
@@ -155,14 +184,15 @@ export function Sinistros() {
   const qtdIntegral = baseCaminho.filter((c) => (getUserJourney(overrides, c.id) || {}).caminho === "integral").length;
   const qtdOutros = baseCaminho.filter((c) => (getUserJourney(overrides, c.id) || {}).caminho === "outros").length;
   const qtdAtrasado = baseEspec.filter((c) => isAtrasado(overrides, c)).length;
-  const qtdSemAtu = baseEspec.filter((c) => isSemAtualizacao(overrides, c, atendTemplate)).length;
+  const qtdSemAtu = baseEspec.filter((c) => isSemAtualizacao(overrides, c, atendTemplate, templates)).length;
   const qtdManual = baseManual.filter(isManualClaim).length;
-  const qtdAberto = baseAberto.filter((c) => { const l = situacaoEfetiva(overrides, c, atendTemplate).label; return l === "Pendente" || l === "Em andamento"; }).length;
+  const qtdAberto = baseAberto.filter((c) => { const l = situacaoEfetiva(overrides, c, atendTemplate, templates).label; return l === "Pendente" || l === "Em andamento"; }).length;
   const qtdAguardHist = baseAguardHist.filter((c) => claimTemFlagHistorico(overrides, c.id, "aguardandoRetorno")).length;
   const qtdLimComHist = baseLimComHist.filter((c) => claimTemFlagHistorico(overrides, c.id, "limitacaoComunicacao")).length;
   const qtdForaPrazo = baseForaPrazo.filter((c) => claimTemEtapaForaDoPrazo(overrides, c.id)).length;
   const qtdTerceiroSemVinculo = baseTerceiroSemVinculo.filter((c) => terceiroSemVinculoSegurado(overrides, allClaimsRaw, c)).length;
-  const qtdSemProdutor = baseSemProdutor.filter((c) => semProdutorVinculado(overrides, atendTemplate, c)).length;
+  const qtdSemProdutor = baseSemProdutor.filter((c) => semProdutorVinculado(overrides, atendTemplate, templates, c)).length;
+  const qtdSemProximaAcao = baseSemProximaAcao.filter((c) => semProximaAcaoDefinida(overrides, c)).length;
 
   const stageNames = allJourneyStages(templates, atendTemplate);
   const stageCounts = {}; let stageTotal = 0;
@@ -172,16 +202,16 @@ export function Sinistros() {
   // filtro final exibido na tabela (mesma lógica de renderList() do original)
   const q = (lf.q || "").toLowerCase();
   const rows = claims.filter((c) => {
-    if (lf.status !== "todos" && situacaoEfetiva(overrides, c, atendTemplate).label !== lf.status) return false;
+    if (lf.status !== "todos" && situacaoEfetiva(overrides, c, atendTemplate, templates).label !== lf.status) return false;
     if (lf.tipo !== "todos" && c.partyType !== lf.tipo) return false;
     if (lf.etapa !== "todos" && currentStage(overrides, templates, atendTemplate, c) !== lf.etapa) return false;
     if (lf.pa) { const na = getNextAction(overrides, c.id); if (!na || !na.date || na.date > lf.pa) return false; }
     if (lf.atrasado && !isAtrasado(overrides, c)) return false;
-    if (lf.semAtu && !isSemAtualizacao(overrides, c, atendTemplate)) return false;
+    if (lf.semAtu && !isSemAtualizacao(overrides, c, atendTemplate, templates)) return false;
     if (lf.manual && !isManualClaim(c)) return false;
     if (lf.caminho && lf.caminho !== "todos" && (getUserJourney(overrides, c.id) || {}).caminho !== lf.caminho) return false;
     if (lf.aberto) {
-      const sl = situacaoEfetiva(overrides, c, atendTemplate).label;
+      const sl = situacaoEfetiva(overrides, c, atendTemplate, templates).label;
       if (sl !== "Pendente" && sl !== "Em andamento") return false;
     }
     if (lf.ocoDe && (!c.datoco || c.datoco < lf.ocoDe)) return false;
@@ -189,7 +219,7 @@ export function Sinistros() {
     if (lf.aviDe && (!c.datavi || c.datavi < lf.aviDe)) return false;
     if (lf.aviAte && (!c.datavi || c.datavi > lf.aviAte)) return false;
     if (lf.responsavel && lf.responsavel !== "todos") {
-      const sL = situacaoEfetiva(overrides, c, atendTemplate).label;
+      const sL = situacaoEfetiva(overrides, c, atendTemplate, templates).label;
       if (sL !== "Pendente" && sL !== "Em andamento") return false;
       const rL = getResponsavel(overrides, c.id);
       if (lf.responsavel === "__sem__") { if (rL) return false; }
@@ -216,7 +246,8 @@ export function Sinistros() {
     if (lf.limitacaoComunicacaoHist && !claimTemFlagHistorico(overrides, c.id, "limitacaoComunicacao")) return false;
     if (lf.foraDoPrazo && !claimTemEtapaForaDoPrazo(overrides, c.id)) return false;
     if (lf.terceiroSemVinculo && !terceiroSemVinculoSegurado(overrides, allClaimsRaw, c)) return false;
-    if (lf.semProdutor && !semProdutorVinculado(overrides, atendTemplate, c)) return false;
+    if (lf.semProdutor && !semProdutorVinculado(overrides, atendTemplate, templates, c)) return false;
+    if (lf.semProximaAcao && !semProximaAcaoDefinida(overrides, c)) return false;
     if (!q) return true;
     return [campoEfetivo(overrides, c, "segurado"), campoEfetivo(overrides, c, "placa"), campoEfetivo(overrides, c, "numsin"), campoEfetivo(overrides, c, "numapo"), campoEfetivo(overrides, c, "cia"), c.partyType, campoEfetivo(overrides, c, "oficina"), campoEfetivo(overrides, c, "ramo")].join(" ").toLowerCase().indexOf(q) >= 0;
   });
@@ -241,8 +272,9 @@ export function Sinistros() {
   if (lf.foraDoPrazo) activeCount++;
   if (lf.terceiroSemVinculo) activeCount++;
   if (lf.semProdutor) activeCount++;
+  if (lf.semProximaAcao) activeCount++;
 
-  const allCols = getAllCols({ overrides, allClaimsRaw, navigate, atendTemplateCfg: atendTemplate });
+  const allCols = getAllCols({ overrides, allClaimsRaw, navigate, atendTemplateCfg: atendTemplate, templates });
 
   function dtField(label, keyDe, keyAte) {
     return (
@@ -275,8 +307,7 @@ export function Sinistros() {
         </div>
 
         <div className={lf.showFilters ? "" : "hidden"} style={{ border: "1px solid var(--border)", borderRadius: 10, padding: "4px 14px", marginBottom: 14, background: "var(--surface-2)" }}>
-          <div className="filter-group">
-            <div className="filter-group-title">Tipo de parte</div>
+          <FilterGroup groupKey="tipo" title="Tipo de parte" lf={lf}>
             <div className="chips">
               {tipoChips.map(([k, label]) => (
                 <div key={k} className={"chip-btn" + (lf.tipo === k ? " active" : "")} onClick={() => patchListFilter({ tipo: k })}>{label} ({ct(k)})</div>
@@ -285,25 +316,22 @@ export function Sinistros() {
                 ⚠ Terceiro sem vínculo com Segurado ({qtdTerceiroSemVinculo})
               </div>
             </div>
-          </div>
+          </FilterGroup>
 
-          <div className="filter-group">
-            <div className="filter-group-title">Datas</div>
+          <FilterGroup groupKey="datas" title="Datas" lf={lf}>
             {dtField("Dt. Ocorrência", "ocoDe", "ocoAte")}
             {dtField("Dt. Aviso", "aviDe", "aviAte")}
-          </div>
+          </FilterGroup>
 
-          <div className="filter-group">
-            <div className="filter-group-title">Situação do processo</div>
+          <FilterGroup groupKey="situacao" title="Situação do processo" lf={lf}>
             <div className="chips">
               {statusChips.map(([k, label]) => (
                 <div key={k} className={"chip-btn" + (lf.status === k ? " active" : "")} onClick={() => patchListFilter({ status: k })}>{label} ({cs(k)})</div>
               ))}
             </div>
-          </div>
+          </FilterGroup>
 
-          <div className="filter-group">
-            <div className="filter-group-title">Caminho e etapa da jornada</div>
+          <FilterGroup groupKey="caminho" title="Caminho e etapa da jornada" lf={lf}>
             <div className="chips">
               <span className="muted" style={{ fontSize: 12, marginRight: 4, alignSelf: "center" }}>Caminho:</span>
               <div className={"chip-btn" + (lf.caminho === "todos" ? " active" : "")} onClick={() => patchListFilter({ caminho: "todos" })}>Todos</div>
@@ -316,10 +344,9 @@ export function Sinistros() {
                 <div key={k} className={"chip-btn" + (lf.etapa === k ? " active" : "")} onClick={() => patchListFilter({ etapa: k })}>{label}</div>
               ))}
             </div>
-          </div>
+          </FilterGroup>
 
-          <div className="filter-group">
-            <div className="filter-group-title">Prazos e alertas</div>
+          <FilterGroup groupKey="prazos" title="Prazos e alertas" lf={lf}>
             <div className="chips" style={{ alignItems: "center" }}>
               <span className="muted" style={{ fontSize: 12, marginRight: 4 }}>Próxima ação até:</span>
               <input type="date" className="inline" style={{ minWidth: 150 }} value={lf.pa || ""} onChange={(e) => patchListFilter({ pa: e.target.value })} />
@@ -332,11 +359,11 @@ export function Sinistros() {
               <div className={"chip-btn" + (lf.limitacaoComunicacaoHist ? " active" : "")} onClick={() => patchListFilter({ limitacaoComunicacaoHist: !lf.limitacaoComunicacaoHist })}>🚧 Limitação de comunicação ({qtdLimComHist})</div>
               <div className={"chip-btn" + (lf.foraDoPrazo ? " active" : "")} onClick={() => patchListFilter({ foraDoPrazo: !lf.foraDoPrazo })}>⏰ Etapa fora do prazo ({qtdForaPrazo})</div>
               <div className={"chip-btn" + (lf.semProdutor ? " active" : "")} onClick={() => patchListFilter({ semProdutor: !lf.semProdutor })}>⚠ Sem produtor vinculado ({qtdSemProdutor})</div>
+              <div className={"chip-btn" + (lf.semProximaAcao ? " active" : "")} onClick={() => patchListFilter({ semProximaAcao: !lf.semProximaAcao })}>📅 Sem data de próxima ação definida ({qtdSemProximaAcao})</div>
             </div>
-          </div>
+          </FilterGroup>
 
-          <div className="filter-group">
-            <div className="filter-group-title">Atendimento</div>
+          <FilterGroup groupKey="atendimento" title="Atendimento" lf={lf}>
             <div className="chips" style={{ alignItems: "center" }}>
               <span className="muted" style={{ fontSize: 12, marginRight: 4 }}>Situação:</span>
               <select className="inline" style={{ minWidth: 180 }} value={lf.sitatend} onChange={(e) => patchListFilter({ sitatend: e.target.value })}>
@@ -350,10 +377,9 @@ export function Sinistros() {
                 {tempOptions.map((op) => <option key={op} value={op}>{op}</option>)}
               </select>
             </div>
-          </div>
+          </FilterGroup>
 
-          <div className="filter-group">
-            <div className="filter-group-title">Responsável</div>
+          <FilterGroup groupKey="responsavel" title="Responsável" lf={lf}>
             <div className="chips" style={{ alignItems: "center" }}>
               <select className="inline" style={{ minWidth: 200 }} value={lf.responsavel} onChange={(e) => patchListFilter({ responsavel: e.target.value })}>
                 <option value="todos">Responsável: todos</option>
@@ -362,10 +388,9 @@ export function Sinistros() {
               </select>
               <span className="muted" style={{ fontSize: 11 }}>(traz apenas Pendente / Em andamento)</span>
             </div>
-          </div>
+          </FilterGroup>
 
-          <div className="filter-group">
-            <div className="filter-group-title">Agente / Grupo de Produtores</div>
+          <FilterGroup groupKey="agente" title="Agente / Grupo de Produtores" lf={lf}>
             <div className="chips" style={{ alignItems: "center" }}>
               <select className="inline" style={{ minWidth: 200 }} value={lf.agente} onChange={(e) => patchListFilter({ agente: e.target.value })}>
                 <option value="todos">Agente: todos</option>
@@ -377,17 +402,16 @@ export function Sinistros() {
               </select>
               <span className="muted" style={{ fontSize: 11 }}>(dados de processos já buscados — importe em lote em Configurações se faltar algum)</span>
             </div>
-          </div>
+          </FilterGroup>
 
-          <div className="filter-group">
-            <div className="filter-group-title">Oficina</div>
+          <FilterGroup groupKey="oficina" title="Oficina" lf={lf}>
             <div className="chips" style={{ alignItems: "center" }}>
               <select className="inline" style={{ minWidth: 220 }} value={lf.oficina} onChange={(e) => patchListFilter({ oficina: e.target.value })}>
                 <option value="todas">Oficina: todas</option>
                 {oficinaOptions.map((o) => <option key={o} value={o}>{o}</option>)}
               </select>
             </div>
-          </div>
+          </FilterGroup>
         </div>
 
         <div className="toolbar">

@@ -39,6 +39,20 @@ const SECAO_VISIVEL_POR_TIPO = {
   ),
 };
 
+// Seção que pode se repetir (a pedido do usuário: um sinistro pode
+// envolver mais de um terceiro) — fixa no código, mesmo critério de
+// SECAO_VISIVEL_POR_TIPO acima: se o admin renomear a seção no editor, a
+// repetição simplesmente deixa de se aplicar, sem travar nada. O primeiro
+// terceiro continua nos campos de sempre (retrocompatível com solicitações
+// já salvas); terceiros extras entram em valores.terceirosExtra[], cada um
+// com o mesmo conjunto de campos da seção — ver SolicitacaoFields (TaskModal.jsx).
+const SECAO_REPETIVEL_POR_TIPO = {
+  sinistro: "Dados do Terceiro",
+};
+export function secaoRepetivel(tipoAtendimento, nomeSecao) {
+  return SECAO_REPETIVEL_POR_TIPO[tipoAtendimento] === nomeSecao;
+}
+
 // Formulários padrão de fábrica — usados quando o admin ainda não
 // personalizou nada em Configurações (corp_solicitacao_formularios).
 export const FORMULARIOS_SOLICITACAO = {
@@ -194,5 +208,16 @@ export function validarSolicitacao(tipoAtendimento, valores, config) {
   const visivel = (c) => !def.secaoVisivel || def.secaoVisivel(c.secao, v);
   const faltando = def.campos.filter((c) => c.obrigatorio && visivel(c) && !String(v[c.id] || "").trim());
   if (faltando.length) return "Preencha: " + faltando.map((c) => c.label).join(", ");
+  // Terceiros extras (a pedido do usuário) — mesmas regras de
+  // obrigatoriedade da seção repetível, uma vez por terceiro adicional já
+  // iniciado (sem exigir nada dos que ainda não foram abertos).
+  const secaoRep = SECAO_REPETIVEL_POR_TIPO[tipoAtendimento];
+  if (secaoRep && Array.isArray(v.terceirosExtra)) {
+    const camposObrigatoriosSecao = def.campos.filter((c) => c.secao === secaoRep && c.obrigatorio);
+    for (const entrada of v.terceirosExtra) {
+      const faltandoExtra = camposObrigatoriosSecao.filter((c) => !String((entrada || {})[c.id] || "").trim());
+      if (faltandoExtra.length) return "Preencha (terceiro adicional): " + faltandoExtra.map((c) => c.label).join(", ");
+    }
+  }
   return null;
 }

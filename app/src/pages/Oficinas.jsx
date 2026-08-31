@@ -11,11 +11,27 @@ import {
 // Módulo Oficinas (Fase 1) — lista com busca por nome; cada linha abre o
 // cadastro/histórico completo (Oficina.jsx). Reaproveita a identidade já
 // usada em todo o sistema (nome exato vindo da API, via campoEfetivo).
+const COLUNAS_ORDENAVEIS = [
+  ["nome", "Oficina"], ["qtdSinistros", "Sinistros"], ["media", "Nota média"], ["reclamacoesAbertas", "Reclamações abertas"],
+];
+// Ordenação padrão desligada por texto (nome) e ligada por número
+// (sinistros/nota/reclamações) — a pedido do usuário, clicar numa coluna
+// numérica já traz "mais alto primeiro" de cara, sem precisar clicar 2x.
+const DIRECAO_PADRAO = { nome: "asc", qtdSinistros: "desc", media: "desc", reclamacoesAbertas: "desc" };
+
 export function Oficinas() {
   const { records } = useData();
   const { navigate } = useHashRoute();
   const { currentUser } = useAuth();
   const [busca, setBusca] = useState("");
+  // Reordenar clicando no título da coluna (a pedido do usuário) — começa
+  // por Sinistros (desc), a mais útil pra achar rápido a oficina com mais
+  // volume.
+  const [sort, setSort] = useState({ key: "qtdSinistros", dir: "desc" });
+
+  function ordenarPor(key) {
+    setSort((cur) => (cur.key === key ? { key, dir: cur.dir === "asc" ? "desc" : "asc" } : { key, dir: DIRECAO_PADRAO[key] }));
+  }
 
   const claims = visibleClaims(records.corp_claims, records.corp_overrides, currentUser);
   const overrides = records.corp_overrides || {};
@@ -32,9 +48,21 @@ export function Oficinas() {
     });
   }, [claims, overrides, ocorrencias]);
 
-  const filtradas = busca.trim()
-    ? linhas.filter((o) => o.nome.toLowerCase().indexOf(busca.trim().toLowerCase()) >= 0)
-    : linhas;
+  const filtradas = useMemo(() => {
+    const base = busca.trim()
+      ? linhas.filter((o) => o.nome.toLowerCase().indexOf(busca.trim().toLowerCase()) >= 0)
+      : linhas;
+    const { key, dir } = sort;
+    const mult = dir === "asc" ? 1 : -1;
+    return [...base].sort((a, b) => {
+      const va = a[key], vb = b[key];
+      if (va == null && vb == null) return 0;
+      if (va == null) return 1; // "—" sempre por último, nas duas direções
+      if (vb == null) return -1;
+      if (typeof va === "string") return va.localeCompare(vb, "pt-BR") * mult;
+      return (va - vb) * mult;
+    });
+  }, [linhas, busca, sort]);
 
   return (
     <div className="page-enter">
@@ -52,10 +80,11 @@ export function Oficinas() {
           <table style={{ marginTop: 14 }}>
             <thead>
               <tr>
-                <th>Oficina</th>
-                <th>Sinistros</th>
-                <th>Nota média</th>
-                <th>Reclamações abertas</th>
+                {COLUNAS_ORDENAVEIS.map(([key, label]) => (
+                  <th key={key} style={{ cursor: "pointer", userSelect: "none" }} onClick={() => ordenarPor(key)} title="Clique para ordenar">
+                    {label}{sort.key === key ? (sort.dir === "asc" ? " ▲" : " ▼") : ""}
+                  </th>
+                ))}
               </tr>
             </thead>
             <tbody>

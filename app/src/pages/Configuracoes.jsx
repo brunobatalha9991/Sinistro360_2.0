@@ -14,6 +14,8 @@ import { SolicitacaoFormulariosCard } from "../components/config/SolicitacaoForm
 import { ChecklistMesaAtendimentoCard } from "../components/config/ChecklistMesaAtendimentoCard.jsx";
 import { RamoTemplatesEditor } from "../components/config/RamoTemplatesEditor.jsx";
 import { MensagemTemplatesEditor } from "../components/config/MensagemTemplatesEditor.jsx";
+import { DicasAssistenteCard } from "../components/config/DicasAssistenteCard.jsx";
+import { TratativaLoteTemplateCard } from "../components/config/TratativaLoteTemplateCard.jsx";
 import { UsersCard } from "../components/config/UsersCard.jsx";
 import { AtendimentoStepsEditor } from "../components/config/AtendimentoStepsEditor.jsx";
 import { AgentesCatalogoCard } from "../components/config/AgentesCatalogoCard.jsx";
@@ -95,11 +97,16 @@ export function Configuracoes() {
           <ConfigGroup title="Processos & Jornada" subtitle="Etapas por ramo, jornadas de atendimento e atribuição de responsável em massa.">
             <AtendimentoStepsEditor atendTemplateCfg={config.corp_atendimento_template} saveConfig={saveConfig} />
             <RamoTemplatesEditor templates={templates} saveConfig={saveConfig} />
-            <AtribuirResponsavelEmMassaCard claims={claims} overrides={overrides} users={records.corp_users || []} actions={actions} canEdit={admin} atendTemplateCfg={config.corp_atendimento_template} />
+            <AtribuirResponsavelEmMassaCard claims={claims} overrides={overrides} users={records.corp_users || []} actions={actions} canEdit={admin} atendTemplateCfg={config.corp_atendimento_template} templates={config.corp_journey_templates} />
           </ConfigGroup>
 
           <ConfigGroup title="Mensagens ao Cliente" subtitle="Templates de WhatsApp por etapa da jornada, usados no botão 'Mensagem para o cliente' do Histórico do sinistro.">
             <MensagemTemplatesEditor config={config} saveConfig={saveConfig} canEdit={admin} />
+            <TratativaLoteTemplateCard config={config} saveConfig={saveConfig} canEdit={admin} />
+          </ConfigGroup>
+
+          <ConfigGroup title="Assistente" subtitle="Dicas e lembretes automáticos, entregues pelo sino de notificações no horário e papéis configurados.">
+            <DicasAssistenteCard config={config} saveConfig={saveConfig} canEdit={admin} />
           </ConfigGroup>
 
           <ConfigGroup title="Agentes & Produtores" subtitle="Catálogo de agentes e importação em lote de Agente/Produtor da API CORP — usado no filtro de Sinistros e no vínculo de acesso de usuários Consulta.">

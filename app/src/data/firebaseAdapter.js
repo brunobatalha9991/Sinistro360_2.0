@@ -21,7 +21,7 @@ export function firebaseEnvConfigured() {
   );
 }
 
-function readFirebaseConfigFromEnv() {
+export function readFirebaseConfigFromEnv() {
   return {
     apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
     authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN,

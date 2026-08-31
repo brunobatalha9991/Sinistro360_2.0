@@ -17,16 +17,21 @@ const CONCLUSAO_STATUS = ["Aguardando", "Indenizado", "Sem Indenização"];
 export function stepStatusEhConcluida(step, status) {
   if (!status) return false;
   if (step && Array.isArray(step.doneStatuses)) return step.doneStatuses.indexOf(status) >= 0;
-  return String(status).toLowerCase().indexOf("conclu") >= 0;
+  const s = String(status).toLowerCase();
+  // "indeniz" cobre o vocabulário padrão de ramo (Indenizado) — mas não
+  // "Sem Indenização", que é negativo (ver stepStatusEhNegativa logo abaixo).
+  return s.indexOf("conclu") >= 0 || (s.indexOf("indeniz") >= 0 && s.indexOf("sem indeniz") < 0);
 }
 // Encerramento negativo (vermelho) — mesmo critério de stepStatusEhConcluida:
 // com a lista configurada pelo admin, usa ela; sem configurar ainda, cai no
-// texto ("cancel...") — assim um status "Cancelado" já é reconhecido como
-// negativo sem precisar configurar nada, igual "Concluído" já era pra verde.
+// texto ("cancel..."/"sem indeniz...") — assim um status "Cancelado" ou "Sem
+// Indenização" já é reconhecido como negativo sem precisar configurar nada,
+// igual "Concluído"/"Indenizado" já eram pra verde.
 export function stepStatusEhNegativa(step, status) {
   if (!status) return false;
   if (step && Array.isArray(step.negativoStatuses)) return step.negativoStatuses.indexOf(status) >= 0;
-  return String(status).toLowerCase().indexOf("cancel") >= 0;
+  const s = String(status).toLowerCase();
+  return s.indexOf("cancel") >= 0 || s.indexOf("sem indeniz") >= 0;
 }
 // "Resolvida" = a etapa já teve um desfecho, positivo (verde) ou negativo
 // (vermelho) — usada pra achar a etapa atual (a primeira ainda sem
@@ -63,13 +68,13 @@ export function defaultRamoTemplate() {
       { id: "rep_autorizados", title: "Reparos autorizados", statusOptions: [...STATUS_DEFAULT] },
       { id: "pecas", title: "Peças", statusOptions: [...STATUS_DEFAULT] },
       { id: "reparo", title: "Reparo", statusOptions: [...STATUS_DEFAULT] },
-      { id: "conclusao", title: "Conclusão", statusOptions: [...CONCLUSAO_STATUS] },
+      { id: "conclusao", title: "Conclusão", statusOptions: [...CONCLUSAO_STATUS], doneStatuses: ["Indenizado"], negativoStatuses: ["Sem Indenização"] },
     ],
     integral: [
       { id: "documentacao", title: "Documentação", statusOptions: [...STATUS_DEFAULT] },
       { id: "transf", title: "Transf. do veículo", statusOptions: [...STATUS_DEFAULT] },
       { id: "analise_final", title: "Análise final", statusOptions: [...STATUS_DEFAULT] },
-      { id: "conclusao", title: "Conclusão", statusOptions: [...CONCLUSAO_STATUS] },
+      { id: "conclusao", title: "Conclusão", statusOptions: [...CONCLUSAO_STATUS], doneStatuses: ["Indenizado"], negativoStatuses: ["Sem Indenização"] },
     ],
     outros: [{ id: "doc_inicial", title: "Documentação Inicial", statusOptions: [...STATUS_DEFAULT] }],
   };
@@ -319,10 +324,6 @@ function journeyTouched(uj) {
   }
   return false;
 }
-function conclusaoStatus(uj) {
-  const steps = (uj && uj.steps) || {};
-  return String((steps["conclusao"] || {}).status || "");
-}
 // Situação efetiva de um Atendimento — a pedido do usuário, baseada na
 // ÚLTIMA etapa efetiva do fluxo (já resolvendo a trilha por tipo escolhida,
 // ver atendimentoStepsList) e nas marcações verde/vermelho configuradas
@@ -346,18 +347,30 @@ function situacaoEfetivaAtendimento(uj, atendTemplateCfg) {
   if (stepStatusEhConcluida(primeira, sdPrimeira.status)) return { label: "Em andamento", cls: "amber" };
   return { label: "Pendente", cls: "amber" };
 }
-export function situacaoEfetiva(overrides, c, atendTemplateCfg) {
+// Situação efetiva de um processo por ramo (Perda Parcial/Integral/Outros)
+// — a pedido do usuário (bug relatado 2026-08-31): mesmo critério de
+// situacaoEfetivaAtendimento acima, baseado na ÚLTIMA etapa EFETIVA do
+// caminho escolhido (ultimaEtapaEfetiva — já resolve caminho/reordenação/
+// renomeação de etapas) e nas marcações verde/vermelho configuradas pelo
+// admin, não mais no id fixo "conclusao" nem no nome literal do status.
+// Antes, uma etapa final renomeada (ex.: "Encerramento" em vez de
+// "Conclusão") ou com id diferente de "conclusao" nunca era detectada —
+// o processo ficava preso em "Em andamento" mesmo com a etapa final já
+// marcada como Indenizado/Sem Indenização.
+export function situacaoEfetiva(overrides, c, atendTemplateCfg, templates) {
   const uj = getUserJourney(overrides, c.id) || {};
   if (!journeyTouched(uj)) return mapSituacao(c.situacao);
   if (isAtendimento(c)) return situacaoEfetivaAtendimento(uj, atendTemplateCfg);
   if (!uj.caminho) return { label: "Pendente", cls: "amber" };
-  const cs = conclusaoStatus(uj).toLowerCase();
-  if (cs.indexOf("sem indeniz") >= 0) return { label: "Encerrado sem Indenização", cls: "gray" };
-  if (cs.indexOf("indeniz") >= 0) return { label: "Indenizado", cls: "green" };
+  const ultima = ultimaEtapaEfetiva(overrides, templates, atendTemplateCfg, c);
+  if (!ultima) return { label: "Em andamento", cls: "amber" };
+  const sdUltima = (uj.steps || {})[ultima.id] || {};
+  if (stepStatusEhConcluida(ultima, sdUltima.status)) return { label: "Indenizado", cls: "green" };
+  if (stepStatusEhNegativa(ultima, sdUltima.status)) return { label: "Encerrado sem Indenização", cls: "gray" };
   return { label: "Em andamento", cls: "amber" };
 }
-export function isFinalizado(overrides, c, atendTemplateCfg) {
-  const s = situacaoEfetiva(overrides, c, atendTemplateCfg).label;
+export function isFinalizado(overrides, c, atendTemplateCfg, templates) {
+  const s = situacaoEfetiva(overrides, c, atendTemplateCfg, templates).label;
   return s === "Indenizado" || s === "Encerrado sem Indenização";
 }
 export function isAtrasado(overrides, c) {
@@ -365,8 +378,8 @@ export function isAtrasado(overrides, c) {
   if (!na || !na.date) return false;
   return na.date < new Date().toISOString().slice(0, 10);
 }
-export function isSemAtualizacao(overrides, c, atendTemplateCfg) {
-  if (isFinalizado(overrides, c, atendTemplateCfg)) return false;
+export function isSemAtualizacao(overrides, c, atendTemplateCfg, templates) {
+  if (isFinalizado(overrides, c, atendTemplateCfg, templates)) return false;
   const comms = loadComms(overrides, c.id);
   if (!comms.length) return true;
   const ultimo = comms[comms.length - 1];
@@ -493,6 +506,27 @@ export function distinctGruposProdutores(overrides, claims) {
   });
   return out.sort((a, b) => String(a).localeCompare(String(b), "pt-BR"));
 }
+// "Grupo do Produtor ou Agente" efetivo de um processo (a pedido do
+// usuário: substitui o vínculo com Cliente na tarefa de Comunicação) —
+// mesma precedência de claimVisivelParaUsuario (produtor é mais específico
+// que agente): usa o grupo do primeiro produtor vinculado; sem produtor,
+// cai pro primeiro agente.
+export function produtorOuAgenteEfetivo(overrides, claimId) {
+  const ap = getAgenteProdutor(overrides, claimId);
+  if (!ap) return "";
+  const produtores = ap.produtores || [];
+  if (produtores.length) return grupoProdutor(produtores[0]);
+  const agentes = ap.agentes || [];
+  return agentes.length ? agentes[0] : "";
+}
+// Lista combinada de grupos de produtores + agentes distintos, pro
+// seletor "V. Grupo do Produtor ou agente" da tarefa de Comunicação.
+export function distinctGruposOuAgentes(overrides, claims) {
+  const seen = {}; const out = [];
+  distinctGruposProdutores(overrides, claims).forEach((g) => { if (!seen[g]) { seen[g] = true; out.push(g); } });
+  distinctAgentes(overrides, claims).forEach((a) => { if (!seen[a]) { seen[a] = true; out.push(a); } });
+  return out.sort((a, b) => String(a).localeCompare(String(b), "pt-BR"));
+}
 // Catálogo efetivo de agentes: união do catálogo editável pelo admin
 // (config.corp_agentes_catalogo, com "+ Novo agente" em Configurações) com
 // os agentes já descobertos em processos sincronizados/importados.
@@ -559,7 +593,7 @@ export function journeyStageLabel(title, statusMap) {
 }
 
 export function currentStage(overrides, templates, atendTemplateCfg, c) {
-  const sit = situacaoEfetiva(overrides, c, atendTemplateCfg).label;
+  const sit = situacaoEfetiva(overrides, c, atendTemplateCfg, templates).label;
   if (sit === "Indenizado" || sit === "Encerrado sem Indenização") return "";
   const uj = getUserJourney(overrides, c.id) || {};
   const steps = uj.steps || {};
@@ -638,7 +672,7 @@ export function dashOficinaKey(overrides, oficina) {
 }
 export function tipoPartyLabel(v) { return v === "Aviso" ? "Atendimento" : v; }
 
-export function buildAggregation(overrides, rows, keyFn, atendTemplateCfg) {
+export function buildAggregation(overrides, rows, keyFn, atendTemplateCfg, templates) {
   const map = {};
   rows.forEach((c) => {
     const k = keyFn(c);
@@ -654,8 +688,8 @@ export function buildAggregation(overrides, rows, keyFn, atendTemplateCfg) {
       const tmr = diasEntre(c.datavi, uj.steps.conclusao.date); if (tmr != null && tmr >= 0) g.tmrArr.push(tmr);
     }
     if (isAtrasado(overrides, c)) g.atrasados++;
-    if (isSemAtualizacao(overrides, c, atendTemplateCfg)) g.semAtu++;
-    if (situacaoEfetiva(overrides, c, atendTemplateCfg).label === "Indenizado") g.indenizados++;
+    if (isSemAtualizacao(overrides, c, atendTemplateCfg, templates)) g.semAtu++;
+    if (situacaoEfetiva(overrides, c, atendTemplateCfg, templates).label === "Indenizado") g.indenizados++;
   });
   return Object.keys(map).map((k) => {
     const g = map[k];

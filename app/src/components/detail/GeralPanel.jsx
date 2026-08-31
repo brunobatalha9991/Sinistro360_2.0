@@ -179,7 +179,7 @@ export function GeralPanel({ c, claims, overrides, actions, canEdit, config, nav
     ["Filial", cell("codfil")],
     ["Nº controle", <span>{txt(c.nosnum)}</span>],
     ["Código", cell("codigo")],
-    ["Situação", <span>{situacaoEfetiva(overrides, c, config.corp_atendimento_template).label}</span>],
+    ["Situação", <span>{situacaoEfetiva(overrides, c, config.corp_atendimento_template, config.corp_journey_templates).label}</span>],
     ["Oficina", <OficinaCell c={c} overrides={overrides} ofOpts={ofOpts} actions={actions} canEdit={canEdit} navigate={navigate} />],
     ["Vínculo com oficina", cell("vinculoOficina", { type: "select", options: ["Referenciada", "Livre Escolha"], emptyLabel: "Não definido" })],
     ["Dt. Ocorrência", cell("datoco", { type: "date" })],

@@ -19,14 +19,14 @@ function alvoVazio() { return { nota: 0, comentario: "", naoAplica: false }; }
 // status, com "Não se aplica" como opção válida pra qualquer um dos 3
 // alvos. Os registros alimentam a nota média mostrada em
 // Oficinas/Seguradoras/Clientes (Métricas).
-export function PesquisaSatisfacaoPanel({ c, overrides, actions, canEdit, atendTemplateCfg }) {
+export function PesquisaSatisfacaoPanel({ c, overrides, actions, canEdit, atendTemplateCfg, templates }) {
   const atual = getPesquisaSatisfacao(overrides, c.id);
   const [dados, setDados] = useState(() => ({
     corretora: (atual && atual.corretora) || alvoVazio(),
     seguradora: (atual && atual.seguradora) || alvoVazio(),
     oficina: (atual && atual.oficina) || alvoVazio(),
   }));
-  const finalizado = isFinalizado(overrides, c, atendTemplateCfg);
+  const finalizado = isFinalizado(overrides, c, atendTemplateCfg, templates);
 
   function setAlvo(key, patch) {
     setDados((cur) => ({ ...cur, [key]: { ...cur[key], ...patch } }));

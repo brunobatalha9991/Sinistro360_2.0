@@ -26,10 +26,10 @@ export function intervalosDoUsuarioNoPeriodo(historico, usuarioId, inicioISO, fi
   return (historico || []).filter((h) => h.usuarioResponsavelId === usuarioId && sobrepoe(h, inicioISO, fimISO));
 }
 
-export function estoqueAtualDoUsuario(claims, overrides, usuarioId, atendTemplateCfg) {
+export function estoqueAtualDoUsuario(claims, overrides, usuarioId, atendTemplateCfg, templates) {
   return visibleClaims(claims).filter((c) => {
     const r = getResponsavel(overrides, c.id);
-    return r && r.id === usuarioId && !isFinalizado(overrides, c, atendTemplateCfg);
+    return r && r.id === usuarioId && !isFinalizado(overrides, c, atendTemplateCfg, templates);
   });
 }
 
@@ -143,7 +143,7 @@ function finalizadosNoPeriodo(claims, overrides, templates, atendTemplateCfg, hi
   let indenizados = 0, semIndenizacao = 0;
   const claimIds = [];
   (claims || []).forEach((c) => {
-    const sit = situacaoEfetiva(overrides, c, atendTemplateCfg).label;
+    const sit = situacaoEfetiva(overrides, c, atendTemplateCfg, templates).label;
     if (sit !== "Indenizado" && sit !== "Encerrado sem Indenização") return;
     const step = ultimaEtapaEfetiva(overrides, templates, atendTemplateCfg, c);
     if (!step) return;
@@ -192,13 +192,13 @@ export function calcularMetricasUsuario({
   ));
   const claimIdsNoPeriodo = [...new Set(intervalos.map((h) => h.claimId))];
 
-  const estoqueAtual = estoqueAtualDoUsuario(claims, overrides, usuarioId, atendTemplateCfg);
+  const estoqueAtual = estoqueAtualDoUsuario(claims, overrides, usuarioId, atendTemplateCfg, templates);
   const atrasadosAtual = estoqueAtual.filter((c) => isAtrasado(overrides, c));
   const semHistorico = estoqueAtual.filter((c) => !getHistoricoDoProcesso(historico, c.id).length);
-  const pendentesAtual = estoqueAtual.filter((c) => situacaoEfetiva(overrides, c, atendTemplateCfg).label === "Pendente").length;
+  const pendentesAtual = estoqueAtual.filter((c) => situacaoEfetiva(overrides, c, atendTemplateCfg, templates).label === "Pendente").length;
   const emAndamentoAtual = estoqueAtual.length - pendentesAtual;
   const diasSemAtu = estoqueAtual.map((c) => diasSemAtualizacao(overrides, c)).filter((d) => d != null);
-  const semAtualizacaoAtual = estoqueAtual.filter((c) => isSemAtualizacao(overrides, c, atendTemplateCfg)).length;
+  const semAtualizacaoAtual = estoqueAtual.filter((c) => isSemAtualizacao(overrides, c, atendTemplateCfg, templates)).length;
   const pesquisasCompletas = estoqueAtual.filter((c) => pesquisaSatisfacaoCompleta(overrides, c.id)).length;
 
   const fechados = intervalos.filter((h) => h.fimResponsabilidadeEm != null);

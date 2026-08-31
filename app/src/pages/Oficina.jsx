@@ -21,7 +21,7 @@ import { MetricasPanel } from "../components/oficina/MetricasPanel.jsx";
 // ter uma tela — ela existe assim que aparece em pelo menos um sinistro;
 // o cadastro é só um complemento manual opcional.
 export function Oficina() {
-  const { records } = useData();
+  const { records, config } = useData();
   const { param, navigate } = useHashRoute();
   const { currentUser } = useAuth();
   const actions = useOficinaActions();
@@ -29,6 +29,8 @@ export function Oficina() {
 
   const claims = visibleClaims(records.corp_claims, records.corp_overrides, currentUser);
   const overrides = records.corp_overrides || {};
+  const templates = config.corp_journey_templates;
+  const atendTemplateCfg = config.corp_atendimento_template;
   const canEdit = canEditRole(currentUser);
 
   const oficinaId = param;
@@ -57,7 +59,12 @@ export function Oficina() {
   function renderPanel() {
     switch (tab) {
       case "cadastro": return <CadastroPanel oficinaId={oficinaId} cadastro={cadastro} actions={actions} canEdit={canEdit} />;
-      case "atendimentos": return <AtendimentosPanel claims={cs} navigate={navigate} />;
+      case "atendimentos": return (
+        <AtendimentosPanel
+          claims={cs} navigate={navigate} oficinaNome={nome} overrides={overrides}
+          templates={templates} atendTemplateCfg={atendTemplateCfg} config={config}
+        />
+      );
       case "ocorrencias": return <OcorrenciasPanel oficinaId={oficinaId} claims={claims} actions={actions} canEdit={canEdit} navigate={navigate} />;
       case "comunicacao": return <ComunicacaoGestorPanel oficinaId={oficinaId} actions={actions} canEdit={canEdit} />;
       case "tarefas": return <TarefasOficinaPanel oficinaId={oficinaId} oficinaNome={nome} navigate={navigate} />;

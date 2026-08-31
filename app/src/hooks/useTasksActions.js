@@ -1,6 +1,6 @@
 import { useData } from "../data/DataProvider.jsx";
 import { useAuth } from "./useAuth";
-import { taskParticipants } from "../logic/tasks";
+import { taskParticipants, proximoCI, recorrenciaVencida, recorrenciaEncerrada, gerarOcorrenciaRecorrente } from "../logic/tasks";
 
 // Central de gravação em corp_tasks/corp_notifs/corp_demandas — porte 1:1
 // das funções de escrita do HTML original (pushNotif, taskInteract,
@@ -132,8 +132,39 @@ export function useTasksActions() {
     });
   }
 
+  // Gera as ocorrências vencidas de tarefas recorrentes (a pedido do
+  // usuário) — sem backend/cron aqui, então roda no cliente sempre que
+  // alguém abre o módulo Comunicação (ver Tarefas.jsx). Cada tarefa
+  // original pode estar atrasada por mais de um intervalo (app fica dias
+  // sem ser aberto) — o `while` interno gera todas as ocorrências
+  // pendentes de uma vez, com um teto de segurança pra nunca travar a tela
+  // por uma recorrência mal configurada (ex.: intervalo 0).
+  function gerarOcorrenciasRecorrentes() {
+    const hoje = new Date().toISOString().slice(0, 10);
+    const agora = new Date().toISOString();
+    saveRecord("corp_tasks", (current) => {
+      const all = current || [];
+      const novas = [];
+      const atualizadas = all.map((t) => {
+        if (!recorrenciaVencida(t, hoje)) return t;
+        let atual = t;
+        let seguranca = 0;
+        while (recorrenciaVencida(atual, hoje) && seguranca < 60) {
+          const nova = gerarOcorrenciaRecorrente(atual, agora);
+          nova.ci = proximoCI([...all, ...novas]);
+          novas.push(nova);
+          atual = { ...atual, recorrencia: { ...atual.recorrencia, ocorrenciasGeradas: (atual.recorrencia.ocorrenciasGeradas || 0) + 1 } };
+          seguranca++;
+        }
+        if (recorrenciaEncerrada(atual)) atual = { ...atual, recorrencia: { ...atual.recorrencia, ativa: false } };
+        return atual;
+      });
+      return novas.length ? [...atualizadas, ...novas] : all;
+    });
+  }
+
   return {
     pushNotif, saveTask, createTask, taskInteract, arquivarManualmente, excluirTarefa, definirOrdemManual,
-    markTaskCiente, markNotifRead, dismissAlarmeMesa, markAllNotifsRead, purgeOldTasks,
+    markTaskCiente, markNotifRead, dismissAlarmeMesa, markAllNotifsRead, purgeOldTasks, gerarOcorrenciasRecorrentes,
   };
 }

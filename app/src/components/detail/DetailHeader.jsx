@@ -2,6 +2,8 @@ import { useState } from "react";
 import { PartyBadge } from "../PartyBadge.jsx";
 import { EmailViewerModal } from "../EmailViewerModal.jsx";
 import { HeaderLayoutGrid } from "./HeaderLayoutGrid.jsx";
+import { LinkAcompanhamentoModal } from "./LinkAcompanhamentoModal.jsx";
+import { usePublicTrackingSync } from "../../hooks/usePublicTrackingSync";
 import { useData } from "../../data/DataProvider.jsx";
 import { podeSerResponsavel } from "../../data/auth";
 import { setDemandaPrefill } from "../../state/taskModal";
@@ -174,10 +176,11 @@ export function DetailHeader({ c, sit, rel, claims, allClaimsRaw, overrides, use
   const atrasada = isAtrasado(overrides, c);
   const comms = loadComms(overrides, c.id);
   const last = comms.length ? comms[comms.length - 1] : null;
-  const semAtualizacao = isSemAtualizacao(overrides, c, config.corp_atendimento_template);
-  const situacaoEfe = situacaoEfetiva(overrides, c, config.corp_atendimento_template);
-  const finalizado = isFinalizado(overrides, c, config.corp_atendimento_template);
+  const semAtualizacao = isSemAtualizacao(overrides, c, config.corp_atendimento_template, config.corp_journey_templates);
+  const situacaoEfe = situacaoEfetiva(overrides, c, config.corp_atendimento_template, config.corp_journey_templates);
+  const finalizado = isFinalizado(overrides, c, config.corp_atendimento_template, config.corp_journey_templates);
   const pesqCompleta = pesquisaSatisfacaoCompleta(overrides, c.id);
+  usePublicTrackingSync(c, overrides, config.corp_journey_templates, config.corp_atendimento_template);
   const emailAlertas = getEmailAlertas(overrides, c.id);
   // Índice do e-mail aberto no modal (não o objeto direto): quando o
   // processo tem mais de um e-mail vinculado, as setas ‹ › do
@@ -187,6 +190,7 @@ export function DetailHeader({ c, sit, rel, claims, allClaimsRaw, overrides, use
   const [emailModalIndex, setEmailModalIndex] = useState(null);
   const emailAberto = emailModalIndex != null ? emailAlertas[emailModalIndex] : null;
   const [editMode, setEditMode] = useState(false);
+  const [linkAberto, setLinkAberto] = useState(false);
 
   // "Transformar em atualização" (a pedido do usuário): nunca grava nada
   // sozinho — só pré-preenche a caixa "Comunicação com o Cliente" do
@@ -245,7 +249,12 @@ export function DetailHeader({ c, sit, rel, claims, allClaimsRaw, overrides, use
       </div>
     ),
 
-    situacao: (
+    // Situação/Termômetro/Criar tarefa/Próxima ação só fazem sentido
+    // enquanto o processo ainda está em andamento — a pedido do usuário,
+    // somem assim que o processo chega em Indenizado/Encerrado sem
+    // Indenização (mesmo critério de `finalizado` usado na Pesquisa de
+    // satisfação logo abaixo).
+    situacao: finalizado ? null : (
       <span className="badge chip-live blue" style={{ gap: 6 }}>
         <select className="inline" value={sitAt} disabled={!canEdit} onChange={(e) => changeSit(e.target.value)}>
           <option value="">Situação...</option>
@@ -261,7 +270,7 @@ export function DetailHeader({ c, sit, rel, claims, allClaimsRaw, overrides, use
       </span>
     ),
 
-    atendimento: (
+    atendimento: finalizado ? null : (
       <span className={"badge chip-live " + tempClr + (tempUrgente ? " neon-alert" : "")} style={{ gap: 6, ...(tempUrgente ? { "--neon-rgb": "var(--danger-rgb)" } : {}) }} title={tempUrgente ? "Atendimento requer atenção" : ""}>
         <select className="inline" value={temp} disabled={!canEdit} onChange={(e) => changeTemp(e.target.value)}>
           <option value="">🌡 Atendimento...</option>
@@ -294,7 +303,7 @@ export function DetailHeader({ c, sit, rel, claims, allClaimsRaw, overrides, use
 
     responsavel: <ResponsavelBox c={c} users={users} overrides={overrides} actions={actions} canEdit={canEdit} />,
 
-    criarTarefa: (
+    criarTarefa: finalizado ? null : (
       <button
         className="btn sec xs" style={{ width: "100%", height: "100%" }}
         onClick={() => {
@@ -306,7 +315,7 @@ export function DetailHeader({ c, sit, rel, claims, allClaimsRaw, overrides, use
       </button>
     ),
 
-    proximaAcao: (
+    proximaAcao: finalizado ? null : (
       <div style={{ minWidth: 0, height: "100%", boxSizing: "border-box", borderRadius: 8, border: "1px solid var(--border)", background: "var(--surface-2)", padding: "10px 12px" }}>
         <PainelItem
           cor={atrasada ? "var(--danger)" : na && na.title ? "var(--brand)" : "var(--danger)"}
@@ -395,10 +404,17 @@ export function DetailHeader({ c, sit, rel, claims, allClaimsRaw, overrides, use
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 8, marginBottom: 12 }}>
         <button className="btn sec sm" onClick={() => navigate("sinistros")}>← Voltar aos sinistros</button>
         <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+          <button className="btn sec sm" onClick={() => setLinkAberto(true)}>🔗 Link de acompanhamento</button>
           {canEdit && <button className="btn sec sm" onClick={abrirProcessoVinculado}>+ Abrir processo vinculado</button>}
           {canEdit && <button className="btn danger sm" onClick={excluirProcesso}>🗑 Excluir processo</button>}
         </div>
       </div>
+      {linkAberto && (
+        <LinkAcompanhamentoModal
+          c={c} overrides={overrides} templates={config.corp_journey_templates} atendTemplateCfg={config.corp_atendimento_template}
+          actions={actions} canEdit={canEdit} onClose={() => setLinkAberto(false)}
+        />
+      )}
       <h1>{(numsinEf ? "Sinistro " + numsinEf : "Registro #" + c.nosnum) + " — " + txt(seguradoEf)}</h1>
       <div className="sub">Placa {txt(placaEf)} • {txt(ciaEf)} • Ramo {txt(ramoEf)} • Apólice {txt(numapoEf)} • Oficina {txt(oficinaEf)}</div>
 
@@ -428,6 +444,7 @@ export function DetailHeader({ c, sit, rel, claims, allClaimsRaw, overrides, use
 
       <EmailViewerModal
         email={emailAberto}
+        clienteNome={txt(seguradoEf)}
         index={emailModalIndex}
         total={emailAlertas.length}
         onPrev={() => setEmailModalIndex((i) => Math.max(0, i - 1))}

@@ -77,11 +77,11 @@ export function Dashboard() {
       if (dashFilter.ramo !== "todos" && campoEfetivo(overrides, c, "ramo") !== dashFilter.ramo) return false;
       if (dashFilter.oficina !== "todas" && dashOficinaKey(overrides, c) !== dashFilter.oficina) return false;
       if (dashFilter.tipo !== "todos" && c.partyType !== dashFilter.tipo) return false;
-      if (dashFilter.status !== "todos" && situacaoEfetiva(overrides, c, atendTemplate).label !== dashFilter.status) return false;
+      if (dashFilter.status !== "todos" && situacaoEfetiva(overrides, c, atendTemplate, templates).label !== dashFilter.status) return false;
       if (dashFilter.caminho !== "todos" && (getUserJourney(overrides, c.id) || {}).caminho !== dashFilter.caminho) return false;
       if (dashFilter.manual && !isManualClaim(c)) return false;
       if (dashFilter.aberto) {
-        const sl = situacaoEfetiva(overrides, c, atendTemplate).label;
+        const sl = situacaoEfetiva(overrides, c, atendTemplate, templates).label;
         if (sl !== "Pendente" && sl !== "Em andamento") return false;
       }
       return true;
@@ -118,7 +118,7 @@ export function Dashboard() {
   const total = rows.length;
 
   const byStatus = {};
-  rows.forEach((c) => { const l = situacaoEfetiva(overrides, c, atendTemplate).label; byStatus[l] = (byStatus[l] || 0) + 1; });
+  rows.forEach((c) => { const l = situacaoEfetiva(overrides, c, atendTemplate, templates).label; byStatus[l] = (byStatus[l] || 0) + 1; });
   const byTipo = {};
   rows.forEach((c) => { byTipo[c.partyType] = (byTipo[c.partyType] || 0) + 1; });
   let totalAvaliado = 0, totalIndenizado = 0, totalFranquia = 0;
@@ -131,7 +131,7 @@ export function Dashboard() {
   const ticketMedio = indenizados ? totalIndenizado / indenizados : 0;
   const taxaIndeniz = total ? (indenizados / total) * 100 : 0;
   const atrasados = rows.filter((c) => isAtrasado(overrides, c)).length;
-  const semAtu = rows.filter((c) => isSemAtualizacao(overrides, c, atendTemplate)).length;
+  const semAtu = rows.filter((c) => isSemAtualizacao(overrides, c, atendTemplate, templates)).length;
   const vinculados = rows.filter((c) => relatedClaims(overrides, allClaimsRaw, c).length > 0).length;
 
   const tmaArr = [], tmeArr = [], tmrArr = [];
@@ -155,9 +155,9 @@ export function Dashboard() {
   const byEtapa = {};
   rows.forEach((c) => { const s = currentStage(overrides, templates, atendTemplate, c); if (s) byEtapa[s] = (byEtapa[s] || 0) + 1; });
 
-  const aggOficina = buildAggregation(overrides, rows, (c) => dashOficinaKey(overrides, c), atendTemplate);
-  const aggSeguradora = buildAggregation(overrides, rows, (c) => dashCiaLabel(overrides, c), atendTemplate);
-  const aggRamo = buildAggregation(overrides, rows, (c) => campoEfetivo(overrides, c, "ramo"), atendTemplate);
+  const aggOficina = buildAggregation(overrides, rows, (c) => dashOficinaKey(overrides, c), atendTemplate, templates);
+  const aggSeguradora = buildAggregation(overrides, rows, (c) => dashCiaLabel(overrides, c), atendTemplate, templates);
+  const aggRamo = buildAggregation(overrides, rows, (c) => campoEfetivo(overrides, c, "ramo"), atendTemplate, templates);
 
   const months = last12Months();
   const abertosPorMes = {}, encerradosPorMes = {};

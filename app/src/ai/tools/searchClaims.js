@@ -36,7 +36,7 @@ export const searchClaimsTool = {
       claims = claims.filter((c) => String(campoEfetivo(overrides, c, "cia") || "").toLowerCase().indexOf(ciaFiltro) >= 0);
     }
     if (situacaoFiltro) {
-      claims = claims.filter((c) => situacaoEfetiva(overrides, c, atendTemplate).label.toLowerCase().indexOf(situacaoFiltro) >= 0);
+      claims = claims.filter((c) => situacaoEfetiva(overrides, c, atendTemplate, templates).label.toLowerCase().indexOf(situacaoFiltro) >= 0);
     }
 
     const total = claims.length;
@@ -47,7 +47,7 @@ export const searchClaimsTool = {
       segurado: txt(campoEfetivo(overrides, c, "segurado")),
       placa: txt(campoEfetivo(overrides, c, "placa")),
       cia: txt(campoEfetivo(overrides, c, "cia")),
-      situacao: situacaoEfetiva(overrides, c, atendTemplate).label,
+      situacao: situacaoEfetiva(overrides, c, atendTemplate, templates).label,
       etapaAtual: currentStage(overrides, templates, atendTemplate, c) || "—",
     }));
 

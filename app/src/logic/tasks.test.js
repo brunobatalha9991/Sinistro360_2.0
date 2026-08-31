@@ -2,6 +2,7 @@ import { describe, it, expect } from "vitest";
 import {
   isTarefaEmergencia, isTarefaArquivada, descreverAlteracoesTarefa,
   tarefasNoEscopo, tarefaTemPapel, compararTarefasAuto, proximoCI,
+  proximaOcorrenciaRecorrencia, recorrenciaEncerrada, recorrenciaVencida, gerarOcorrenciaRecorrente, resumoRecorrencia,
 } from "./tasks";
 
 function horasAtras(h) { return new Date(Date.now() - h * 60 * 60 * 1000).toISOString(); }
@@ -117,6 +118,20 @@ describe("compararTarefasAuto", () => {
     const antiga = { urgencia: "Leve", createdAt: "2026-08-01T00:00:00.000Z" };
     expect(compararTarefasAuto(recente, antiga)).toBeLessThan(0);
   });
+  // Bug relatado 2026-08-28: uma tarefa Urgente concluída ficava acima de
+  // outras ainda pendentes, porque o status nunca entrava no critério de
+  // ordenação (só emergência/urgência/data) — concluída agora sempre vai
+  // pro final, mesmo sendo Urgente e mais recente.
+  it("concluída sempre por último, mesmo sendo Urgente e mais recente", () => {
+    const concluidaUrgente = { status: "Concluído", urgencia: "Urgente", createdAt: "2026-08-28T00:00:00.000Z" };
+    const pendenteLeve = { status: "Pendente", urgencia: "Leve", createdAt: "2026-08-01T00:00:00.000Z" };
+    expect(compararTarefasAuto(concluidaUrgente, pendenteLeve)).toBeGreaterThan(0);
+  });
+  it("Pendente antes de Em andamento, na mesma urgência", () => {
+    const pendente = { status: "Pendente", urgencia: "Leve", createdAt: "2026-08-01T00:00:00.000Z" };
+    const emAndamento = { status: "Em andamento", urgencia: "Leve", createdAt: "2026-08-01T00:00:00.000Z" };
+    expect(compararTarefasAuto(pendente, emAndamento)).toBeLessThan(0);
+  });
 });
 
 describe("proximoCI", () => {
@@ -128,5 +143,70 @@ describe("proximoCI", () => {
   });
   it("ignora tarefas sem protocolo (dados antigos, de antes desta funcionalidade)", () => {
     expect(proximoCI([{ ci: "CI-000002" }, {}])).toBe("CI-000003");
+  });
+});
+
+describe("recorrência de tarefa", () => {
+  const base = { id: "tsk_1", titulo: "Follow-up", createdAt: "2026-08-01T10:00:00.000Z" };
+
+  it("sem recorrência ativa, não tem próxima ocorrência nem vence", () => {
+    expect(proximaOcorrenciaRecorrencia(base)).toBeNull();
+    expect(recorrenciaVencida(base, "2026-12-01")).toBe(false);
+  });
+
+  it("calcula a próxima ocorrência a cada N dias, contando a partir da criação", () => {
+    const t = { ...base, recorrencia: { ativa: true, intervalo: 3, unidade: "dias", fim: { tipo: "nunca" }, ocorrenciasGeradas: 0 } };
+    expect(proximaOcorrenciaRecorrencia(t)).toBe("2026-08-04");
+  });
+
+  it("considera ocorrências já geradas ao calcular a próxima", () => {
+    const t = { ...base, recorrencia: { ativa: true, intervalo: 1, unidade: "semanas", fim: { tipo: "nunca" }, ocorrenciasGeradas: 2 } };
+    expect(proximaOcorrenciaRecorrencia(t)).toBe("2026-08-22");
+  });
+
+  it("vencida quando a data de hoje já passou da próxima ocorrência", () => {
+    const t = { ...base, recorrencia: { ativa: true, intervalo: 1, unidade: "dias", fim: { tipo: "nunca" }, ocorrenciasGeradas: 0 } };
+    expect(recorrenciaVencida(t, "2026-08-02")).toBe(true);
+    expect(recorrenciaVencida(t, "2026-08-01")).toBe(false);
+  });
+
+  it("encerra por número de ocorrências atingido", () => {
+    const t = { ...base, recorrencia: { ativa: true, intervalo: 1, unidade: "dias", fim: { tipo: "vezes", vezes: 2 }, ocorrenciasGeradas: 2 } };
+    expect(recorrenciaEncerrada(t)).toBe(true);
+    expect(recorrenciaVencida(t, "2026-12-01")).toBe(false);
+  });
+
+  it("encerra quando a próxima ocorrência passaria da data-fim configurada", () => {
+    const t = { ...base, recorrencia: { ativa: true, intervalo: 1, unidade: "semanas", fim: { tipo: "data", data: "2026-08-03" }, ocorrenciasGeradas: 0 } };
+    expect(recorrenciaEncerrada(t)).toBe(true);
+  });
+
+  it("gera uma nova ocorrência limpa, mantendo vínculos e apontando pra tarefa original", () => {
+    const original = {
+      ...base, status: "Concluído", concludedAt: "2026-08-01T12:00:00.000Z", comments: [{ id: "c1" }],
+      log: [{ acao: "x" }], ciente: { u1: "2026-08-01" }, processo: "clm_1", oficinaId: "of_1",
+      recorrencia: { ativa: true, intervalo: 1, unidade: "dias", fim: { tipo: "nunca" }, ocorrenciasGeradas: 0 },
+    };
+    const nova = gerarOcorrenciaRecorrente(original, "2026-08-04T09:00:00.000Z");
+    expect(nova.id).not.toBe(original.id);
+    expect(nova.status).toBe("Pendente");
+    expect(nova.comments).toEqual([]);
+    expect(nova.ciente).toEqual({});
+    expect(nova.recorrencia).toBeNull();
+    expect(nova.origemRecorrenciaId).toBe("tsk_1");
+    expect(nova.processo).toBe("clm_1");
+    expect(nova.oficinaId).toBe("of_1");
+  });
+
+  it("resume a configuração em texto legível", () => {
+    expect(resumoRecorrencia({ ativa: true, intervalo: 2, unidade: "semanas", fim: { tipo: "nunca" } })).toBe("Repete a cada 2 semana(s), sem data de término");
+    expect(resumoRecorrencia({ ativa: true, intervalo: 1, unidade: "meses", fim: { tipo: "vezes", vezes: 5 } })).toBe("Repete a cada 1 mês(es), por 5 vez(es)");
+    expect(resumoRecorrencia(null)).toBe("");
+  });
+
+  it("descreve a mudança de recorrência na auditoria da tarefa", () => {
+    const antes = { titulo: "T", recorrencia: null };
+    const depois = { titulo: "T", recorrencia: { ativa: true, intervalo: 1, unidade: "dias", fim: { tipo: "nunca" } } };
+    expect(descreverAlteracoesTarefa(antes, depois, {})).toContain("Recorrência configurada: Repete a cada 1 dia(s), sem data de término");
   });
 });

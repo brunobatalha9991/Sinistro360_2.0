@@ -6,13 +6,13 @@ import { txt } from "../../logic/format";
 // Um bloco independente por situação (Pendente / Em andamento) — cada um
 // com seu próprio responsável escolhido, a pedido do usuário: os dois
 // grupos podem ganhar responsáveis diferentes.
-function BlocoStatus({ status, claims, overrides, users, actions, canEdit, atendTemplateCfg }) {
+function BlocoStatus({ status, claims, overrides, users, actions, canEdit, atendTemplateCfg, templates }) {
   const [usuarioId, setUsuarioId] = useState("");
   const [resultado, setResultado] = useState(null);
 
   const semResponsavel = useMemo(() => claims.filter((c) => (
-    situacaoEfetiva(overrides, c, atendTemplateCfg).label === status && !getResponsavel(overrides, c.id)
-  )), [claims, overrides, status, atendTemplateCfg]);
+    situacaoEfetiva(overrides, c, atendTemplateCfg, templates).label === status && !getResponsavel(overrides, c.id)
+  )), [claims, overrides, status, atendTemplateCfg, templates]);
 
   function aplicar() {
     if (!canEdit) { alert("Apenas administradores podem executar esta atribuição em massa."); return; }
@@ -61,15 +61,15 @@ function BlocoStatus({ status, claims, overrides, users, actions, canEdit, atend
 // responsável — nunca sobrescreve quem já está definido. Reaproveita
 // useOverrideActions().saveResponsavel(), que já grava overrides.responsavelUser
 // E o intervalo em corp_responsabilidade_historico (Fase 2) pra cada processo.
-export function AtribuirResponsavelEmMassaCard({ claims, overrides, users, actions, canEdit, atendTemplateCfg }) {
+export function AtribuirResponsavelEmMassaCard({ claims, overrides, users, actions, canEdit, atendTemplateCfg, templates }) {
   return (
     <div className="card">
       <h3 style={{ marginTop: 0 }}>Atribuir responsável em massa</h3>
       <p className="muted">
         Define um responsável para todos os processos de uma situação que ainda <b>não têm nenhum responsável definido</b> — "Pendente" e "Em andamento" são independentes e podem ganhar responsáveis diferentes. Processos que já têm responsável não são alterados.
       </p>
-      <BlocoStatus status="Pendente" claims={claims} overrides={overrides} users={users} actions={actions} canEdit={canEdit} atendTemplateCfg={atendTemplateCfg} />
-      <BlocoStatus status="Em andamento" claims={claims} overrides={overrides} users={users} actions={actions} canEdit={canEdit} atendTemplateCfg={atendTemplateCfg} />
+      <BlocoStatus status="Pendente" claims={claims} overrides={overrides} users={users} actions={actions} canEdit={canEdit} atendTemplateCfg={atendTemplateCfg} templates={templates} />
+      <BlocoStatus status="Em andamento" claims={claims} overrides={overrides} users={users} actions={actions} canEdit={canEdit} atendTemplateCfg={atendTemplateCfg} templates={templates} />
     </div>
   );
 }

@@ -4,6 +4,7 @@ import {
   distinctAgentes, distinctProdutores, getAgentesEfetivo,
   grupoProdutor, distinctGruposProdutores, emailAlertaDispensado,
   getPesquisaSatisfacao, pesquisaSatisfacaoCompleta,
+  situacaoEfetiva, isFinalizado,
 } from "./claims";
 
 const overrides = {
@@ -130,6 +131,62 @@ describe("distinctGruposProdutores", () => {
     };
     const cl = [{ id: "c1" }, { id: "c2" }, { id: "c3" }];
     expect(distinctGruposProdutores(ovr, cl)).toEqual(["LORENA / DANIELA DE SÁ", "MAGNO SUED"]);
+  });
+});
+
+// Bug relatado 2026-08-31: um caminho (Perda Parcial/Integral) cuja etapa
+// final foi renomeada/reordenada em Configurações → Jornadas (ex.:
+// "Encerramento" em vez de "Conclusão", com id próprio em vez de
+// "conclusao") nunca era detectado como Indenizado/Sem Indenização — a
+// checagem antiga só olhava o step de id fixo "conclusao". Agora usa
+// sempre a ÚLTIMA etapa de fato do caminho escolhido.
+describe("situacaoEfetiva / isFinalizado — etapa final com id/nome customizado", () => {
+  const templates = {
+    Auto: {
+      parcial: [
+        { id: "rep", title: "Reparo", statusOptions: ["Aguardando", "Concluído"] },
+        {
+          id: "encerramento", title: "Encerramento",
+          statusOptions: ["Aguard. pesquisa", "Indenizado", "Sem Indenização"],
+          doneStatuses: ["Indenizado"], negativoStatuses: ["Sem Indenização"],
+        },
+      ],
+    },
+  };
+
+  it("última etapa marcada verde (Indenizado) vira 'Indenizado', mesmo com id/nome customizado", () => {
+    const c = { id: "c1", ramo: "Auto" };
+    const overrides = { c1: { journeyUser: { caminho: "parcial", steps: { encerramento: { status: "Indenizado" } } } } };
+    expect(situacaoEfetiva(overrides, c, null, templates)).toEqual({ label: "Indenizado", cls: "green" });
+    expect(isFinalizado(overrides, c, null, templates)).toBe(true);
+  });
+
+  it("última etapa marcada vermelha (Sem Indenização) vira 'Encerrado sem Indenização'", () => {
+    const c = { id: "c1", ramo: "Auto" };
+    const overrides = { c1: { journeyUser: { caminho: "parcial", steps: { encerramento: { status: "Sem Indenização" } } } } };
+    expect(situacaoEfetiva(overrides, c, null, templates)).toEqual({ label: "Encerrado sem Indenização", cls: "gray" });
+    expect(isFinalizado(overrides, c, null, templates)).toBe(true);
+  });
+
+  it("última etapa ainda sem desfecho fica 'Em andamento'", () => {
+    const c = { id: "c1", ramo: "Auto" };
+    const overrides = { c1: { journeyUser: { caminho: "parcial", steps: { encerramento: { status: "Aguard. pesquisa" } } } } };
+    expect(situacaoEfetiva(overrides, c, null, templates).label).toBe("Em andamento");
+    expect(isFinalizado(overrides, c, null, templates)).toBe(false);
+  });
+
+  it("sem caminho escolhido ainda, fica 'Pendente'", () => {
+    const c = { id: "c1", ramo: "Auto" };
+    const overrides = { c1: { journeyUser: { caminho: "", steps: { encerramento: { status: "Indenizado" } } } } };
+    expect(situacaoEfetiva(overrides, c, null, templates).label).toBe("Pendente");
+  });
+
+  it("template padrão (sem admin configurar nada) também reconhece Indenizado/Sem Indenização pelo texto", () => {
+    const c = { id: "c1", ramo: "SemTemplateConfigurado" };
+    const ovrInd = { c1: { journeyUser: { caminho: "parcial", steps: { conclusao: { status: "Indenizado" } } } } };
+    const ovrSemInd = { c1: { journeyUser: { caminho: "parcial", steps: { conclusao: { status: "Sem Indenização" } } } } };
+    expect(situacaoEfetiva(ovrInd, c, null, {}).label).toBe("Indenizado");
+    expect(situacaoEfetiva(ovrSemInd, c, null, {}).label).toBe("Encerrado sem Indenização");
   });
 });
 

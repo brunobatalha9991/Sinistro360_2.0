@@ -11,6 +11,7 @@ import { visibleClaims, isAtrasado } from "../logic/claims";
 import { myUnreadCount, demandaUnreadCount } from "../logic/tasks";
 import { useHorarioAlarme } from "../hooks/useHorarioAlarme";
 import { useTarefaAlarme } from "../hooks/useTarefaAlarme";
+import { useDicasAssistente } from "../hooks/useDicasAssistente";
 
 const SIDEBAR_KEY = "corp_sidebar_collapsed";
 
@@ -82,6 +83,7 @@ export function Shell({ route, param, crumb, currentUser, currentRole, onNavigat
   const { isRealVip, vipViewActive, toggleVipView } = useAuth();
   const { alarmes: alarmesHora, dismiss: dismissAlarmeHora, dismissAll: dismissAllAlarmeHora } = useHorarioAlarme(currentUser);
   const { alarmes: alarmesTarefa, dismiss: dismissAlarmeTarefa, dismissAll: dismissAllAlarmeTarefa, markViewed: markViewedAlarmeTarefa } = useTarefaAlarme(currentUser);
+  useDicasAssistente(currentUser);
   const menu = visibleMenu(currentUser, currentRole);
   const nome = currentUser?.nome || "Usuário";
   const isDark = theme === "dark";

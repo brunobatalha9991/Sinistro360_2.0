@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { formularioDisponivel, validarSolicitacao, secoesDoFormulario, caminhoPastaSolicitacao, getFormularioEfetivo } from "./solicitacaoAtendimento";
+import { formularioDisponivel, validarSolicitacao, secoesDoFormulario, caminhoPastaSolicitacao, getFormularioEfetivo, secaoRepetivel } from "./solicitacaoAtendimento";
 
 describe("formularioDisponivel", () => {
   it("os 3 formulários estão disponíveis", () => {
@@ -41,6 +41,47 @@ describe("validarSolicitacao", () => {
       atendimento_desejado: "Pequenos Reparos", proposta_assinada: "Sim",
     });
     expect(erro).toBeNull();
+  });
+});
+
+describe("secaoRepetivel (mais de um terceiro)", () => {
+  it("'Dados do Terceiro' do sinistro é repetível", () => {
+    expect(secaoRepetivel("sinistro", "Dados do Terceiro")).toBe(true);
+  });
+  it("outras seções/tipos não são repetíveis", () => {
+    expect(secaoRepetivel("sinistro", "Dados do Sinistro e do Segurado")).toBe(false);
+    expect(secaoRepetivel("assistencia_24h", "Dados do Terceiro")).toBe(false);
+  });
+});
+
+describe("validarSolicitacao — terceiros extras", () => {
+  const base = {
+    comercial_solicitante: "Ana", nome_segurado: "Carlos", contato_segurado: "11999990000",
+    atendimento_desejado: "Para o Segurado e o Terceiro", tipo_ocorrencia: "Colisão",
+    data_hora_ocorrencia: "2026-08-22T10:00", endereco_ocorrencia: "Rua X, 123",
+    descricao_ocorrencia: "Relato...", condutor_se_considera_responsavel: "Não",
+    proposta_assinada: "Sim", realizou_bo: "Não",
+  };
+
+  it("terceiro extra sem nenhum campo obrigatório na seção: não bloqueia (padrão de fábrica não tem obrigatório em Terceiro)", () => {
+    const erro = validarSolicitacao("sinistro", { ...base, terceirosExtra: [{ nome_terceiro: "João" }, {}] });
+    expect(erro).not.toMatch(/terceiro adicional/);
+  });
+
+  it("com um campo de Terceiro marcado obrigatório pelo admin, cobra em cada terceiro extra", () => {
+    const config = {
+      corp_solicitacao_formularios: {
+        sinistro: {
+          titulo: "Custom",
+          campos: [
+            { id: "nome_terceiro", secao: "Dados do Terceiro", label: "Nome do Terceiro", tipo: "texto", obrigatorio: true },
+          ],
+        },
+      },
+    };
+    const erro = validarSolicitacao("sinistro", { nome_terceiro: "Primeiro", terceirosExtra: [{ nome_terceiro: "João" }, {}] }, config);
+    expect(erro).toMatch(/terceiro adicional/);
+    expect(erro).toMatch(/Nome do Terceiro/);
   });
 });
 

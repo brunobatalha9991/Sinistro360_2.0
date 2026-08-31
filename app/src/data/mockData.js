@@ -105,4 +105,6 @@ export const MOCK_CONFIG = {
   corp_solicitacao_formularios: {},
   corp_checklist_mesa_atendimento: {},
   corp_msg_templates: [],
+  corp_assistente_dicas: [],
+  corp_tratativa_lote_template: "",
 };

@@ -1,4 +1,7 @@
 import { useEffect } from "react";
+import { DndContext, closestCenter, PointerSensor, useSensor, useSensors } from "@dnd-kit/core";
+import { arrayMove, SortableContext, verticalListSortingStrategy, useSortable } from "@dnd-kit/sortable";
+import { CSS } from "@dnd-kit/utilities";
 import { useData } from "../data/DataProvider.jsx";
 import { useHashRoute } from "../hooks/useHashRoute";
 import { useAuth } from "../hooks/useAuth";
@@ -13,14 +16,17 @@ import { visibleClaims } from "../logic/claims";
 import { oficinaNomeFromId } from "../logic/oficinas";
 import { seguradoraNomeFromId } from "../logic/seguradoras";
 import { clienteNomeFromId } from "../logic/clientes";
-import { fmtDateHoraBR } from "../logic/format";
+import { fmtDateHoraBR, fmtDateBR } from "../logic/format";
 import {
   taskIsStale, taskCienteByMe, isTarefaEmergencia, isTarefaArquivada,
-  tarefasNoEscopo, tarefaTemPapel, compararTarefasAuto, TASK_FLAGS_DEFAULT,
+  tarefasNoEscopo, tarefaTemPapel, compararTarefasAuto, TASK_FLAGS_DEFAULT, resumoRecorrencia,
 } from "../logic/tasks";
 import { checklistProgresso } from "../logic/checklistMesaAtendimento";
 
-const STATUS_CHIPS = [["todas", "Todas"], ["Pendente", "Pendentes"], ["Em andamento", "Em andamento"], ["Concluído", "Concluídas"]];
+const STATUS_CHIPS = [
+  ["todas", "Todas"], ["em_aberto", "Em aberto"], ["Pendente", "Pendentes"],
+  ["Em andamento", "Em andamento"], ["Concluído", "Concluídas"],
+];
 const URG_CHIPS = [["todas", "Toda urgência"], ["Urgente", "Urgente"], ["Moderado", "Moderado"], ["Leve", "Leve"]];
 const ATENDIMENTO_CHIPS = [
   ["todas", "Atendimento: todos"], ["sinistro", "Sinistro"],
@@ -29,8 +35,107 @@ const ATENDIMENTO_CHIPS = [
 const PAPEL_CHIPS = [["ambos", "Origem/Destinatário"], ["origem", "Só origem"], ["destinatario", "Só destinatário"]];
 const DEFAULT_TASK_TYPES = ["Comunicação", "Lembrete", "Tarefa", "Mesa de Atendimento"];
 
+// Card de uma tarefa — extraído pra ser reaproveitado tanto na ordem
+// automática (sem drag) quanto na "Ordem manual" (dentro de um
+// SortableTaskCard, ver abaixo). `dragHandleProps` só vem preenchido no
+// segundo caso: attributes/listeners do dnd-kit pra arrastar SÓ pela
+// alcinha ⠿, não pelo card inteiro (senão qualquer clique num botão vira
+// tentativa de arrastar).
+function TaskCard({ t, claims, records, users, config, currentUser, navigate, actions, openTask, arquivarTarefa, excluirTarefa, dragHandleProps }) {
+  const stale = taskIsStale(t, currentUser);
+  const origem = users.find((u) => u.id === t.origem) || { nome: "—" };
+  const dests = (t.destinatarios || []).map((id) => (users.find((u) => u.id === id) || { nome: "?" }).nome).join(", ");
+  const proc = t.processo ? claims.find((c) => c.id === t.processo) : null;
+  const oficinaNome = t.oficinaId ? oficinaNomeFromId(claims, records.corp_overrides, t.oficinaId) : "";
+  const seguradoraNome = t.seguradoraId ? seguradoraNomeFromId(claims, records.corp_overrides, t.seguradoraId) : "";
+  const clienteNome = t.clienteId ? clienteNomeFromId(claims, records.corp_overrides, t.clienteId) : "";
+  const emergencia = isTarefaEmergencia(t);
+  return (
+    <div
+      className={"task-card " + (t.urgencia || "").toLowerCase() + (stale ? " stale" : "") + (emergencia ? " neon-alert" : "")}
+      style={emergencia ? { "--neon-rgb": "var(--danger-rgb)" } : undefined}
+    >
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 8, flexWrap: "wrap" }}>
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <div style={{ display: "flex", gap: 6, alignItems: "center", flexWrap: "wrap", marginBottom: 4 }}>
+            {emergencia && <span className="badge red" style={{ fontWeight: 700 }}>EMERGÊNCIA</span>}
+            {t.ci && <span className="badge gray mono" title="Número de protocolo">{t.ci}</span>}
+            <span className={"badge-mini urg-badge " + (t.urgencia || "").toLowerCase()}>{t.urgencia}</span>
+            <span className="badge gray">{t.tipo}</span>
+            <span className={"badge " + (t.status === "Concluído" ? "green" : t.status === "Em andamento" ? "amber" : "blue")}>{t.status}</span>
+            {t.tipoAtendimento === "sinistro" && <span className="badge blue">Sinistro</span>}
+            {t.tipoAtendimento === "assistencia_24h" && <span className="badge purple">Assistência 24h</span>}
+            {t.tipoAtendimento === "assistencia_vidros" && <span className="badge purple">Vidros/pequenos reparos</span>}
+            {t.tipo === "Mesa de Atendimento" && (() => {
+              const p = checklistProgresso(t.checklistMesa, config);
+              return <span className={"badge " + (p.total && p.feitos === p.total ? "green" : "amber")}>Checklist {p.feitos}/{p.total}</span>;
+            })()}
+            {t.tipo === "Mesa de Atendimento" && t.solicitacao && <span className="badge blue">Solicitação preenchida</span>}
+            {t.proximaAcaoData && <span className="badge blue" title="Data prevista pra resolver esta tarefa">📅 {fmtDateBR(t.proximaAcaoData)}</span>}
+            {t.recorrencia?.ativa && <span className="badge purple" title={resumoRecorrencia(t.recorrencia)}>🔁 Recorrente</span>}
+            {t.origemRecorrenciaId && <span className="badge gray" title="Gerada automaticamente por uma recorrência">🔁 Gerada</span>}
+            {(t.flags || []).map((f) => <span key={f} className="badge amber">{f}</span>)}
+            {stale && <span className="badge red">⚠ +2h sem interação</span>}
+          </div>
+          <div style={{ fontSize: 15, fontWeight: 600 }}>{t.titulo}</div>
+          <div className="muted" style={{ fontSize: 12, marginTop: 2 }}>De {origem.nome} → {dests}</div>
+          {t.descricao && <div style={{ fontSize: 13, marginTop: 6, whiteSpace: "pre-wrap" }}>{t.descricao}</div>}
+          {(proc || oficinaNome || seguradoraNome || clienteNome) && (
+            <div style={{ marginTop: 6, display: "flex", gap: 6, flexWrap: "wrap" }}>
+              {proc && <a className="badge purple" onClick={() => navigate("sinistro", proc.id)}>🔗 {proc.numsin || "#" + proc.nosnum}</a>}
+              {oficinaNome && <a className="badge amber" onClick={() => navigate("oficina", t.oficinaId)}>🔧 {oficinaNome}</a>}
+              {seguradoraNome && <a className="badge blue" onClick={() => navigate("seguradora", t.seguradoraId)}>🏢 {seguradoraNome}</a>}
+              {clienteNome && <a className="badge green" onClick={() => navigate("cliente", t.clienteId)}>👤 {clienteNome}</a>}
+            </div>
+          )}
+          <div className="muted" style={{ fontSize: 11, marginTop: 6 }}>
+            Criada em {fmtDateHoraBR(t.createdAt)} • Última ação em {fmtDateHoraBR(t.updatedAt)}
+            {t.concludedAt && <> • Concluída em {fmtDateHoraBR(t.concludedAt)}</>}
+          </div>
+        </div>
+        <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+          {dragHandleProps && (
+            <button type="button" {...dragHandleProps.attributes} {...dragHandleProps.listeners} className="btn ghost xs" style={{ cursor: "grab" }} title="Arrastar para reordenar">⠿ Arrastar</button>
+          )}
+          <button className="btn sec xs" onClick={() => openTask(t.id)}>Abrir / editar</button>
+          {t.status !== "Concluído" && !taskCienteByMe(t, currentUser) && (
+            <button className="btn ok xs" title="Marcar que você viu esta tarefa (para o alerta parar)" onClick={() => actions.markTaskCiente(t.id)}>✓ Ciente</button>
+          )}
+          {t.status !== "Concluído" && taskCienteByMe(t, currentUser) && <span className="badge green" style={{ justifyContent: "center" }}>✓ Ciente</span>}
+          {(t.origem === currentUser.id || isAdmin(currentUser)) && !isTarefaArquivada(t) && (
+            <button className="btn sec xs" onClick={() => arquivarTarefa(t)}>Arquivar</button>
+          )}
+          {isAdmin(currentUser) && (
+            <button className="btn danger xs" onClick={() => excluirTarefa(t)}>Excluir</button>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// Só usado dentro da "Ordem manual" — cada card vira um item arrastável do
+// dnd-kit (a pedido do usuário, substitui os antigos botões ↑/↓ por
+// arrastar/soltar, mesma lib já usada no layout do cabeçalho do processo —
+// ver HeaderLayoutGrid.jsx).
+function SortableTaskCard({ id, ...cardProps }) {
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id });
+  const style = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    opacity: isDragging ? 0.6 : 1,
+    position: "relative",
+    zIndex: isDragging ? 10 : "auto",
+  };
+  return (
+    <div ref={setNodeRef} style={style}>
+      <TaskCard {...cardProps} dragHandleProps={{ attributes, listeners }} />
+    </div>
+  );
+}
+
 export function Tarefas() {
-  const { records, config, saveConfig, saveRecord } = useData();
+  const { records, config, saveConfig } = useData();
   const { param, navigate } = useHashRoute();
   const { currentUser } = useAuth();
   const actions = useTasksActions();
@@ -45,6 +150,7 @@ export function Tarefas() {
   // Porte 1:1 dos parâmetros de rota "open-<id>" e "newfromdemanda" do original.
   useEffect(() => {
     actions.purgeOldTasks();
+    actions.gerarOcorrenciasRecorrentes();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -87,10 +193,12 @@ export function Tarefas() {
   // Arquivadas (concluídas há mais de 4 dias) somem da visão normal mesmo
   // com todos os filtros marcados — só aparecem no modo "Arquivadas".
   tasks = tasks.filter((t) => (filter.verArquivadas ? isTarefaArquivada(t) : !isTarefaArquivada(t)));
-  if (filter.status !== "todas") tasks = tasks.filter((t) => t.status === filter.status);
+  if (filter.status === "em_aberto") tasks = tasks.filter((t) => t.status === "Pendente" || t.status === "Em andamento");
+  else if (filter.status !== "todas") tasks = tasks.filter((t) => t.status === filter.status);
   if (filter.urg !== "todas") tasks = tasks.filter((t) => t.urgencia === filter.urg);
   if (filter.tipo !== "todas") tasks = tasks.filter((t) => t.tipo === filter.tipo);
   if (filter.tipoAtendimento !== "todas") tasks = tasks.filter((t) => t.tipoAtendimento === filter.tipoAtendimento);
+  if (filter.proximaAcaoAte) tasks = tasks.filter((t) => t.proximaAcaoData && t.proximaAcaoData <= filter.proximaAcaoAte);
   if (filter.stale) tasks = tasks.filter((t) => taskIsStale(t, currentUser));
   if (filter.q) {
     const q = filter.q.toLowerCase();
@@ -141,18 +249,19 @@ export function Tarefas() {
     actions.definirOrdemManual(tasksAutoOrdenadas);
     taskFilterStore.patch({ ordemManual: true });
   }
-  function moverTarefa(t, direcao) {
-    const idx = tasks.findIndex((x) => x.id === t.id);
-    const vizIdx = idx + direcao;
-    if (vizIdx < 0 || vizIdx >= tasks.length) return;
-    const viz = tasks[vizIdx];
-    const ordemT = t.ordemManual ?? idx;
-    const ordemV = viz.ordemManual ?? vizIdx;
-    saveRecord("corp_tasks", (current) => (current || []).map((x) => {
-      if (x.id === t.id) return { ...x, ordemManual: ordemV };
-      if (x.id === viz.id) return { ...x, ordemManual: ordemT };
-      return x;
-    }));
+  // Arrastar e soltar (a pedido do usuário — substitui os antigos botões
+  // ↑/↓, "é melhor"): solta a tarefa arrastada na posição de `over` e
+  // regrava ordemManual sequencial pra lista inteira, na nova ordem —
+  // mesma gravação que "Ordem manual" já usava ao ligar o modo.
+  const dndSensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 4 } }));
+  function handleDragEnd(ev) {
+    const { active, over } = ev;
+    if (!over || active.id === over.id) return;
+    const ids = tasks.map((t) => t.id);
+    const oldIndex = ids.indexOf(active.id);
+    const newIndex = ids.indexOf(over.id);
+    if (oldIndex < 0 || newIndex < 0) return;
+    actions.definirOrdemManual(arrayMove(tasks, oldIndex, newIndex));
   }
 
   return (
@@ -209,6 +318,11 @@ export function Tarefas() {
             ))}
           </div>
           <div className="chips" style={{ alignItems: "center" }}>
+            <span className="muted" style={{ fontSize: 12, marginRight: 4 }}>Próxima ação até:</span>
+            <input type="date" className="inline" style={{ minWidth: 150 }} value={filter.proximaAcaoAte} onChange={(e) => taskFilterStore.patch({ proximaAcaoAte: e.target.value })} />
+            {filter.proximaAcaoAte && <button className="chip-btn" onClick={() => taskFilterStore.patch({ proximaAcaoAte: "" })}>limpar data</button>}
+          </div>
+          <div className="chips" style={{ alignItems: "center" }}>
             <div className={"chip-btn" + (filter.stale ? " active" : "")} onClick={() => taskFilterStore.patch({ stale: !filter.stale })}>⚠ Pendente interação ({staleCount})</div>
             <div className={"chip-btn" + (filter.verArquivadas ? " active" : "")} onClick={() => taskFilterStore.patch({ verArquivadas: !filter.verArquivadas })}>Arquivadas ({arquivadasCount})</div>
             <div className={"chip-btn" + (filter.ordemManual ? " active" : "")} onClick={toggleOrdemManual}>🔀 Ordem manual</div>
@@ -225,79 +339,29 @@ export function Tarefas() {
         </div>
       )}
 
-      {!tasks.length ? <EmptyState>Nenhuma tarefa para este recorte.</EmptyState> : tasks.map((t) => {
-        const stale = taskIsStale(t, currentUser);
-        const origem = users.find((u) => u.id === t.origem) || { nome: "—" };
-        const dests = (t.destinatarios || []).map((id) => (users.find((u) => u.id === id) || { nome: "?" }).nome).join(", ");
-        const proc = t.processo ? claims.find((c) => c.id === t.processo) : null;
-        const oficinaNome = t.oficinaId ? oficinaNomeFromId(claims, records.corp_overrides, t.oficinaId) : "";
-        const seguradoraNome = t.seguradoraId ? seguradoraNomeFromId(claims, records.corp_overrides, t.seguradoraId) : "";
-        const clienteNome = t.clienteId ? clienteNomeFromId(claims, records.corp_overrides, t.clienteId) : "";
-        const emergencia = isTarefaEmergencia(t);
-        return (
-          <div
-            key={t.id}
-            className={"task-card " + (t.urgencia || "").toLowerCase() + (stale ? " stale" : "") + (emergencia ? " neon-alert" : "")}
-            style={emergencia ? { "--neon-rgb": "var(--danger-rgb)" } : undefined}
-          >
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 8, flexWrap: "wrap" }}>
-              <div style={{ flex: 1, minWidth: 0 }}>
-                <div style={{ display: "flex", gap: 6, alignItems: "center", flexWrap: "wrap", marginBottom: 4 }}>
-                  {emergencia && <span className="badge red" style={{ fontWeight: 700 }}>EMERGÊNCIA</span>}
-                  {t.ci && <span className="badge gray mono" title="Número de protocolo">{t.ci}</span>}
-                  <span className={"badge-mini urg-badge " + (t.urgencia || "").toLowerCase()}>{t.urgencia}</span>
-                  <span className="badge gray">{t.tipo}</span>
-                  <span className={"badge " + (t.status === "Concluído" ? "green" : t.status === "Em andamento" ? "amber" : "blue")}>{t.status}</span>
-                  {t.tipoAtendimento === "sinistro" && <span className="badge blue">Sinistro</span>}
-                  {t.tipoAtendimento === "assistencia_24h" && <span className="badge purple">Assistência 24h</span>}
-                  {t.tipoAtendimento === "assistencia_vidros" && <span className="badge purple">Vidros/pequenos reparos</span>}
-                  {t.tipo === "Mesa de Atendimento" && (() => {
-                    const p = checklistProgresso(t.checklistMesa, config);
-                    return <span className={"badge " + (p.total && p.feitos === p.total ? "green" : "amber")}>Checklist {p.feitos}/{p.total}</span>;
-                  })()}
-                  {t.tipo === "Mesa de Atendimento" && t.solicitacao && <span className="badge blue">Solicitação preenchida</span>}
-                  {(t.flags || []).map((f) => <span key={f} className="badge amber">{f}</span>)}
-                  {stale && <span className="badge red">⚠ +2h sem interação</span>}
-                </div>
-                <div style={{ fontSize: 15, fontWeight: 600 }}>{t.titulo}</div>
-                <div className="muted" style={{ fontSize: 12, marginTop: 2 }}>De {origem.nome} → {dests}</div>
-                {t.descricao && <div style={{ fontSize: 13, marginTop: 6, whiteSpace: "pre-wrap" }}>{t.descricao}</div>}
-                {(proc || oficinaNome || seguradoraNome || clienteNome) && (
-                  <div style={{ marginTop: 6, display: "flex", gap: 6, flexWrap: "wrap" }}>
-                    {proc && <a className="badge purple" onClick={() => navigate("sinistro", proc.id)}>🔗 {proc.numsin || "#" + proc.nosnum}</a>}
-                    {oficinaNome && <a className="badge amber" onClick={() => navigate("oficina", t.oficinaId)}>🔧 {oficinaNome}</a>}
-                    {seguradoraNome && <a className="badge blue" onClick={() => navigate("seguradora", t.seguradoraId)}>🏢 {seguradoraNome}</a>}
-                    {clienteNome && <a className="badge green" onClick={() => navigate("cliente", t.clienteId)}>👤 {clienteNome}</a>}
-                  </div>
-                )}
-                <div className="muted" style={{ fontSize: 11, marginTop: 6 }}>
-                  Criada em {fmtDateHoraBR(t.createdAt)} • Última ação em {fmtDateHoraBR(t.updatedAt)}
-                  {t.concludedAt && <> • Concluída em {fmtDateHoraBR(t.concludedAt)}</>}
-                </div>
-              </div>
-              <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-                {filter.ordemManual && (
-                  <div style={{ display: "flex", gap: 4 }}>
-                    <button className="btn ghost xs" title="Mover para cima" onClick={() => moverTarefa(t, -1)}>↑</button>
-                    <button className="btn ghost xs" title="Mover para baixo" onClick={() => moverTarefa(t, 1)}>↓</button>
-                  </div>
-                )}
-                <button className="btn sec xs" onClick={() => openTask(t.id)}>Abrir / editar</button>
-                {t.status !== "Concluído" && !taskCienteByMe(t, currentUser) && (
-                  <button className="btn ok xs" title="Marcar que você viu esta tarefa (para o alerta parar)" onClick={() => actions.markTaskCiente(t.id)}>✓ Ciente</button>
-                )}
-                {t.status !== "Concluído" && taskCienteByMe(t, currentUser) && <span className="badge green" style={{ justifyContent: "center" }}>✓ Ciente</span>}
-                {(t.origem === currentUser.id || isAdmin(currentUser)) && !isTarefaArquivada(t) && (
-                  <button className="btn sec xs" onClick={() => arquivarTarefa(t)}>Arquivar</button>
-                )}
-                {isAdmin(currentUser) && (
-                  <button className="btn danger xs" onClick={() => excluirTarefa(t)}>Excluir</button>
-                )}
-              </div>
-            </div>
-          </div>
-        );
-      })}
+      {!tasks.length ? (
+        <EmptyState>Nenhuma tarefa para este recorte.</EmptyState>
+      ) : filter.ordemManual ? (
+        <DndContext sensors={dndSensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
+          <SortableContext items={tasks.map((t) => t.id)} strategy={verticalListSortingStrategy}>
+            {tasks.map((t) => (
+              <SortableTaskCard
+                key={t.id} id={t.id} t={t} claims={claims} records={records} users={users} config={config}
+                currentUser={currentUser} navigate={navigate} actions={actions}
+                openTask={openTask} arquivarTarefa={arquivarTarefa} excluirTarefa={excluirTarefa}
+              />
+            ))}
+          </SortableContext>
+        </DndContext>
+      ) : (
+        tasks.map((t) => (
+          <TaskCard
+            key={t.id} t={t} claims={claims} records={records} users={users} config={config}
+            currentUser={currentUser} navigate={navigate} actions={actions}
+            openTask={openTask} arquivarTarefa={arquivarTarefa} excluirTarefa={excluirTarefa}
+          />
+        ))
+      )}
 
       <TaskModal />
     </div>

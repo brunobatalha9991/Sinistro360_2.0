@@ -1,12 +1,18 @@
 import { useState } from "react";
 import { EmptyState } from "../EmptyState.jsx";
 import { txt } from "../../logic/format";
+import { claimsAbertosDaOficina } from "../../logic/tratativaLote";
+import { TratativaLoteModal } from "./TratativaLoteModal.jsx";
 
 // Sinistros vinculados a esta oficina, com filtro De/Até por data de
-// ocorrência (mesmo padrão de período usado em Desempenho.jsx).
-export function AtendimentosPanel({ claims, navigate }) {
+// ocorrência (mesmo padrão de período usado em Desempenho.jsx). "Tratativa
+// em lote" (a pedido do usuário) reúne todos os processos EM ABERTO desta
+// oficina (independente do filtro de data acima) numa única tela com
+// mensagens prontas pra copiar — ver TratativaLoteModal.jsx.
+export function AtendimentosPanel({ claims, navigate, oficinaNome, overrides, templates, atendTemplateCfg, config }) {
   const [de, setDe] = useState("");
   const [ate, setAte] = useState("");
+  const [tratativaAberta, setTratativaAberta] = useState(false);
 
   const filtrados = claims.filter((c) => {
     if (de && (!c.datoco || c.datoco < de)) return false;
@@ -18,8 +24,18 @@ export function AtendimentosPanel({ claims, navigate }) {
     <div className="card">
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 8 }}>
         <h3 style={{ margin: 0 }}>Atendimentos</h3>
-        <span className="muted" style={{ fontSize: 12 }}>{filtrados.length} de {claims.length}</span>
+        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+          <span className="muted" style={{ fontSize: 12 }}>{filtrados.length} de {claims.length}</span>
+          <button type="button" className="btn sec sm" onClick={() => setTratativaAberta(true)}>📋 Tratativa em lote</button>
+        </div>
       </div>
+      {tratativaAberta && (
+        <TratativaLoteModal
+          claims={claimsAbertosDaOficina(claims, overrides, oficinaNome, templates, atendTemplateCfg)}
+          overrides={overrides} templates={templates} atendTemplateCfg={atendTemplateCfg} config={config}
+          onClose={() => setTratativaAberta(false)}
+        />
+      )}
       <div className="chips" style={{ alignItems: "center", marginTop: 10 }}>
         <span className="muted" style={{ fontSize: 12 }}>Dt. ocorrência de</span>
         <input type="date" className="inline" value={de} onChange={(e) => setDe(e.target.value)} />

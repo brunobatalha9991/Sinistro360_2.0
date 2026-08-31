@@ -210,5 +210,24 @@ export function useOverrideActions() {
         return rest;
       });
     },
+
+    // Link de acompanhamento público (a pedido do usuário) — guarda aqui só
+    // o VÍNCULO (token + está ativo?) do lado do processo; o resumo em si
+    // que o cliente vê fica em corp_public_tracking, gravado por
+    // usePublicTrackingActions (coleção separada, pensada pra ter regra de
+    // leitura pública própria — ver logic/publicTracking.js). Gerar de
+    // novo depois de revogado cria um TOKEN NOVO — o antigo nunca volta a
+    // funcionar, mesmo que alguém ainda tenha o link salvo.
+    gerarLinkAcompanhamento(claimId, token) {
+      setOvr(claimId, { publicTracking: { token, ativo: true, criadoEm: new Date().toISOString(), criadoPor: (currentUser && currentUser.nome) || "—" } });
+    },
+    revogarLinkAcompanhamento(claimId) {
+      saveRecord("corp_overrides", (current) => {
+        const cur = current || {};
+        const existing = cur[claimId] || {};
+        if (!existing.publicTracking) return cur;
+        return { ...cur, [claimId]: { ...existing, publicTracking: { ...existing.publicTracking, ativo: false } } };
+      });
+    },
   };
 }

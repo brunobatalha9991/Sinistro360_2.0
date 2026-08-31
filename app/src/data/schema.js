@@ -25,6 +25,17 @@ export const CONFIG_KEYS = [
   // "Mensagem para o cliente" no Histórico do sinistro. Array de
   // {id, nome, etapaVinculada, texto} — ver src/logic/msgTemplates.js.
   "corp_msg_templates",
+  // Dicas/lembretes programados do Assistente (a pedido do usuário) —
+  // entregues via o sino de notificações, no horário e pros papéis
+  // configurados (ex.: "09:00", Atendente/Analista). Array de
+  // {id, texto, hora, papeis, ativo} — ver src/logic/dicasAssistente.js e
+  // ConfiguracoesDicasAssistenteCard.jsx.
+  "corp_assistente_dicas",
+  // Template padrão da "Tratativa em lote" (módulo Oficinas) — uma
+  // pergunta por placa, repetida pra cada processo em aberto selecionado.
+  // String única (não é lista); [[placa]] é a variável substituída. Ver
+  // src/logic/tratativaLote.js e ConfiguracoesTratativaLoteCard.jsx.
+  "corp_tratativa_lote_template",
   // Layout (ordem + tamanho de cada caixa) do cabeçalho do detalhe do
   // processo — a pedido do usuário: caixas arrastáveis/redimensionáveis,
   // compartilhadas pra todo mundo que usa o sistema. Ver DetailHeader.jsx.
@@ -88,6 +99,17 @@ export const RECORD_SPECS = {
   corp_clientes: { col: "s360_clientes", keyed: true },
   corp_cliente_ocorrencias: { col: "s360_cliente_ocorrencias", keyed: false },
   corp_cliente_comunicacoes: { col: "s360_cliente_comunicacoes", keyed: false },
+
+  // Link de acompanhamento público (a pedido do usuário) — chaveado pelo
+  // token do link (gerarTokenPublico, src/logic/publicTracking.js). Cada
+  // valor é o RESUMO CURADO exposto ao cliente, nunca o processo inteiro —
+  // é a única coleção deste app pensada pra ter uma regra de LEITURA
+  // PÚBLICA no Firestore (o resto continua exigindo o mesmo acesso de
+  // sempre). Ver hooks/usePublicTrackingSync.js e
+  // src/PublicTrackingPage.jsx (a página pública em si, fora do
+  // DataProvider/login — não usa esta constante diretamente, lê o
+  // documento direto via data/publicTrackingClient.js).
+  corp_public_tracking: { col: "s360_public_tracking", keyed: true },
 };
 
 export const CONFIG_COLLECTION = "s360_config";
