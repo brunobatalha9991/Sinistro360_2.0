@@ -140,21 +140,21 @@ function proximasAcoesRegistradasNoPeriodo(claims, overrides, historico, usuario
 // campo "situação mudou em X", este é o timestamp mais confiável que o
 // sistema já grava.
 function finalizadosNoPeriodo(claims, overrides, templates, atendTemplateCfg, historico, usuarioId, periodoInicioISO, periodoFimISO) {
-  let indenizados = 0, semIndenizacao = 0;
+  let indenizados = 0, semIndenizacao = 0, contatacoes = 0;
   const claimIds = [];
   (claims || []).forEach((c) => {
     const sit = situacaoEfetiva(overrides, c, atendTemplateCfg, templates).label;
-    if (sit !== "Indenizado" && sit !== "Encerrado sem Indenização") return;
+    if (sit !== "Indenizado" && sit !== "Encerrado sem Indenização" && sit !== "Contatação") return;
     const step = ultimaEtapaEfetiva(overrides, templates, atendTemplateCfg, c);
     if (!step) return;
     const sd = ((getUserJourney(overrides, c.id) || {}).steps || {})[step.id];
     const concludedAt = sd && sd.concludedAt;
     if (!dentroPeriodo(concludedAt, periodoInicioISO, periodoFimISO)) return;
     if (!eventoDoUsuario(historico, c.id, concludedAt, usuarioId)) return;
-    if (sit === "Indenizado") indenizados++; else semIndenizacao++;
+    if (sit === "Indenizado") indenizados++; else if (sit === "Contatação") contatacoes++; else semIndenizacao++;
     claimIds.push(c.id);
   });
-  return { indenizados, semIndenizacao, total: indenizados + semIndenizacao, claimIds };
+  return { indenizados, semIndenizacao, contatacoes, total: indenizados + semIndenizacao + contatacoes, claimIds };
 }
 
 // Tarefas de Comunicação interna (origem OU destinatário) criadas no
@@ -238,6 +238,7 @@ export function calcularMetricasUsuario({
     finalizadosNoPeriodo: finalizados.total,
     indenizadosNoPeriodo: finalizados.indenizados,
     semIndenizacaoNoPeriodo: finalizados.semIndenizacao,
+    contatacoesNoPeriodo: finalizados.contatacoes,
     tarefasNoPeriodo: tarefasQtd,
     assistenciasNoPeriodo: assistenciasQtd,
     claimIdsEstoqueAtual: estoqueAtual.map((c) => c.id),

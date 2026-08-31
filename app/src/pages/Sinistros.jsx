@@ -13,7 +13,7 @@ import { loadCols, saveCols } from "../logic/columnPrefs";
 import { exportCSV } from "../logic/exportCsv";
 import {
   visibleClaims, campoEfetivo, situacaoEfetiva, getUserJourney, getNextAction,
-  getSitAtend, getTemp, getResponsavel, isAtrasado, isSemAtualizacao, isManualClaim,
+  getSitAtend, getTemp, getResponsavel, isAtrasado, isSemAtualizacao, isManualClaim, isFinalizado,
   allJourneyStages, currentStage, getAgenteProdutor, getAgentesEfetivo, distinctGruposProdutores, grupoProdutor,
   distinctComputed, claimTemFlagHistorico, claimTemEtapaForaDoPrazo, relatedClaims,
 } from "../logic/claims";
@@ -166,7 +166,7 @@ export function Sinistros() {
 
   const cntTipo = {}; let totalNaoFinal = 0;
   baseTipo.forEach((c) => {
-    if (situacaoEfetiva(overrides, c, atendTemplate, templates).label !== "Indenizado" && situacaoEfetiva(overrides, c, atendTemplate, templates).label !== "Encerrado sem Indenização") {
+    if (!isFinalizado(overrides, c, atendTemplate, templates)) {
       cntTipo[c.partyType] = (cntTipo[c.partyType] || 0) + 1;
       totalNaoFinal++;
     }
@@ -177,7 +177,7 @@ export function Sinistros() {
   baseStatus.forEach((c) => { const lb = situacaoEfetiva(overrides, c, atendTemplate, templates).label; cntStatus[lb] = (cntStatus[lb] || 0) + 1; });
   const cs = (key) => (key === "todos" ? baseStatus.length : cntStatus[key] || 0);
 
-  const statusChips = [["todos", "Todos"], ["Em andamento", "Em andamento"], ["Pendente", "Pendentes"], ["Indenizado", "Indenizados"], ["Encerrado sem Indenização", "Sem indenização"]];
+  const statusChips = [["todos", "Todos"], ["Em andamento", "Em andamento"], ["Pendente", "Pendentes"], ["Indenizado", "Indenizados"], ["Contatação", "Contatação"], ["Encerrado sem Indenização", "Sem indenização"]];
   const tipoChips = [["todos", "Todos os tipos"], ["Segurado", "Segurados"], ["Terceiro", "Terceiros"], ["Aviso", "Atendimentos"]];
 
   const qtdParcial = baseCaminho.filter((c) => (getUserJourney(overrides, c.id) || {}).caminho === "parcial").length;

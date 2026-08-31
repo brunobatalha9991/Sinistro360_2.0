@@ -18,7 +18,6 @@ import {
   dashCiaLabel, dashOficinaKey, tipoPartyLabel, statusColorMap, tempColorMap,
 } from "../logic/claims";
 import { diasEntre, mediaArr, fmtDias, fmtPct, fmtNum, money, fmtDateBR, todayISO, txt, cssVar, PALETTE } from "../logic/format";
-import { mapSituacao } from "../logic/situacao";
 
 const DEFAULT_DASH_FILTER = {
   ocoDe: "", ocoAte: "", cia: "todas", ramo: "todos", oficina: "todas",
@@ -125,11 +124,18 @@ export function Dashboard() {
   rows.forEach((c) => { totalAvaliado += c.valavi || 0; totalIndenizado += c.valind || 0; totalFranquia += c.franquia || 0; });
   const indenizados = byStatus["Indenizado"] || 0;
   const semIndeniz = byStatus["Encerrado sem Indenização"] || 0;
+  // "Contatação" (a pedido do usuário, 2026-08-31): atendimento aberto só
+  // pra cobertura ao terceiro, sem indenização ao segurado — não entra nos
+  // valores financeiros (Total indenizado/ticket médio, que são só de
+  // indenização de fato paga), mas conta como desfecho POSITIVO junto com
+  // Indenizados numa taxa combinada (ver taxaPositiva).
+  const contatacoes = byStatus["Contatação"] || 0;
   const emAndamento = byStatus["Em andamento"] || 0;
   const pendente = byStatus["Pendente"] || 0;
   const negado = byStatus["Negado"] || 0;
   const ticketMedio = indenizados ? totalIndenizado / indenizados : 0;
   const taxaIndeniz = total ? (indenizados / total) * 100 : 0;
+  const taxaPositiva = total ? ((indenizados + contatacoes) / total) * 100 : 0;
   const atrasados = rows.filter((c) => isAtrasado(overrides, c)).length;
   const semAtu = rows.filter((c) => isSemAtualizacao(overrides, c, atendTemplate, templates)).length;
   const vinculados = rows.filter((c) => relatedClaims(overrides, allClaimsRaw, c).length > 0).length;
@@ -175,8 +181,13 @@ export function Dashboard() {
   const ciaOptions = distinctComputed(claims, (c) => dashCiaLabel(overrides, c));
   const ramoOptions = distinctComputed(claims, (c) => campoEfetivo(overrides, c, "ramo"));
   const oficinaOptions = distinctComputed(claims, (c) => dashOficinaKey(overrides, c));
+  // Lista de opções da situação a partir da situação EFETIVA (jornada do
+  // usuário) — não do texto bruto da API CORP: o filtro em si (linha do
+  // dashFilteredClaimsNoPeriod acima) já compara contra situacaoEfetiva, e
+  // rótulos que só existem depois da jornada tocada (ex.: "Contatação") não
+  // apareciam aqui antes, porque mapSituacao(c.situacao) nunca os produz.
   const situacaoOptions = [];
-  { const seen = {}; claims.forEach((c) => { const l = mapSituacao(c.situacao).label; if (!seen[l]) { seen[l] = true; situacaoOptions.push(l); } }); }
+  { const seen = {}; claims.forEach((c) => { const l = situacaoEfetiva(overrides, c, atendTemplate, templates).label; if (!seen[l]) { seen[l] = true; situacaoOptions.push(l); } }); }
 
   const quickRanges = [[7, "7 dias"], [30, "30 dias"], [90, "90 dias"], [180, "6 meses"], [365, "12 meses"]];
 
@@ -310,7 +321,8 @@ export function Dashboard() {
         <h3>📊 Resumo executivo</h3>
         <p>
           Considerando {fmtNum(total)} sinistro(s) {periodoTxt}: <b>{fmtNum(emAndamento)}</b> em andamento,{" "}
-          <b>{fmtNum(indenizados)}</b> indenizado(s) (taxa de {fmtPct(taxaIndeniz)}), e <b>{fmtNum(semIndeniz)}</b> encerrado(s) sem indenização.{" "}
+          <b>{fmtNum(indenizados)}</b> indenizado(s) (taxa de {fmtPct(taxaIndeniz)}), <b>{fmtNum(contatacoes)}</b> em contatação, e{" "}
+          <b>{fmtNum(semIndeniz)}</b> encerrado(s) sem indenização — taxa de desfecho positivo (indenizados + contatação): <b>{fmtPct(taxaPositiva)}</b>.{" "}
           Tempo médio de abertura (ocorrência → aviso): <b>{fmtDias(tmaMedio)}</b>.{" "}
           Tempo médio de encerramento (aviso → encerramento): <b>{fmtDias(tmeMedio)}</b>.{" "}
           Tempo médio de conclusão de reparo (Perda Parcial): <b>{fmtDias(tmrMedio)}</b>.{" "}
@@ -332,6 +344,10 @@ export function Dashboard() {
         <Kpi n={fmtNum(negado)} l="Negados" cls="c-red" alert={negado > 0} />
         <Kpi n={fmtNum(atrasados)} l="Atrasados" cls="c-red" sub="Próxima ação vencida" alert={atrasados > 0} />
         <Kpi n={fmtNum(semAtu)} l="Sem atualização" cls="c-amber" sub="+3 dias sem histórico" alert={semAtu > 0} />
+      </div>
+      <div className="kpi-grid" style={{ marginTop: 14 }}>
+        <Kpi n={fmtNum(contatacoes)} l="Contatações" cls="c-blue" sub="Cobertura ao terceiro, sem indenização ao segurado" />
+        <Kpi n={fmtPct(taxaPositiva)} l="Taxa de desfecho positivo" cls="c-green" sub="Indenizados + Contatações" />
       </div>
 
       <div className="section-title">Indicadores Financeiros</div>

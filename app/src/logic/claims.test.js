@@ -4,7 +4,7 @@ import {
   distinctAgentes, distinctProdutores, getAgentesEfetivo,
   grupoProdutor, distinctGruposProdutores, emailAlertaDispensado,
   getPesquisaSatisfacao, pesquisaSatisfacaoCompleta,
-  situacaoEfetiva, isFinalizado,
+  situacaoEfetiva, isFinalizado, currentStage,
 } from "./claims";
 
 const overrides = {
@@ -187,6 +187,45 @@ describe("situacaoEfetiva / isFinalizado — etapa final com id/nome customizado
     const ovrSemInd = { c1: { journeyUser: { caminho: "parcial", steps: { conclusao: { status: "Sem Indenização" } } } } };
     expect(situacaoEfetiva(ovrInd, c, null, {}).label).toBe("Indenizado");
     expect(situacaoEfetiva(ovrSemInd, c, null, {}).label).toBe("Encerrado sem Indenização");
+  });
+});
+
+// "Contatação" (a pedido do usuário, 2026-08-31): 3º desfecho de Perda
+// Parcial/Integral, ao lado de Indenizado/Sem Indenização — atendimento
+// aberto só pra cobertura ao terceiro, sem indenização ao segurado. Não é
+// negativo: isFinalizado/currentStage tratam como um desfecho já concluído,
+// e entra como "positivo" nas métricas de Dashboard/Desempenho.
+describe("situacaoEfetiva / isFinalizado — Contatação", () => {
+  const templatesConfigurados = {
+    Auto: {
+      parcial: [
+        {
+          id: "encerramento", title: "Encerramento",
+          statusOptions: ["Aguard. pesquisa", "Indenizado", "Contatação", "Sem Indenização"],
+          doneStatuses: ["Indenizado"], negativoStatuses: ["Sem Indenização"], contatacaoStatuses: ["Contatação"],
+        },
+      ],
+    },
+  };
+
+  it("última etapa marcada azul (Contatação) vira 'Contatação', badge azul, e conta como finalizado", () => {
+    const c = { id: "c1", ramo: "Auto" };
+    const overrides = { c1: { journeyUser: { caminho: "parcial", steps: { encerramento: { status: "Contatação" } } } } };
+    expect(situacaoEfetiva(overrides, c, null, templatesConfigurados)).toEqual({ label: "Contatação", cls: "blue" });
+    expect(isFinalizado(overrides, c, null, templatesConfigurados)).toBe(true);
+  });
+
+  it("template padrão (sem admin configurar nada) também reconhece Contatação pelo texto", () => {
+    const c = { id: "c1", ramo: "SemTemplateConfigurado" };
+    const overrides = { c1: { journeyUser: { caminho: "parcial", steps: { conclusao: { status: "Contatação" } } } } };
+    expect(situacaoEfetiva(overrides, c, null, {}).label).toBe("Contatação");
+    expect(isFinalizado(overrides, c, null, {})).toBe(true);
+  });
+
+  it("currentStage some (\"\") quando o processo chegou em Contatação, igual Indenizado/Sem Indenização", () => {
+    const c = { id: "c1", ramo: "Auto" };
+    const overrides = { c1: { journeyUser: { caminho: "parcial", steps: { encerramento: { status: "Contatação" } } } } };
+    expect(currentStage(overrides, templatesConfigurados, null, c)).toBe("");
   });
 });
 

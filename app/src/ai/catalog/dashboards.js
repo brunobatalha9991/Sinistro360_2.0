@@ -8,8 +8,10 @@ export const CATALOGO_DASHBOARDS = {
     nome: "Dashboard", rota: "dashboard", arquivo: "src/pages/Dashboard.jsx",
     indicadores: [
       { chave: "sinistros_no_recorte", label: "Sinistros no recorte", formula: "rows.length (após aplicar dashFilter)", fonte: "corp_claims (visibleClaims)" },
-      { chave: "por_situacao", label: "Em andamento / Indenizados / Sem indenização / Pendentes / Negados", formula: "contagem por situacaoEfetiva(overrides, c).label", fonte: "corp_claims + corp_overrides" },
+      { chave: "por_situacao", label: "Em andamento / Indenizados / Contatação / Sem indenização / Pendentes / Negados", formula: "contagem por situacaoEfetiva(overrides, c).label", fonte: "corp_claims + corp_overrides" },
       { chave: "taxa_indenizacao", label: "Taxa de indenização", formula: "indenizados / total * 100", fonte: "calculado sobre o recorte" },
+      { chave: "contatacoes", label: "Contatações", formula: "contagem de situacaoEfetiva == 'Contatação' — atendimento aberto só pra cobertura ao terceiro, sem indenização ao segurado", fonte: "corp_claims + corp_overrides" },
+      { chave: "taxa_desfecho_positivo", label: "Taxa de desfecho positivo", formula: "(indenizados + contatações) / total * 100", fonte: "calculado sobre o recorte", limitacoes: "Contatação não entra nos valores financeiros (Total indenizado/ticket médio), só nesta taxa combinada" },
       { chave: "atrasados", label: "Atrasados", formula: "isAtrasado(): nextAction.date < hoje", fonte: "corp_overrides.nextAction" },
       { chave: "sem_atualizacao", label: "Sem atualização", formula: "isSemAtualizacao(): sem comms OU último comm com mais de 3 dias corridos", fonte: "corp_overrides.comms", limitacoes: "3 dias corridos fixos no código, não dias úteis nem calendário de feriados" },
       { chave: "financeiro", label: "Total avaliado / indenizado / franquias / ticket médio", formula: "soma de valavi/valind/franquia do recorte; ticket médio = totalIndenizado / indenizados", fonte: "corp_claims" },

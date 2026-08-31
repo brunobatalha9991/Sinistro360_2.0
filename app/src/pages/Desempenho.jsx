@@ -216,6 +216,7 @@ function PerfilUsuario({ m, u, config, saveRecord, currentUser, isAdminUser, nav
       <Section title={`Desfechos no período (${periodoLabel})`} desc="Data do desfecho = conclusão da última etapa efetiva do processo.">
         <Stat label="Finalizados no período" value={fmtNum(m.finalizadosNoPeriodo)} />
         <Stat label="Indenizados" value={fmtNum(m.indenizadosNoPeriodo)} />
+        <Stat label="Contatação" value={fmtNum(m.contatacoesNoPeriodo)} />
         <Stat label="Sem indenização" value={fmtNum(m.semIndenizacaoNoPeriodo)} />
       </Section>
 
@@ -233,6 +234,7 @@ function PerfilUsuario({ m, u, config, saveRecord, currentUser, isAdminUser, nav
           <div className="chip-btn" onClick={() => verSinistros({ status: "Pendente" })}>Pendentes ({m.pendentesAtual})</div>
           <div className="chip-btn" onClick={() => verSinistros({ status: "Em andamento" })}>Em andamento ({m.emAndamentoAtual})</div>
           <div className="chip-btn" onClick={() => verSinistros({ aberto: false, status: "Indenizado" })}>Indenizados ({m.indenizadosNoPeriodo})</div>
+          <div className="chip-btn" onClick={() => verSinistros({ aberto: false, status: "Contatação" })}>Contatação ({m.contatacoesNoPeriodo})</div>
           <div className="chip-btn" onClick={() => verSinistros({ aberto: false, status: "Encerrado sem Indenização" })}>Sem indenização ({m.semIndenizacaoNoPeriodo})</div>
         </div>
       </div>
