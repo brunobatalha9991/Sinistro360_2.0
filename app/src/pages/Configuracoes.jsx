@@ -1,10 +1,12 @@
 import { useEffect, useState } from "react";
 import { useData } from "../data/DataProvider.jsx";
 import { useAuth } from "../hooks/useAuth";
+import { useHashRoute } from "../hooks/useHashRoute";
 import { useOverrideActions } from "../hooks/useOverrideActions";
 import { isAdmin } from "../data/auth";
 import { EmptyState } from "../components/EmptyState.jsx";
 import { HistoricoImportCard } from "../components/config/HistoricoImportCard.jsx";
+import { ImportarFormularioComercialCard } from "../components/config/ImportarFormularioComercialCard.jsx";
 import { ProximaAcaoImportCard } from "../components/config/ProximaAcaoImportCard.jsx";
 import { ResponsabilidadeBackfillCard } from "../components/config/ResponsabilidadeBackfillCard.jsx";
 import { MemoriasIACard } from "../components/config/MemoriasIACard.jsx";
@@ -49,6 +51,7 @@ function ConfigGroup({ title, subtitle, defaultOpen, children }) {
 export function Configuracoes() {
   const { records, config, saveRecord, saveConfig } = useData();
   const { currentUser } = useAuth();
+  const { navigate } = useHashRoute();
   const actions = useOverrideActions();
 
   const claims = visibleClaims(records.corp_claims, records.corp_overrides, currentUser);
@@ -127,6 +130,7 @@ export function Configuracoes() {
           </ConfigGroup>
 
           <ConfigGroup title="Dados, Migração & IA" subtitle="Importação de histórico, migração de responsabilidade legada e aprovação de memórias da IA.">
+            <ImportarFormularioComercialCard navigate={navigate} canEdit={admin} />
             <HistoricoImportCard claims={claims} overrides={overrides} actions={actions} canEdit={admin} />
             <ProximaAcaoImportCard claims={claims} overrides={overrides} actions={actions} canEdit={admin} />
             <ResponsabilidadeBackfillCard claims={claims} records={records} saveRecord={saveRecord} canEdit={admin} />

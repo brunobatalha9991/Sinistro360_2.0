@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useData } from "../data/DataProvider.jsx";
 import { useHashRoute } from "../hooks/useHashRoute";
 import { useAuth } from "../hooks/useAuth";
@@ -205,38 +205,83 @@ export function Abertura() {
     : null;
   const vinculoInit = computeVinculoFields(vinculoTarget);
 
+  // Dados vindos da importação do Formulário de Abertura Comercial (PDF
+  // preenchido fora do sistema — ver Configurações → Dados, Migração & IA
+  // → "Importar formulário comercial" e logic/importFormularioComercial.js).
+  // Segue o mesmo padrão de vinculoInit: mapeia Seguradora/Ramo/Oficina/
+  // Agente pro <select> (NEW_SENTINEL quando o valor ainda não existe no
+  // catálogo local). Produtor e Responsável não têm criação manual — só
+  // preenche se houver correspondência exata (case-insensitive) com o que
+  // já existe; senão fica em branco pra revisão humana (o formulário externo
+  // só coleta texto livre, sem acesso aos catálogos/usuários do sistema).
+  const importado = aberturaPrefillValue?.importado || null;
+
+  function matchCatalog(opts, valor) {
+    if (!valor) return null;
+    const alvo = valor.trim().toLowerCase();
+    return (opts || []).find((o) => (o || "").trim().toLowerCase() === alvo) || null;
+  }
+
+  function computeImportInit(imp) {
+    if (!imp) return null;
+    const ciaTxt = (imp.cia || "").trim();
+    const ciaMatch = matchCatalog(ciaOpts, ciaTxt);
+    const ramoTxt = (imp.ramo || "").trim();
+    const ramoMatch = matchCatalog(ramoOpts, ramoTxt);
+    const oficinaTxt = (imp.oficina || "").trim();
+    const oficinaMatch = matchCatalog(oficinaOpts, oficinaTxt);
+    const agenteTxt = (imp.agente || "").trim();
+    const agenteMatch = matchCatalog(agenteOpts, agenteTxt);
+    const produtorTxt = (imp.produtor || "").trim();
+    const produtorMatch = matchCatalog(produtorOpts, produtorTxt);
+    const respTxt = (imp.responsavelSugerido || "").trim();
+    const respUser = respTxt ? users.find((u) => (u.nome || "").trim().toLowerCase() === respTxt.toLowerCase()) : null;
+    return {
+      ciaValue: ciaTxt ? (ciaMatch || NEW_SENTINEL) : "", ciaNova: ciaTxt && !ciaMatch ? ciaTxt : "",
+      ramoValue: ramoTxt ? (ramoMatch || NEW_SENTINEL) : "", ramoNovo: ramoTxt && !ramoMatch ? ramoTxt : "",
+      oficinaValue: oficinaTxt ? (oficinaMatch || NEW_SENTINEL) : "", oficinaNova: oficinaTxt && !oficinaMatch ? oficinaTxt : "",
+      agenteValue: agenteTxt ? (agenteMatch || NEW_SENTINEL) : "", agenteNovo: agenteTxt && !agenteMatch ? agenteTxt : "",
+      produtorValue: produtorMatch || "",
+      responsavelId: respUser ? respUser.id : "",
+      produtorSemMatch: !!(produtorTxt && !produtorMatch),
+      responsavelSemMatch: !!(respTxt && !respUser),
+    };
+  }
+
+  const importInit = computeImportInit(importado);
+
   const [tipoParte, setTipoParte] = useState(aberturaPrefillValue?.tipoParte || "Segurado");
   const [segurado, setSegurado] = useState(aberturaPrefillValue?.segurado || "");
-  const [placa, setPlaca] = useState("");
-  const [veiculoMarca, setVeiculoMarca] = useState("");
-  const [veiculoModelo, setVeiculoModelo] = useState("");
-  const [veiculoAno, setVeiculoAno] = useState("");
-  const [numsin, setNumsin] = useState("");
-  const [cia, setCia] = useState(vinculoInit ? (vinculoInit.ciaIsNew ? NEW_SENTINEL : vinculoInit.cia) : "");
-  const [ciaNova, setCiaNova] = useState(vinculoInit && vinculoInit.ciaIsNew ? vinculoInit.cia : "");
-  const [ramo, setRamo] = useState(vinculoInit ? (vinculoInit.ramoIsNew ? NEW_SENTINEL : vinculoInit.ramo) : "");
-  const [ramoNovo, setRamoNovo] = useState(vinculoInit && vinculoInit.ramoIsNew ? vinculoInit.ramo : "");
-  const [oficina, setOficina] = useState("");
-  const [oficinaNova, setOficinaNova] = useState("");
-  const [numapo, setNumapo] = useState(vinculoInit?.numapo || "");
-  const [numend, setNumend] = useState("");
-  const [item, setItem] = useState("");
-  const [datoco, setDatoco] = useState(vinculoInit?.datoco || "");
-  const [datavi, setDatavi] = useState(todayISO());
-  const [franquia, setFranquia] = useState("");
-  const [valavi, setValavi] = useState("");
-  const [responsavelId, setResponsavelId] = useState("");
-  const [descricao, setDescricao] = useState("");
-  const [observacoes, setObservacoes] = useState("");
+  const [placa, setPlaca] = useState(importado?.placa || "");
+  const [veiculoMarca, setVeiculoMarca] = useState(importado?.veiculoMarca || "");
+  const [veiculoModelo, setVeiculoModelo] = useState(importado?.veiculoModelo || "");
+  const [veiculoAno, setVeiculoAno] = useState(importado?.veiculoAno || "");
+  const [numsin, setNumsin] = useState(importado?.numsin || "");
+  const [cia, setCia] = useState(importInit ? importInit.ciaValue : (vinculoInit ? (vinculoInit.ciaIsNew ? NEW_SENTINEL : vinculoInit.cia) : ""));
+  const [ciaNova, setCiaNova] = useState(importInit ? importInit.ciaNova : (vinculoInit && vinculoInit.ciaIsNew ? vinculoInit.cia : ""));
+  const [ramo, setRamo] = useState(importInit ? importInit.ramoValue : (vinculoInit ? (vinculoInit.ramoIsNew ? NEW_SENTINEL : vinculoInit.ramo) : ""));
+  const [ramoNovo, setRamoNovo] = useState(importInit ? importInit.ramoNovo : (vinculoInit && vinculoInit.ramoIsNew ? vinculoInit.ramo : ""));
+  const [oficina, setOficina] = useState(importInit ? importInit.oficinaValue : "");
+  const [oficinaNova, setOficinaNova] = useState(importInit ? importInit.oficinaNova : "");
+  const [numapo, setNumapo] = useState(importado?.numapo || vinculoInit?.numapo || "");
+  const [numend, setNumend] = useState(importado?.numend || "");
+  const [item, setItem] = useState(importado?.item || "");
+  const [datoco, setDatoco] = useState(importado?.datoco || vinculoInit?.datoco || "");
+  const [datavi, setDatavi] = useState(importado?.datavi || todayISO());
+  const [franquia, setFranquia] = useState(importado?.franquia || "");
+  const [valavi, setValavi] = useState(importado?.valavi || "");
+  const [responsavelId, setResponsavelId] = useState(importInit ? importInit.responsavelId : "");
+  const [descricao, setDescricao] = useState(importado?.descricao || "");
+  const [observacoes, setObservacoes] = useState(importado?.observacoes || "");
   const [status, setStatus] = useState(null);
   // Agente/Produtor (obrigatórios para Segurado/Terceiro — a pedido do
   // usuário). agente aceita "+ Novo agente..." (mesmo padrão de
   // seguradora/ramo/oficina); produtor só vem do catálogo já existente
   // (mesma regra de AgentesCatalogoCard.jsx: "produtor não tem cadastro
   // manual").
-  const [agenteSel, setAgenteSel] = useState(vinculoInit?.agente || "");
-  const [agenteNovo, setAgenteNovo] = useState("");
-  const [produtorSel, setProdutorSel] = useState(vinculoInit?.produtor || "");
+  const [agenteSel, setAgenteSel] = useState(importInit ? importInit.agenteValue : (vinculoInit?.agente || ""));
+  const [agenteNovo, setAgenteNovo] = useState(importInit ? importInit.agenteNovo : "");
+  const [produtorSel, setProdutorSel] = useState(importInit ? importInit.produtorValue : (vinculoInit?.produtor || ""));
   // Vínculo com outro processo do mesmo evento (Segurado ↔ Terceiro) — ao
   // escolher, reaplica computeVinculoFields (mesmo efeito do prefill acima).
   const [vinculoId, setVinculoId] = useState(vinculoTarget ? vinculoTarget.id : "");
@@ -244,6 +289,26 @@ export function Abertura() {
   // "abrir novo atendimento" (Mesa de Atendimento), se houver — o processo
   // criado aqui é vinculado automaticamente a ela.
   const [tarefaVinculada] = useState(() => takePendingTaskLink());
+
+  // Cadastro do cliente (CPF/CNPJ, endereço, contatos) vindo do formulário
+  // comercial importado — grava direto (mesmo saveCadastro do módulo
+  // Clientes/ClienteCadastroBox acima) uma única vez ao montar, pra já
+  // aparecer em "Ver/editar dados do cliente" sem precisar redigitar.
+  useEffect(() => {
+    if (!importado) return;
+    const temDados = importado.clienteDocumento || importado.clienteEndereco || importado.clienteObservacoes
+      || (importado.clienteContatos && importado.clienteContatos.length);
+    if (!temDados) return;
+    const nome = (importado.segurado || "").trim();
+    if (!nome) return;
+    clienteActions.saveCadastro(clienteIdFromNome(nome), {
+      documento: (importado.clienteDocumento || "").trim(),
+      endereco: (importado.clienteEndereco || "").trim(),
+      observacoes: (importado.clienteObservacoes || "").trim(),
+      contatos: importado.clienteContatos || [],
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   function aplicarVinculo(claimId) {
     setVinculoId(claimId);
@@ -356,6 +421,10 @@ export function Abertura() {
       actions.logAudit(claim.id, "Vinculado automaticamente", alvo ? `Vinculado ao processo ${alvo.numsin || "#" + alvo.nosnum} — ${alvo.segurado}` : "");
     }
     actions.logAudit(claim.id, "Processo criado manualmente", "Via módulo Abertura");
+    if (importado) {
+      const geradoEm = importado._geradoEm ? new Date(importado._geradoEm).toLocaleString("pt-BR") : null;
+      actions.logAudit(claim.id, "Processo criado a partir de formulário comercial importado", "Via PDF do Formulário de Abertura Comercial" + (geradoEm ? " — preenchido em " + geradoEm : ""));
+    }
 
     if (tarefaVinculada) {
       const agora = new Date().toISOString();
@@ -384,6 +453,18 @@ export function Abertura() {
         {tarefaVinculada && (
           <div className="status ok" style={{ marginBottom: 12 }}>
             Este processo será vinculado automaticamente à tarefa de Mesa de Atendimento de onde você veio.
+          </div>
+        )}
+
+        {importado && (
+          <div className="status ok" style={{ marginBottom: 12 }}>
+            Processo pré-preenchido a partir de um formulário comercial importado (PDF). Revise os campos antes de criar — especialmente Seguradora, Ramo, Agente, Produtor e Responsável.
+            {importInit && importInit.produtorSemMatch && (
+              <div style={{ marginTop: 4 }}>Produtor sugerido no formulário: "{importado.produtor}" — não encontrado no catálogo, selecione manualmente.</div>
+            )}
+            {importInit && importInit.responsavelSemMatch && (
+              <div style={{ marginTop: 4 }}>Responsável sugerido no formulário: "{importado.responsavelSugerido}" — não encontrado entre os usuários, selecione manualmente.</div>
+            )}
           </div>
         )}
 

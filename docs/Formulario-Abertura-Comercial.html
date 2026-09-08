@@ -1,0 +1,351 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Sinistro360 — Formulário de Abertura (Comercial)</title>
+<style>
+  :root{
+    --brand:#2f6bff; --brand-2:#7c3aed; --border:#e3e8f1; --surface-2:#f6f8fc;
+    --ink:#1a2233; --muted:#6b7686; --danger:#e0384c; --ok:#1a9e6b;
+  }
+  *{box-sizing:border-box}
+  body{font-family:-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;margin:0;background:var(--surface-2);color:var(--ink)}
+  .wrap{max-width:920px;margin:0 auto;padding:28px 20px 60px}
+  header{background:linear-gradient(135deg,var(--brand),var(--brand-2));color:#fff;padding:22px 24px;border-radius:14px;margin-bottom:20px}
+  header h1{margin:0 0 4px;font-size:20px}
+  header p{margin:0;font-size:13px;opacity:.92}
+  .card{background:#fff;border:1px solid var(--border);border-radius:12px;padding:18px 20px;margin-bottom:16px}
+  .card h2{margin:0 0 4px;font-size:15px}
+  .card .hint{margin:0 0 14px;font-size:12.5px;color:var(--muted)}
+  .grid{display:grid;gap:12px}
+  .g2{grid-template-columns:1fr 1fr}
+  .g3{grid-template-columns:1fr 1fr 1fr}
+  @media (max-width:640px){.g2,.g3{grid-template-columns:1fr}}
+  .field{display:flex;flex-direction:column;gap:4px;margin-bottom:12px}
+  .field label{font-size:12.5px;font-weight:600;color:#3a4356}
+  .field label .req{color:var(--danger)}
+  .field .help{font-size:11px;color:var(--muted)}
+  input,select,textarea{font:inherit;padding:9px 10px;border:1px solid var(--border);border-radius:8px;background:#fff;color:var(--ink);width:100%}
+  input:focus,select:focus,textarea:focus{outline:2px solid var(--brand);outline-offset:1px;border-color:var(--brand)}
+  textarea{resize:vertical}
+  .contato-row{display:grid;grid-template-columns:1.3fr 1fr 1fr .9fr auto;gap:8px;margin-bottom:8px;align-items:center}
+  @media (max-width:640px){.contato-row{grid-template-columns:1fr}}
+  .btn{appearance:none;border:0;border-radius:9px;padding:11px 18px;font-size:14px;font-weight:600;cursor:pointer;background:var(--brand);color:#fff}
+  .btn:hover{filter:brightness(1.06)}
+  .btn.sec{background:#eef1f7;color:#2b3448}
+  .btn.ghost{background:transparent;color:var(--brand);padding:6px 8px;font-size:12.5px}
+  .btn.danger{background:#fdeaec;color:var(--danger)}
+  .btn.xs{padding:6px 10px;font-size:12px}
+  .actions{display:flex;gap:10px;flex-wrap:wrap;margin:18px 0}
+  .status{padding:10px 12px;border-radius:8px;font-size:13px;margin-bottom:14px}
+  .status.err{background:#fdeaec;color:var(--danger)}
+  .status.ok{background:#e7f8f1;color:var(--ok)}
+  .instructions{font-size:13px;line-height:1.55}
+  .instructions ol{margin:8px 0 0;padding-left:20px}
+  .tech-toggle{font-size:12px;color:var(--muted);cursor:pointer;user-select:none;display:inline-flex;align-items:center;gap:4px;margin-top:4px}
+  .tech-block{max-height:0;overflow:hidden;transition:max-height .2s ease}
+  .tech-block.open{max-height:2000px}
+  .tech-block pre{white-space:pre-wrap;word-break:break-all;font-size:10px;line-height:1.5;color:#8892a3;background:var(--surface-2);border:1px solid var(--border);border-radius:8px;padding:10px;margin:8px 0 0}
+  .tech-label{font-size:11px;color:var(--muted);margin-top:14px}
+
+  @media print{
+    body{background:#fff}
+    .no-print{display:none !important}
+    .card{border:1px solid #ccc;break-inside:avoid}
+    .tech-block{max-height:none !important;overflow:visible !important}
+    header{background:#fff !important;color:#000 !important;border:1px solid #ccc}
+    header p, header h1{color:#000 !important}
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header>
+    <h1>Formulário de Abertura de Sinistro/Assistência</h1>
+    <p>Preencha, clique em "Exportar PDF" e salve como PDF. Envie o arquivo para a equipe operacional importar no Sinistro360.</p>
+  </header>
+
+  <div class="card instructions no-print">
+    <h2>Como usar</h2>
+    <ol>
+      <li>Preencha os campos abaixo com os dados do caso.</li>
+      <li>Clique em <b>"Exportar PDF"</b>. Na janela de impressão do navegador, escolha o destino <b>"Salvar como PDF"</b> (ou "Microsoft Print to PDF").</li>
+      <li>Envie o PDF gerado para quem for cadastrar o processo no sistema.</li>
+      <li>No Sinistro360, em <b>Configurações → Dados, Migração &amp; IA → Importar formulário comercial (PDF)</b>, a pessoa envia esse PDF e o sistema pré-preenche o módulo Abertura automaticamente para revisão e criação do processo.</li>
+    </ol>
+  </div>
+
+  <div id="statusBox"></div>
+
+  <form id="formAbertura" autocomplete="off">
+
+    <div class="card">
+      <h2>Tipo de processo</h2>
+      <p class="hint">Mesmos campos usados na Abertura manual dentro do sistema.</p>
+      <div class="grid g3">
+        <div class="field">
+          <label>Tipo <span class="req">*</span></label>
+          <select id="tipoParte" required>
+            <option value="Segurado">Segurado</option>
+            <option value="Terceiro">Terceiro</option>
+            <option value="Atendimento">Atendimento</option>
+          </select>
+        </div>
+        <div class="field">
+          <label>Nome (segurado/terceiro) <span class="req">*</span></label>
+          <input id="segurado" placeholder="Nome completo" required>
+        </div>
+        <div class="field">
+          <label>Placa</label>
+          <input id="placa" placeholder="ABC1D23">
+        </div>
+      </div>
+      <div class="grid g3">
+        <div class="field"><label>Marca</label><input id="veiculoMarca" placeholder="Ex.: Fiat"></div>
+        <div class="field"><label>Modelo</label><input id="veiculoModelo" placeholder="Ex.: Argo"></div>
+        <div class="field"><label>Ano Modelo</label><input id="veiculoAno" placeholder="Ex.: 2023"></div>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>Seguradora e apólice</h2>
+      <div class="grid g3">
+        <div class="field"><label>Seguradora</label><input id="cia" placeholder="Nome da seguradora"></div>
+        <div class="field"><label>Ramo</label><input id="ramo" placeholder="Ex.: Auto, Residencial..."></div>
+        <div class="field"><label>Nº de sinistro (opcional)</label><input id="numsin" placeholder="Nº de referência, se já houver"></div>
+      </div>
+      <div class="grid g3">
+        <div class="field"><label>Apólice</label><input id="numapo" placeholder="Nº da apólice"></div>
+        <div class="field"><label>Endosso</label><input id="numend" placeholder="Nº do endosso"></div>
+        <div class="field"><label>Item</label><input id="item" placeholder="Item"></div>
+      </div>
+      <div class="field"><label>Oficina/Prestador</label><input id="oficina" placeholder="Nome da oficina ou prestador"></div>
+    </div>
+
+    <div class="card">
+      <h2>Datas e valores</h2>
+      <div class="grid g2">
+        <div class="field"><label>Data de ocorrência</label><input type="date" id="datoco"></div>
+        <div class="field"><label>Data de aviso</label><input type="date" id="datavi"></div>
+      </div>
+      <div class="grid g2">
+        <div class="field"><label>Franquia (R$)</label><input type="number" step="0.01" placeholder="0,00" id="franquia"></div>
+        <div class="field"><label>Valor avaliado (R$)</label><input type="number" step="0.01" placeholder="0,00" id="valavi"></div>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>Responsabilidade comercial</h2>
+      <p class="hint" id="respHint">Obrigatórios para Segurado/Terceiro (não se aplica a Atendimento). Serão conferidos e vinculados ao cadastro do sistema no momento da importação.</p>
+      <div class="grid g3">
+        <div class="field"><label id="lblAgente">Agente <span class="req">*</span></label><input id="agente" placeholder="Nome do agente"></div>
+        <div class="field"><label id="lblProdutor">Produtor <span class="req">*</span></label><input id="produtor" placeholder="Nome do produtor"></div>
+        <div class="field"><label id="lblResponsavel">Responsável sugerido <span class="req">*</span></label><input id="responsavelSugerido" placeholder="Quem deve ficar responsável no sistema">
+          <span class="help">Sugestão — quem importar poderá confirmar ou trocar pelo usuário correto do sistema.</span>
+        </div>
+      </div>
+      <div class="field"><label>Descrição</label><textarea id="descricao" rows="3" placeholder="Descrição do caso..."></textarea></div>
+      <div class="field"><label>Observações</label><textarea id="observacoes" rows="3" placeholder="Observações..."></textarea></div>
+    </div>
+
+    <div class="card">
+      <h2>Dados do cliente</h2>
+      <p class="hint">Mesmos campos do cadastro de cliente do sistema (Módulo Clientes).</p>
+      <div class="grid g2">
+        <div class="field"><label>CPF / CNPJ</label><input id="clienteDocumento" placeholder="000.000.000-00 ou 00.000.000/0000-00"></div>
+        <div class="field"><label>Endereço</label><input id="clienteEndereco" placeholder="Rua, número, bairro, cidade/UF"></div>
+      </div>
+      <div class="field"><label>Observações do cliente</label><textarea id="clienteObservacoes" rows="2"></textarea></div>
+
+      <div style="margin-top:10px">
+        <label style="display:block;margin-bottom:6px;font-size:12.5px;font-weight:600;color:#3a4356">Contatos</label>
+        <div id="contatosWrap"></div>
+        <button type="button" class="btn sec xs no-print" id="btnAddContato">+ Adicionar contato</button>
+      </div>
+    </div>
+
+    <div class="actions no-print">
+      <button type="button" class="btn" id="btnExportar">⬇ Exportar PDF</button>
+      <button type="button" class="btn sec" id="btnLimpar">Limpar formulário</button>
+      <span class="tech-toggle" id="techToggle">▸ Dados técnicos incluídos no PDF (gerados automaticamente)</span>
+    </div>
+
+    <div class="tech-block" id="techBlock">
+      <p class="tech-label">Bloco de dados usado pela importação automática do Sinistro360 — não edite nem remova este texto do PDF.</p>
+      <pre id="dadosImportacao">(gerado ao clicar em "Exportar PDF")</pre>
+    </div>
+
+  </form>
+</div>
+
+<script>
+(function(){
+  "use strict";
+  var MARK_START = "-----SINISTRO360-DADOS-INICIO-----";
+  var MARK_END = "-----SINISTRO360-DADOS-FIM-----";
+
+  var $ = function(id){ return document.getElementById(id); };
+
+  function todayISO(){
+    var d = new Date();
+    var mm = String(d.getMonth()+1).padStart(2,"0");
+    var dd = String(d.getDate()).padStart(2,"0");
+    return d.getFullYear() + "-" + mm + "-" + dd;
+  }
+  $("datavi").value = todayISO();
+
+  function contatoRow(ct){
+    ct = ct || {};
+    var row = document.createElement("div");
+    row.className = "contato-row";
+    row.innerHTML =
+      '<input placeholder="Nome" class="ct-nome" value="'+esc(ct.nome)+'">' +
+      '<input placeholder="Telefone" class="ct-telefone" value="'+esc(ct.telefone)+'">' +
+      '<input placeholder="E-mail" class="ct-email" value="'+esc(ct.email)+'">' +
+      '<input placeholder="Cargo" class="ct-cargo" value="'+esc(ct.cargo)+'">' +
+      '<button type="button" class="btn danger xs no-print btn-rm-contato">✕</button>';
+    row.querySelector(".btn-rm-contato").addEventListener("click", function(){
+      if (document.querySelectorAll("#contatosWrap .contato-row").length <= 1) {
+        row.querySelectorAll("input").forEach(function(i){ i.value = ""; });
+        return;
+      }
+      row.remove();
+    });
+    return row;
+  }
+  function esc(v){ return (v || "").toString().replace(/"/g, "&quot;"); }
+
+  $("contatosWrap").appendChild(contatoRow());
+  $("btnAddContato").addEventListener("click", function(){
+    $("contatosWrap").appendChild(contatoRow());
+  });
+
+  $("tipoParte").addEventListener("change", atualizarObrigatoriedade);
+  function atualizarObrigatoriedade(){
+    var exige = $("tipoParte").value !== "Atendimento";
+    $("respHint").textContent = exige
+      ? "Obrigatórios para Segurado/Terceiro. Serão conferidos e vinculados ao cadastro do sistema no momento da importação."
+      : "Não obrigatórios para Atendimento.";
+    ["lblAgente","lblProdutor","lblResponsavel"].forEach(function(id){
+      var star = $(id).querySelector(".req");
+      if (star) star.style.display = exige ? "inline" : "none";
+    });
+  }
+  atualizarObrigatoriedade();
+
+  function b64EncodeUnicode(str){
+    return btoa(encodeURIComponent(str).replace(/%([0-9A-F]{2})/g, function(_, p1){
+      return String.fromCharCode(parseInt(p1, 16));
+    }));
+  }
+
+  function coletarContatos(){
+    var linhas = document.querySelectorAll("#contatosWrap .contato-row");
+    var out = [];
+    linhas.forEach(function(row){
+      var nome = row.querySelector(".ct-nome").value.trim();
+      var telefone = row.querySelector(".ct-telefone").value.trim();
+      var email = row.querySelector(".ct-email").value.trim();
+      var cargo = row.querySelector(".ct-cargo").value.trim();
+      if (nome || telefone) out.push({ nome: nome, telefone: telefone, email: email, cargo: cargo });
+    });
+    return out;
+  }
+
+  function coletarDados(){
+    return {
+      _origem: "sinistro360_formulario_comercial",
+      _versao: 1,
+      _geradoEm: new Date().toISOString(),
+      tipoParte: $("tipoParte").value,
+      segurado: $("segurado").value.trim(),
+      placa: $("placa").value.trim(),
+      veiculoMarca: $("veiculoMarca").value.trim(),
+      veiculoModelo: $("veiculoModelo").value.trim(),
+      veiculoAno: $("veiculoAno").value.trim(),
+      cia: $("cia").value.trim(),
+      ramo: $("ramo").value.trim(),
+      numsin: $("numsin").value.trim(),
+      numapo: $("numapo").value.trim(),
+      numend: $("numend").value.trim(),
+      item: $("item").value.trim(),
+      oficina: $("oficina").value.trim(),
+      datoco: $("datoco").value,
+      datavi: $("datavi").value,
+      franquia: $("franquia").value,
+      valavi: $("valavi").value,
+      agente: $("agente").value.trim(),
+      produtor: $("produtor").value.trim(),
+      responsavelSugerido: $("responsavelSugerido").value.trim(),
+      descricao: $("descricao").value.trim(),
+      observacoes: $("observacoes").value.trim(),
+      clienteDocumento: $("clienteDocumento").value.trim(),
+      clienteEndereco: $("clienteEndereco").value.trim(),
+      clienteObservacoes: $("clienteObservacoes").value.trim(),
+      clienteContatos: coletarContatos(),
+    };
+  }
+
+  function validar(dados){
+    var faltando = [];
+    if (!dados.segurado) faltando.push("Nome (segurado/terceiro)");
+    if (dados.tipoParte !== "Atendimento") {
+      if (!dados.agente) faltando.push("Agente");
+      if (!dados.produtor) faltando.push("Produtor");
+      if (!dados.responsavelSugerido) faltando.push("Responsável sugerido");
+    }
+    return faltando;
+  }
+
+  function mostrarStatus(cls, msg){
+    $("statusBox").innerHTML = '<div class="card status ' + cls + '">' + msg + '</div>';
+  }
+
+  function montarBlocoDados(dados){
+    var json = JSON.stringify(dados);
+    var b64 = b64EncodeUnicode(json);
+    var linhas = [];
+    for (var i = 0; i < b64.length; i += 90) linhas.push(b64.slice(i, i + 90));
+    var texto = MARK_START + "\n" + linhas.join("\n") + "\n" + MARK_END;
+    $("dadosImportacao").textContent = texto;
+  }
+
+  $("btnExportar").addEventListener("click", function(){
+    var dados = coletarDados();
+    var faltando = validar(dados);
+    if (faltando.length) {
+      mostrarStatus("err", "Preencha os campos obrigatórios antes de exportar: " + faltando.join(", ") + ".");
+      window.scrollTo({ top: 0, behavior: "smooth" });
+      return;
+    }
+    montarBlocoDados(dados);
+    $("techBlock").classList.add("open");
+    $("techToggle").textContent = "▾ Dados técnicos incluídos no PDF (gerados automaticamente)";
+    mostrarStatus("ok", "Dados prontos. Na janela de impressão, escolha \"Salvar como PDF\".");
+    setTimeout(function(){ window.print(); }, 150);
+  });
+
+  $("btnLimpar").addEventListener("click", function(){
+    if (!confirm("Limpar todos os campos do formulário?")) return;
+    $("formAbertura").reset();
+    $("datavi").value = todayISO();
+    $("contatosWrap").innerHTML = "";
+    $("contatosWrap").appendChild(contatoRow());
+    $("dadosImportacao").textContent = '(gerado ao clicar em "Exportar PDF")';
+    $("techBlock").classList.remove("open");
+    $("techToggle").textContent = "▸ Dados técnicos incluídos no PDF (gerados automaticamente)";
+    $("statusBox").innerHTML = "";
+    atualizarObrigatoriedade();
+  });
+
+  $("techToggle").addEventListener("click", function(){
+    $("techBlock").classList.toggle("open");
+    var open = $("techBlock").classList.contains("open");
+    $("techToggle").textContent = (open ? "▾ " : "▸ ") + "Dados técnicos incluídos no PDF (gerados automaticamente)";
+  });
+})();
+</script>
+</body>
+</html>
