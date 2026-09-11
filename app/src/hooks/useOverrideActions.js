@@ -54,6 +54,15 @@ export function useOverrideActions() {
       });
     },
     saveNextAction: (claimId, na) => setOvr(claimId, { nextAction: na }),
+    // "Dentro do prazo" — ver getHistoricoSnoozeAte/isSemAtualizacao em
+    // logic/claims.js. Renova por +3 dias a partir de hoje (mesma janela do
+    // alerta "Último histórico (+3 dias)"), não a partir do último histórico
+    // real, pra sempre dar os 3 dias cheios contados do clique.
+    renovarPrazoHistorico(claimId) {
+      const ate = new Date();
+      ate.setDate(ate.getDate() + 3);
+      setOvr(claimId, { historicoSnoozeAte: ate.toISOString().slice(0, 10) });
+    },
     // Mantém overrides.responsavelUser (valor único, lido em várias telas
     // de forma síncrona) E grava o intervalo correspondente no histórico de
     // responsabilidade (corp_responsabilidade_historico) — ver

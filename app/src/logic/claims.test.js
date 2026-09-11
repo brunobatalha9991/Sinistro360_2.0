@@ -5,6 +5,7 @@ import {
   grupoProdutor, distinctGruposProdutores, emailAlertaDispensado,
   getPesquisaSatisfacao, pesquisaSatisfacaoCompleta,
   situacaoEfetiva, isFinalizado, currentStage, isAtrasado,
+  isSemAtualizacao, getHistoricoSnoozeAte,
 } from "./claims";
 
 const overrides = {
@@ -261,6 +262,49 @@ describe("situacaoEfetiva / isFinalizado — Constatação", () => {
     const c = { id: "c1", ramo: "Auto" };
     const overrides = { c1: { nextAction: { date: "2020-01-01" } } };
     expect(isAtrasado(overrides, c, null, {})).toBe(true);
+  });
+});
+
+describe("isSemAtualizacao / getHistoricoSnoozeAte (botão \"Dentro do prazo\")", () => {
+  const c = { id: "c1", ramo: "Auto" };
+  const passado = { date: new Date(Date.now() - 10 * 86400000).toISOString().slice(0, 10) };
+  const recente = { date: new Date(Date.now() - 1 * 86400000).toISOString().slice(0, 10) };
+
+  it("sem histórico algum, conta como sem atualização", () => {
+    expect(isSemAtualizacao({ c1: {} }, c, null, {})).toBe(true);
+  });
+  it("histórico recente (< 3 dias), não conta como sem atualização", () => {
+    expect(isSemAtualizacao({ c1: { comms: [recente] } }, c, null, {})).toBe(false);
+  });
+  it("histórico antigo (> 3 dias) sem snooze, conta como sem atualização", () => {
+    expect(isSemAtualizacao({ c1: { comms: [passado] } }, c, null, {})).toBe(true);
+  });
+  it("histórico antigo com snooze futuro (\"Dentro do prazo\" recém-clicado), não conta como sem atualização", () => {
+    const amanha = new Date(Date.now() + 86400000).toISOString().slice(0, 10);
+    const overrides = { c1: { comms: [passado], historicoSnoozeAte: amanha } };
+    expect(getHistoricoSnoozeAte(overrides, "c1")).toBe(amanha);
+    expect(isSemAtualizacao(overrides, c, null, {})).toBe(false);
+  });
+  it("snooze já vencido volta a contar como sem atualização", () => {
+    const ontem = new Date(Date.now() - 86400000).toISOString().slice(0, 10);
+    const overrides = { c1: { comms: [passado], historicoSnoozeAte: ontem } };
+    expect(isSemAtualizacao(overrides, c, null, {})).toBe(true);
+  });
+  it("processo finalizado nunca conta como sem atualização, mesmo sem snooze", () => {
+    const templatesOutros = {
+      Auto: {
+        outros: [{
+          id: "encerramento", title: "Encerramento",
+          statusOptions: ["Aguard. pesquisa", "Constatação"],
+          constatacaoStatuses: ["Constatação"],
+        }],
+      },
+    };
+    const overrides = {
+      c1: { comms: [passado], journeyUser: { caminho: "outros", steps: { encerramento: { status: "Constatação" } } } },
+    };
+    expect(isFinalizado(overrides, c, null, templatesOutros)).toBe(true);
+    expect(isSemAtualizacao(overrides, c, null, templatesOutros)).toBe(false);
   });
 });
 

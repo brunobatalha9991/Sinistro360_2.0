@@ -171,6 +171,11 @@ export function DetailHeader({ c, sit, rel, claims, allClaimsRaw, overrides, use
     actions.saveSitAtend(c.id, v);
     actions.logAudit(c.id, "Situação de atendimento", v || "(sem)");
   }
+  function renovarPrazoHistorico() {
+    if (!canEdit) { alert("Seu perfil é apenas de consulta. Você pode visualizar, mas não editar processos."); return; }
+    actions.renovarPrazoHistorico(c.id);
+    actions.logAudit(c.id, "Prazo do histórico renovado", "Marcado como \"Dentro do prazo\" — próximo alerta em 3 dias, se não houver nova atualização antes disso");
+  }
 
   const na = getNextAction(overrides, c.id);
   const atrasada = isAtrasado(overrides, c, config.corp_atendimento_template, config.corp_journey_templates);
@@ -342,7 +347,14 @@ export function DetailHeader({ c, sit, rel, claims, allClaimsRaw, overrides, use
         <PainelItem
           cor={semAtualizacao ? "var(--danger)" : "var(--ink-soft)"}
           titulo={semAtualizacao ? "⚠ Último histórico (+3 dias)" : "Último histórico"}
-          acoes={<button className="btn sec xs" onClick={() => setDetailTab("historico")}>Abrir histórico</button>}
+          acoes={
+            <>
+              <button className="btn sec xs" onClick={() => setDetailTab("historico")}>Abrir histórico</button>
+              {semAtualizacao && canEdit && (
+                <button className="btn sec xs" title="Renova o alerta por +3 dias, sem precisar registrar uma atualização agora" onClick={renovarPrazoHistorico}>Dentro do prazo</button>
+              )}
+            </>
+          }
         >
           {last ? (
             <>

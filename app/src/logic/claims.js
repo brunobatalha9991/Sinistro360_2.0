@@ -397,8 +397,23 @@ export function isAtrasado(overrides, c, atendTemplateCfg, templates) {
   if (!na || !na.date) return false;
   return na.date < new Date().toISOString().slice(0, 10);
 }
+// "Dentro do prazo" (botão ao lado de "Abrir histórico", a pedido do
+// usuário): alguns históricos sabidamente não vão ter nova interação antes
+// de um prazo conhecido (ex.: aguardando resposta da seguradora com prazo
+// próprio) — em vez de forçar a pessoa a inventar uma atualização só pra
+// zerar o alerta, ela renova explicitamente por +3 dias. Guardado como data
+// (historicoSnoozeAte) em vez de "renovado em", pra não precisar saber a
+// regra de +3 dias em dois lugares. Uma comunicação nova de verdade sempre
+// prevalece (isSemAtualizacao usa o mais recente entre snooze e último
+// histórico), então o snooze nunca esconde uma atualização real.
+export function getHistoricoSnoozeAte(overrides, claimId) {
+  return getOvr(overrides, claimId).historicoSnoozeAte || "";
+}
 export function isSemAtualizacao(overrides, c, atendTemplateCfg, templates) {
   if (isFinalizado(overrides, c, atendTemplateCfg, templates)) return false;
+  const hoje = new Date().toISOString().slice(0, 10);
+  const snoozeAte = getHistoricoSnoozeAte(overrides, c.id);
+  if (snoozeAte && snoozeAte >= hoje) return false;
   const comms = loadComms(overrides, c.id);
   if (!comms.length) return true;
   const ultimo = comms[comms.length - 1];
