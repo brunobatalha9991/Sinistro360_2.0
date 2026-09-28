@@ -586,6 +586,45 @@ export function distinctGruposOuAgentes(overrides, claims) {
   distinctAgentes(overrides, claims).forEach((a) => { if (!seen[a]) { seen[a] = true; out.push(a); } });
   return out.sort((a, b) => String(a).localeCompare(String(b), "pt-BR"));
 }
+// Produtor "Indireto" (a pedido do usuário) — marcação feita em
+// Configurações → Agentes e Produtores (config corp_produtores_indiretos).
+export function getProdutoresIndiretos(config) {
+  return (config && config.corp_produtores_indiretos) || [];
+}
+export function produtorEhIndireto(config, produtor) {
+  return getProdutoresIndiretos(config).indexOf(produtor) >= 0;
+}
+
+// Produtor CONSIDERADO de um processo, para métrica (a pedido do usuário).
+// Problema que isso resolve: processo com mais de um produtor indicado
+// aparecia em dois grupos ao mesmo tempo e duplicava a contagem. Agora vale
+// um por processo:
+//   1 produtor          -> ele mesmo;
+//   vários + 1 Indireto -> o marcado como "Indireto" (o primeiro, se houver
+//                          mais de um marcado — nunca conta dois);
+//   vários + nenhum     -> o primeiro que veio do CORP (escolha arbitrária,
+//                          mas estável, pra nenhum processo duplicar mesmo
+//                          antes da marcação estar completa);
+//   nenhum produtor     -> "" (processo entra em "sem produtor vinculado").
+// ATENÇÃO: isto é só para CONTAR. Os filtros (tela Sinistros) e o vínculo de
+// acesso de usuários "Consulta" continuam olhando TODOS os produtores do
+// processo — ninguém perde acesso nem some de uma busca por causa desta
+// regra. Ver claimVisivelParaUsuario e gruposProdutoresDoClaim.
+export function produtorConsideradoDoClaim(config, overrides, claimId) {
+  const ap = getAgenteProdutor(overrides, claimId);
+  const produtores = ((ap && ap.produtores) || []).filter(Boolean);
+  if (!produtores.length) return "";
+  if (produtores.length === 1) return produtores[0];
+  const indireto = produtores.find((p) => produtorEhIndireto(config, p));
+  return indireto || produtores[0];
+}
+// Grupo do produtor considerado — chave das listagens por Grupo de
+// Produtores do Dashboard (uma por processo, sem duplicação).
+export function grupoConsideradoDoClaim(config, overrides, claimId) {
+  const p = produtorConsideradoDoClaim(config, overrides, claimId);
+  return p ? grupoProdutor(p) : "";
+}
+
 // Grupos de Produtores ocultados no Dashboard (config
 // corp_dashboard_grupos_ocultos, editada em Configurações → Grupos de
 // Produtores no Dashboard). Só afeta as LISTAGENS por grupo do Dashboard —

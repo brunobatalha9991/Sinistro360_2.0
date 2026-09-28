@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { distinctAgentes, distinctProdutores, distinctGruposProdutores, getAgentesEfetivo } from "../../logic/claims";
+import { distinctAgentes, distinctProdutores, distinctGruposProdutores, getAgentesEfetivo, getProdutoresIndiretos } from "../../logic/claims";
 
 // Catálogo de agentes e produtores — a pedido do usuário, "bem parecido com
 // Oficina/Seguradora/Clientes": agentes/produtores já vistos em processos
@@ -23,6 +23,18 @@ export function AgentesCatalogoCard({ config, saveConfig, overrides, claims, can
   const agFiltrados = todosAgentes.filter((a) => a.toLowerCase().indexOf(buscaAg.toLowerCase()) >= 0);
   const prFiltrados = todosProdutores.filter((p) => p.toLowerCase().indexOf(buscaPr.toLowerCase()) >= 0);
   const grFiltrados = todosGrupos.filter((g) => g.toLowerCase().indexOf(buscaGr.toLowerCase()) >= 0);
+  const indiretos = getProdutoresIndiretos(config);
+
+  // "Indireto" (a pedido do usuário): desempate de quem conta na métrica
+  // quando o processo tem mais de um produtor indicado — ver
+  // produtorConsideradoDoClaim em logic/claims.js.
+  function alternarIndireto(nome) {
+    if (!canEdit) return;
+    saveConfig("corp_produtores_indiretos", (cur) => {
+      const atual = cur || [];
+      return atual.indexOf(nome) >= 0 ? atual.filter((x) => x !== nome) : [...atual, nome];
+    });
+  }
 
   function adicionar(v) {
     if (!canEdit) return;
@@ -79,11 +91,23 @@ export function AgentesCatalogoCard({ config, saveConfig, overrides, claims, can
               <div className="muted" style={{ fontSize: 12 }}>Nenhum produtor ainda — importe Agente/Produtor em lote (abaixo).</div>
             ) : !prFiltrados.length ? (
               <div className="muted" style={{ fontSize: 12 }}>Nenhum produtor encontrado para "{buscaPr}".</div>
-            ) : prFiltrados.map((p) => (
-              <div key={p} style={{ padding: "4px 2px", fontSize: 13 }}>{p}</div>
-            ))}
+            ) : prFiltrados.map((p) => {
+              const ind = indiretos.indexOf(p) >= 0;
+              return (
+                <label key={p} style={{ display: "flex", gap: 8, alignItems: "center", padding: "4px 2px", fontSize: 13, cursor: canEdit ? "pointer" : "default" }} title={'Marcar "' + p + '" como Indireto'}>
+                  <input type="checkbox" checked={ind} disabled={!canEdit} onChange={() => alternarIndireto(p)} />
+                  <span style={{ flex: 1 }}>{p}</span>
+                  {ind && <span className="badge amber" style={{ flexShrink: 0 }}>Indireto</span>}
+                </label>
+              );
+            })}
           </div>
-          <p className="muted" style={{ fontSize: 11, marginTop: 6 }}>Produtor não tem cadastro manual — só vem de processos já buscados.</p>
+          <p className="muted" style={{ fontSize: 11, marginTop: 6 }}>
+            Produtor não tem cadastro manual — só vem de processos já buscados. Marque como <b>Indireto</b> ({indiretos.length} marcado(s))
+            o produtor que deve contar quando um processo tem mais de um produtor indicado: sem isso, o mesmo processo entrava em
+            dois grupos e inflava as métricas por Grupo de Produtores. A marcação vale só para CONTAR — o filtro da tela Sinistros e
+            o acesso de usuários "Consulta" continuam enxergando todos os produtores do processo.
+          </p>
         </div>
 
         <div>

@@ -17,8 +17,8 @@ import {
   getSitAtend, getTemp, isAtrasado, isSemAtualizacao, isManualClaim, relatedClaims,
   allJourneyStages, currentStage, buildAggregation, last12Months, distinctComputed,
   dashCiaLabel, dashOficinaKey, tipoPartyLabel, statusColorMap, tempColorMap,
-  gruposProdutoresDoClaim, agentesDoClaim, distinctGruposProdutores, getAgentesEfetivo,
-  grupoVisivelNoDashboard,
+  agentesDoClaim, distinctGruposProdutores, getAgentesEfetivo,
+  grupoVisivelNoDashboard, grupoConsideradoDoClaim,
 } from "../logic/claims";
 import { diasEntre, mediaArr, fmtDias, fmtPct, fmtNum, money, fmtDateBR, fmtDateHoraBR, todayISO, txt, cssVar, PALETTE } from "../logic/format";
 
@@ -31,9 +31,10 @@ const DEFAULT_DASH_FILTER = {
   // desligável a qualquer momento, e "Limpar filtros" volta pra cá.
   aberto: true,
   // Grupo de Produtores e Agente (a pedido do usuário) — recortam todo o
-  // Dashboard, igual a Seguradora/Ramo/Oficina. Um processo entra no recorte
-  // se QUALQUER um dos seus vínculos bater (normalmente tem mais de um par
-  // agente/produtor); ver gruposProdutoresDoClaim/agentesDoClaim.
+  // Dashboard, igual a Seguradora/Ramo/Oficina. Grupo usa o produtor
+  // CONSIDERADO do processo (um por processo, com o "Indireto" desempatando
+  // — ver grupoConsideradoDoClaim), pro recorte bater com o ranking. Agente
+  // ainda é multi-valor: o processo entra se qualquer agente dele bater.
   grupoProdutor: "todos", agente: "todos",
 };
 
@@ -244,7 +245,12 @@ export function Dashboard() {
       if (dashFilter.tipo !== "todos" && c.partyType !== dashFilter.tipo) return false;
       if (dashFilter.status !== "todos" && situacaoEfetiva(overrides, c, atendTemplate, templates).label !== dashFilter.status) return false;
       if (dashFilter.caminho !== "todos" && (getUserJourney(overrides, c.id) || {}).caminho !== dashFilter.caminho) return false;
-      if (dashFilter.grupoProdutor !== "todos" && gruposProdutoresDoClaim(overrides, c.id).indexOf(dashFilter.grupoProdutor) < 0) return false;
+      // Mesma chave da métrica (produtor considerado), pra o recorte por
+      // grupo e a barra daquele grupo no ranking mostrarem o mesmo número.
+      // A tela Sinistros continua com o critério amplo (qualquer produtor do
+      // processo), então a lista aberta pelo clique pode trazer também os
+      // processos em que o grupo aparece sem ser o considerado.
+      if (dashFilter.grupoProdutor !== "todos" && grupoConsideradoDoClaim(config, overrides, c.id) !== dashFilter.grupoProdutor) return false;
       if (dashFilter.agente !== "todos" && agentesDoClaim(overrides, c.id).indexOf(dashFilter.agente) < 0) return false;
       if (dashFilter.manual && !isManualClaim(c)) return false;
       if (dashFilter.aberto) {
@@ -340,11 +346,15 @@ export function Dashboard() {
   // Grupos desabilitados em Configurações (corp_dashboard_grupos_ocultos)
   // saem das listagens por grupo, mas os processos deles continuam contando
   // em todo o resto do Dashboard — ver GruposDashboardCard.jsx.
-  const aggGrupoTodos = buildAggregation(overrides, rows, (c) => gruposProdutoresDoClaim(overrides, c.id), atendTemplate, templates);
+  // Uma linha por processo: o grupo do produtor CONSIDERADO (o marcado como
+  // "Indireto" quando o processo tem mais de um produtor indicado) — ver
+  // grupoConsideradoDoClaim. É isso que evita o mesmo processo contar em
+  // dois grupos e inflar a métrica.
+  const aggGrupoTodos = buildAggregation(overrides, rows, (c) => grupoConsideradoDoClaim(config, overrides, c.id), atendTemplate, templates);
   const aggGrupoProdutor = aggGrupoTodos.filter((a) => grupoVisivelNoDashboard(config, a.key));
   const gruposOcultosNoRecorte = aggGrupoTodos.length - aggGrupoProdutor.length;
   const aggAgente = buildAggregation(overrides, rows, (c) => agentesDoClaim(overrides, c.id), atendTemplate, templates);
-  const semGrupo = rows.filter((c) => !gruposProdutoresDoClaim(overrides, c.id).length).length;
+  const semGrupo = rows.filter((c) => !grupoConsideradoDoClaim(config, overrides, c.id)).length;
   const semAgente = rows.filter((c) => !agentesDoClaim(overrides, c.id).length).length;
 
   const months = last12Months();
@@ -751,6 +761,7 @@ export function Dashboard() {
                 {gruposOcultosNoRecorte ? `${fmtNum(aggGrupoProdutor.length)} de ${fmtNum(aggGrupoTodos.length)} grupo(s)` : `Todos os ${fmtNum(aggGrupoProdutor.length)} grupo(s)`} do recorte • clique numa barra para ver os processos do grupo
                 {semGrupo ? ` • ${fmtNum(semGrupo)} sem produtor vinculado` : ""}
                 {gruposOcultosNoRecorte ? ` • ${fmtNum(gruposOcultosNoRecorte)} desabilitado(s) em Configurações` : ""}
+                {" • um processo conta uma vez só (produtor Indireto desempata)"}
               </p>
               <RankList data={rankGrupos} onClick={(d) => goSinistros({ grupoProdutor: d.label, agente: "todos" })} />
             </div>}
@@ -802,8 +813,9 @@ export function Dashboard() {
             </div>
             <p className="muted" style={{ margin: "6px 0 12px" }}>
               Grupo de Produtores = nome do produtor sem o sufixo da unidade/filial (tudo antes do último " - "), então as várias
-              unidades do mesmo produtor entram numa linha só. Um processo com mais de um vínculo conta em cada grupo, por isso a
-              soma das linhas pode passar do total do recorte.{semGrupo ? ` ${fmtNum(semGrupo)} processo(s) do recorte estão sem produtor vinculado e não aparecem aqui.` : ""}
+              unidades do mesmo produtor entram numa linha só. Cada processo conta uma única vez: quando tem mais de um produtor
+              indicado, vale o marcado como "Indireto" em Configurações → Agentes e Produtores (sem nenhum marcado, vale o
+              primeiro produtor do processo).{semGrupo ? ` ${fmtNum(semGrupo)} processo(s) do recorte estão sem produtor vinculado e não aparecem aqui.` : ""}
               {gruposOcultosNoRecorte ? ` ${fmtNum(gruposOcultosNoRecorte)} grupo(s) foram desabilitados em Configurações → Agentes & Produtores e ficam fora desta lista (os processos deles seguem contando nos demais indicadores).` : ""}
             </p>
             {grupoProdutorRows.length ? <PerfTable headers={["Grupo de Produtores", "Qtd.", "% do recorte", "Indenizados", "Atrasados", "Sem atualização", "Ações"]} rows={grupoProdutorRows} /> : <EmptyState>Nenhum produtor vinculado nos processos deste recorte.</EmptyState>}

@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { distinctGruposProdutores, gruposProdutoresDoClaim, getGruposOcultosDashboard } from "../../logic/claims";
+import { distinctGruposProdutores, grupoConsideradoDoClaim, getGruposOcultosDashboard } from "../../logic/claims";
 
 // Quais Grupos de Produtores aparecem no Dashboard (a pedido do usuário) —
 // lista completa dos grupos encontrados nos processos, cada um com um
@@ -24,9 +24,12 @@ export function GruposDashboardCard({ config, saveConfig, overrides, claims, can
   const habilitados = todos.filter((g) => ocultos.indexOf(g) < 0).length;
 
   // Quantos processos cada grupo tem hoje — ajuda a decidir o que esconder.
+  // Mesma regra do Dashboard: um processo conta uma vez só, no grupo do
+  // produtor considerado (ver grupoConsideradoDoClaim).
   const contagem = {};
   (claims || []).forEach((c) => {
-    gruposProdutoresDoClaim(overrides, c.id).forEach((g) => { contagem[g] = (contagem[g] || 0) + 1; });
+    const g = grupoConsideradoDoClaim(config, overrides, c.id);
+    if (g) contagem[g] = (contagem[g] || 0) + 1;
   });
 
   const filtrados = todos.filter((g) => g.toLowerCase().indexOf(busca.toLowerCase()) >= 0);

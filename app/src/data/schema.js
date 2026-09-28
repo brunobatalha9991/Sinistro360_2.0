@@ -36,6 +36,13 @@ export const CONFIG_KEYS = [
   // String única (não é lista); [[placa]] é a variável substituída. Ver
   // src/logic/tratativaLote.js e ConfiguracoesTratativaLoteCard.jsx.
   "corp_tratativa_lote_template",
+  // Produtores marcados como "Indireto" (a pedido do usuário) — array com
+  // os NOMES completos dos produtores (com sufixo de unidade). Serve de
+  // desempate quando um processo tem mais de um produtor indicado: só um
+  // conta nas métricas, senão o mesmo processo aparecia em dois grupos e
+  // inflava os números. Ver produtorConsideradoDoClaim em logic/claims.js e
+  // AgentesCatalogoCard.jsx.
+  "corp_produtores_indiretos",
   // Grupos de Produtores ocultados no Dashboard (a pedido do usuário) —
   // array com os NOMES dos grupos que NÃO devem aparecer nas listagens por
   // grupo do Dashboard. Guardamos os ocultos (e não os visíveis) de

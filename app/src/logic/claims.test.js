@@ -5,6 +5,7 @@ import {
   grupoProdutor, distinctGruposProdutores, emailAlertaDispensado,
   gruposProdutoresDoClaim, agentesDoClaim, buildAggregation,
   getGruposOcultosDashboard, grupoVisivelNoDashboard,
+  produtorConsideradoDoClaim, grupoConsideradoDoClaim, produtorEhIndireto,
   getPesquisaSatisfacao, pesquisaSatisfacaoCompleta,
   situacaoEfetiva, isFinalizado, currentStage, isAtrasado,
   isSemAtualizacao, getHistoricoSnoozeAte,
@@ -427,5 +428,43 @@ describe("grupoVisivelNoDashboard", () => {
   it("grupo novo (ainda nao listado) entra visivel", () => {
     const cfg = { corp_dashboard_grupos_ocultos: ["PINHEIROS"] };
     expect(grupoVisivelNoDashboard(cfg, "GRUPO RECEM SINCRONIZADO")).toBe(true);
+  });
+});
+
+// Desempate do produtor que conta na metrica (a pedido do usuario): processo
+// com mais de um produtor indicado contava em dois grupos e inflava tudo.
+describe("produtorConsideradoDoClaim / grupoConsideradoDoClaim", () => {
+  const ovr = {
+    um: { agenteProdutor: { produtores: ["SAHRA MARIA GOMES - SM"] } },
+    dois: { agenteProdutor: { produtores: ["PRODUCAO CORRETORA - BATALHA", "SAHRA MARIA GOMES - SM"] } },
+    tres: { agenteProdutor: { produtores: ["A - X", "B - Y", "C - Z"] } },
+    nenhum: { agenteProdutor: { produtores: [] } },
+  };
+  const cfg = { corp_produtores_indiretos: ["SAHRA MARIA GOMES - SM", "B - Y", "C - Z"] };
+
+  it("um produtor so: ele mesmo, marcado ou nao", () => {
+    expect(produtorConsideradoDoClaim(cfg, ovr, "um")).toBe("SAHRA MARIA GOMES - SM");
+    expect(produtorConsideradoDoClaim({}, ovr, "um")).toBe("SAHRA MARIA GOMES - SM");
+  });
+  it("varios produtores: vale o marcado como Indireto", () => {
+    expect(produtorConsideradoDoClaim(cfg, ovr, "dois")).toBe("SAHRA MARIA GOMES - SM");
+    expect(grupoConsideradoDoClaim(cfg, ovr, "dois")).toBe("SAHRA MARIA GOMES");
+  });
+  it("varios marcados como Indireto: conta so o primeiro, nunca dois", () => {
+    expect(produtorConsideradoDoClaim(cfg, ovr, "tres")).toBe("B - Y");
+  });
+  it("varios e nenhum marcado: vale o primeiro do CORP", () => {
+    expect(produtorConsideradoDoClaim({}, ovr, "dois")).toBe("PRODUCAO CORRETORA - BATALHA");
+    expect(grupoConsideradoDoClaim({}, ovr, "dois")).toBe("PRODUCAO CORRETORA");
+  });
+  it("sem produtor: vazio (entra em 'sem produtor vinculado')", () => {
+    expect(produtorConsideradoDoClaim(cfg, ovr, "nenhum")).toBe("");
+    expect(grupoConsideradoDoClaim(cfg, ovr, "nenhum")).toBe("");
+    expect(produtorConsideradoDoClaim(cfg, ovr, "inexistente")).toBe("");
+  });
+  it("produtorEhIndireto so marca quem esta na lista", () => {
+    expect(produtorEhIndireto(cfg, "B - Y")).toBe(true);
+    expect(produtorEhIndireto(cfg, "A - X")).toBe(false);
+    expect(produtorEhIndireto({}, "B - Y")).toBe(false);
   });
 });
