@@ -586,6 +586,18 @@ export function distinctGruposOuAgentes(overrides, claims) {
   distinctAgentes(overrides, claims).forEach((a) => { if (!seen[a]) { seen[a] = true; out.push(a); } });
   return out.sort((a, b) => String(a).localeCompare(String(b), "pt-BR"));
 }
+// Grupos de Produtores ocultados no Dashboard (config
+// corp_dashboard_grupos_ocultos, editada em Configurações → Grupos de
+// Produtores no Dashboard). Só afeta as LISTAGENS por grupo do Dashboard —
+// os processos do grupo ocultado continuam contando normalmente em todos os
+// outros números (total do recorte, situações, financeiro etc.).
+export function getGruposOcultosDashboard(config) {
+  return (config && config.corp_dashboard_grupos_ocultos) || [];
+}
+export function grupoVisivelNoDashboard(config, grupo) {
+  return getGruposOcultosDashboard(config).indexOf(grupo) < 0;
+}
+
 // Catálogo efetivo de agentes: união do catálogo editável pelo admin
 // (config.corp_agentes_catalogo, com "+ Novo agente" em Configurações) com
 // os agentes já descobertos em processos sincronizados/importados.

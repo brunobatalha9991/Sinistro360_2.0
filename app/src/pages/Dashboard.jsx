@@ -18,12 +18,18 @@ import {
   allJourneyStages, currentStage, buildAggregation, last12Months, distinctComputed,
   dashCiaLabel, dashOficinaKey, tipoPartyLabel, statusColorMap, tempColorMap,
   gruposProdutoresDoClaim, agentesDoClaim, distinctGruposProdutores, getAgentesEfetivo,
+  grupoVisivelNoDashboard,
 } from "../logic/claims";
 import { diasEntre, mediaArr, fmtDias, fmtPct, fmtNum, money, fmtDateBR, fmtDateHoraBR, todayISO, txt, cssVar, PALETTE } from "../logic/format";
 
 const DEFAULT_DASH_FILTER = {
   ocoDe: "", ocoAte: "", cia: "todas", ramo: "todos", oficina: "todas",
-  tipo: "todos", status: "todos", caminho: "todos", manual: false, aberto: false,
+  tipo: "todos", status: "todos", caminho: "todos", manual: false,
+  // "Em aberto" (Pendente/Em andamento) já vem ligado ao abrir o Dashboard
+  // (a pedido do usuário): o dia a dia é sobre processo que ainda anda, e
+  // não sobre a base histórica inteira. É só o padrão — o chip continua
+  // desligável a qualquer momento, e "Limpar filtros" volta pra cá.
+  aberto: true,
   // Grupo de Produtores e Agente (a pedido do usuário) — recortam todo o
   // Dashboard, igual a Seguradora/Ramo/Oficina. Um processo entra no recorte
   // se QUALQUER um dos seus vínculos bater (normalmente tem mais de um par
@@ -331,7 +337,12 @@ export function Dashboard() {
   // conta nos dois grupos/agentes, então a soma das linhas pode passar do
   // total do recorte — e processos ainda sem vínculo buscado no CORP não
   // entram em nenhuma linha (contados à parte em semGrupo/semAgente).
-  const aggGrupoProdutor = buildAggregation(overrides, rows, (c) => gruposProdutoresDoClaim(overrides, c.id), atendTemplate, templates);
+  // Grupos desabilitados em Configurações (corp_dashboard_grupos_ocultos)
+  // saem das listagens por grupo, mas os processos deles continuam contando
+  // em todo o resto do Dashboard — ver GruposDashboardCard.jsx.
+  const aggGrupoTodos = buildAggregation(overrides, rows, (c) => gruposProdutoresDoClaim(overrides, c.id), atendTemplate, templates);
+  const aggGrupoProdutor = aggGrupoTodos.filter((a) => grupoVisivelNoDashboard(config, a.key));
+  const gruposOcultosNoRecorte = aggGrupoTodos.length - aggGrupoProdutor.length;
   const aggAgente = buildAggregation(overrides, rows, (c) => agentesDoClaim(overrides, c.id), atendTemplate, templates);
   const semGrupo = rows.filter((c) => !gruposProdutoresDoClaim(overrides, c.id).length).length;
   const semAgente = rows.filter((c) => !agentesDoClaim(overrides, c.id).length).length;
@@ -352,7 +363,11 @@ export function Dashboard() {
   const ciaOptions = distinctComputed(claims, (c) => dashCiaLabel(overrides, c));
   const ramoOptions = distinctComputed(claims, (c) => campoEfetivo(overrides, c, "ramo"));
   const oficinaOptions = distinctComputed(claims, (c) => dashOficinaKey(overrides, c));
-  const grupoProdutorOptions = distinctGruposProdutores(overrides, claims);
+  // O grupo escolhido no filtro continua listado mesmo se for desabilitado
+  // depois, senão o select ficaria mostrando um valor que não existe na
+  // lista (e o recorte seguiria aplicado sem ninguém entender por quê).
+  const grupoProdutorOptions = distinctGruposProdutores(overrides, claims)
+    .filter((g) => grupoVisivelNoDashboard(config, g) || g === dashFilter.grupoProdutor);
   const agenteOptions = getAgentesEfetivo(config, overrides, claims);
   // Lista de opções da situação a partir da situação EFETIVA (jornada do
   // usuário) — não do texto bruto da API CORP: o filtro em si (linha do
@@ -733,8 +748,9 @@ export function Dashboard() {
             {mostra("ga_grupos") && <div className="chart-card">
               <h4>Grupos de Produtores por Volume</h4>
               <p className="sub">
-                Todos os {fmtNum(aggGrupoProdutor.length)} grupo(s) do recorte • clique numa barra para ver os processos do grupo
+                {gruposOcultosNoRecorte ? `${fmtNum(aggGrupoProdutor.length)} de ${fmtNum(aggGrupoTodos.length)} grupo(s)` : `Todos os ${fmtNum(aggGrupoProdutor.length)} grupo(s)`} do recorte • clique numa barra para ver os processos do grupo
                 {semGrupo ? ` • ${fmtNum(semGrupo)} sem produtor vinculado` : ""}
+                {gruposOcultosNoRecorte ? ` • ${fmtNum(gruposOcultosNoRecorte)} desabilitado(s) em Configurações` : ""}
               </p>
               <RankList data={rankGrupos} onClick={(d) => goSinistros({ grupoProdutor: d.label, agente: "todos" })} />
             </div>}
@@ -780,12 +796,15 @@ export function Dashboard() {
           {mostra("des_grupo") && <div className="card">
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 8 }}>
               <h3 style={{ margin: 0 }}>Quantidade de Processos por Grupo de Produtores</h3>
-              <span className="muted" style={{ fontSize: 12 }}>{aggGrupoProdutor.length} grupo(s) no recorte</span>
+              <span className="muted" style={{ fontSize: 12 }}>
+                {aggGrupoProdutor.length} grupo(s) no recorte{gruposOcultosNoRecorte ? ` • ${gruposOcultosNoRecorte} desabilitado(s)` : ""}
+              </span>
             </div>
             <p className="muted" style={{ margin: "6px 0 12px" }}>
               Grupo de Produtores = nome do produtor sem o sufixo da unidade/filial (tudo antes do último " - "), então as várias
               unidades do mesmo produtor entram numa linha só. Um processo com mais de um vínculo conta em cada grupo, por isso a
               soma das linhas pode passar do total do recorte.{semGrupo ? ` ${fmtNum(semGrupo)} processo(s) do recorte estão sem produtor vinculado e não aparecem aqui.` : ""}
+              {gruposOcultosNoRecorte ? ` ${fmtNum(gruposOcultosNoRecorte)} grupo(s) foram desabilitados em Configurações → Agentes & Produtores e ficam fora desta lista (os processos deles seguem contando nos demais indicadores).` : ""}
             </p>
             {grupoProdutorRows.length ? <PerfTable headers={["Grupo de Produtores", "Qtd.", "% do recorte", "Indenizados", "Atrasados", "Sem atualização", "Ações"]} rows={grupoProdutorRows} /> : <EmptyState>Nenhum produtor vinculado nos processos deste recorte.</EmptyState>}
           </div>}

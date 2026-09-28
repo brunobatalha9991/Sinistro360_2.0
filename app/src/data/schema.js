@@ -36,6 +36,13 @@ export const CONFIG_KEYS = [
   // String única (não é lista); [[placa]] é a variável substituída. Ver
   // src/logic/tratativaLote.js e ConfiguracoesTratativaLoteCard.jsx.
   "corp_tratativa_lote_template",
+  // Grupos de Produtores ocultados no Dashboard (a pedido do usuário) —
+  // array com os NOMES dos grupos que NÃO devem aparecer nas listagens por
+  // grupo do Dashboard. Guardamos os ocultos (e não os visíveis) de
+  // propósito: grupo novo que aparecer numa sincronização futura já entra
+  // visível, sem precisar ser habilitado na mão. Ver
+  // GruposDashboardCard.jsx e grupoVisivelNoDashboard em logic/claims.js.
+  "corp_dashboard_grupos_ocultos",
   // Layout (ordem + tamanho de cada caixa) do cabeçalho do detalhe do
   // processo — a pedido do usuário: caixas arrastáveis/redimensionáveis,
   // compartilhadas pra todo mundo que usa o sistema. Ver DetailHeader.jsx.

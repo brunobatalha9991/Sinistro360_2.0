@@ -4,6 +4,7 @@ import {
   distinctAgentes, distinctProdutores, getAgentesEfetivo,
   grupoProdutor, distinctGruposProdutores, emailAlertaDispensado,
   gruposProdutoresDoClaim, agentesDoClaim, buildAggregation,
+  getGruposOcultosDashboard, grupoVisivelNoDashboard,
   getPesquisaSatisfacao, pesquisaSatisfacaoCompleta,
   situacaoEfetiva, isFinalizado, currentStage, isAtrasado,
   isSemAtualizacao, getHistoricoSnoozeAte,
@@ -405,5 +406,26 @@ describe("buildAggregation — chave única e chave múltipla", () => {
   it("ignora chave vazia", () => {
     const agg = buildAggregation({}, rows, (c) => (c.id === "c3" ? ["", null] : ["G1"]), undefined, {});
     expect(agg.map((a) => [a.key, a.count])).toEqual([["G1", 2]]);
+  });
+});
+
+// Quais grupos aparecem nas listagens por Grupo de Produtores do Dashboard
+// (Configuracoes -> Grupos de Produtores no Dashboard). Guardamos os
+// OCULTOS, entao grupo novo nasce visivel.
+describe("grupoVisivelNoDashboard", () => {
+  it("tudo visivel quando a config nunca foi tocada", () => {
+    expect(getGruposOcultosDashboard(undefined)).toEqual([]);
+    expect(getGruposOcultosDashboard({})).toEqual([]);
+    expect(grupoVisivelNoDashboard({}, "MAGNO SUED")).toBe(true);
+  });
+  it("esconde so os grupos listados como ocultos", () => {
+    const cfg = { corp_dashboard_grupos_ocultos: ["PINHEIROS", "FERNANDO"] };
+    expect(grupoVisivelNoDashboard(cfg, "PINHEIROS")).toBe(false);
+    expect(grupoVisivelNoDashboard(cfg, "FERNANDO")).toBe(false);
+    expect(grupoVisivelNoDashboard(cfg, "MAGNO SUED")).toBe(true);
+  });
+  it("grupo novo (ainda nao listado) entra visivel", () => {
+    const cfg = { corp_dashboard_grupos_ocultos: ["PINHEIROS"] };
+    expect(grupoVisivelNoDashboard(cfg, "GRUPO RECEM SINCRONIZADO")).toBe(true);
   });
 });

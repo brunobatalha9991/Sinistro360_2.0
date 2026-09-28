@@ -22,6 +22,7 @@ import { UsersCard } from "../components/config/UsersCard.jsx";
 import { AtendimentoStepsEditor } from "../components/config/AtendimentoStepsEditor.jsx";
 import { AgentesCatalogoCard } from "../components/config/AgentesCatalogoCard.jsx";
 import { ImportarAgenteProdutorCard } from "../components/config/ImportarAgenteProdutorCard.jsx";
+import { GruposDashboardCard } from "../components/config/GruposDashboardCard.jsx";
 import { GmailConfigCard } from "../components/config/GmailConfigCard.jsx";
 import { EmailAssinaturaCard } from "../components/config/EmailAssinaturaCard.jsx";
 import { EmailRegrasCard } from "../components/config/EmailRegrasCard.jsx";
@@ -112,9 +113,10 @@ export function Configuracoes() {
             <DicasAssistenteCard config={config} saveConfig={saveConfig} canEdit={admin} />
           </ConfigGroup>
 
-          <ConfigGroup title="Agentes & Produtores" subtitle="Catálogo de agentes e importação em lote de Agente/Produtor da API CORP — usado no filtro de Sinistros e no vínculo de acesso de usuários Consulta.">
+          <ConfigGroup title="Agentes & Produtores" subtitle="Catálogo de agentes, importação em lote de Agente/Produtor da API CORP e quais grupos aparecem no Dashboard — usado no filtro de Sinistros e no vínculo de acesso de usuários Consulta.">
             <AgentesCatalogoCard config={config} saveConfig={saveConfig} overrides={overrides} claims={claims} canEdit={admin} />
             <ImportarAgenteProdutorCard claims={claims} config={config} overrides={overrides} actions={actions} canEdit={admin} />
+            <GruposDashboardCard config={config} saveConfig={saveConfig} overrides={overrides} claims={claims} canEdit={admin} />
           </ConfigGroup>
 
           <ConfigGroup title="Mesa de Atendimento" subtitle="Checklist de abertura, formulários de solicitação e upload de anexos no Drive.">
