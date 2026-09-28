@@ -60,7 +60,7 @@ function App() {
   return (
     <>
       {mode === "offline" && (
-        <div style={{ background: "#fef3c7", color: "#92400e", fontSize: 12, textAlign: "center", padding: "4px 8px" }}>
+        <div className="offline-banner" style={{ background: "#fef3c7", color: "#92400e", fontSize: 12, textAlign: "center", padding: "4px 8px" }}>
           Modo offline (dados fictícios) — nenhuma leitura/escrita no Firebase de produção.
         </div>
       )}

@@ -3,6 +3,7 @@ import {
   usuarioTemVinculoRestrito, claimVisivelParaUsuario, visibleClaims,
   distinctAgentes, distinctProdutores, getAgentesEfetivo,
   grupoProdutor, distinctGruposProdutores, emailAlertaDispensado,
+  gruposProdutoresDoClaim, agentesDoClaim, buildAggregation,
   getPesquisaSatisfacao, pesquisaSatisfacaoCompleta,
   situacaoEfetiva, isFinalizado, currentStage, isAtrasado,
   isSemAtualizacao, getHistoricoSnoozeAte,
@@ -344,5 +345,65 @@ describe("getPesquisaSatisfacao + pesquisaSatisfacaoCompleta", () => {
   it("nota zero sem naoAplica não conta como decisão", () => {
     const ovr = { c1: { pesquisaSatisfacao: { corretora: { nota: 0 }, seguradora: { naoAplica: true }, oficina: { nota: 3 } } } };
     expect(pesquisaSatisfacaoCompleta(ovr, "c1")).toBe(false);
+  });
+});
+
+// Métrica de quantidade por Grupo de Produtores / Agente no Dashboard (a
+// pedido do usuário). O ponto delicado: um processo normalmente tem VÁRIOS
+// pares de agente/produtor, então ele conta em cada grupo/agente — mas não
+// pode contar duas vezes no MESMO grupo quando duas unidades do mesmo
+// produtor estão vinculadas.
+describe("gruposProdutoresDoClaim / agentesDoClaim", () => {
+  const ovr = {
+    c1: {
+      agenteProdutor: {
+        agentes: ["AGENTE A", "AGENTE B", "AGENTE A"],
+        produtores: ["LORENA / DANIELA DE SÁ - BATALHA", "LORENA / DANIELA DE SÁ - GRAND ROSA", "MAGNO SUED"],
+      },
+    },
+    c2: { agenteProdutor: { agentes: [], produtores: [] } },
+  };
+
+  it("colapsa as unidades do mesmo produtor num grupo só", () => {
+    expect(gruposProdutoresDoClaim(ovr, "c1")).toEqual(["LORENA / DANIELA DE SÁ", "MAGNO SUED"]);
+  });
+  it("não repete agente vinculado duas vezes no mesmo processo", () => {
+    expect(agentesDoClaim(ovr, "c1")).toEqual(["AGENTE A", "AGENTE B"]);
+  });
+  it("devolve lista vazia quando o processo não tem vínculo buscado", () => {
+    expect(gruposProdutoresDoClaim(ovr, "c2")).toEqual([]);
+    expect(agentesDoClaim(ovr, "c2")).toEqual([]);
+    expect(gruposProdutoresDoClaim(ovr, "c9")).toEqual([]);
+    expect(agentesDoClaim(ovr, "c9")).toEqual([]);
+  });
+});
+
+describe("buildAggregation — chave única e chave múltipla", () => {
+  const rows = [
+    { id: "c1", cia: "PORT" },
+    { id: "c2", cia: "PORT" },
+    { id: "c3", cia: "TOKIO" },
+  ];
+
+  it("continua agrupando por uma chave só (oficina/seguradora/ramo)", () => {
+    const agg = buildAggregation({}, rows, (c) => c.cia, undefined, {});
+    expect(agg.map((a) => [a.key, a.count])).toEqual([["PORT", 2], ["TOKIO", 1]]);
+  });
+
+  it("conta o processo em cada chave quando keyFn devolve lista", () => {
+    const keys = { c1: ["G1", "G2"], c2: ["G2"], c3: [] };
+    const agg = buildAggregation({}, rows, (c) => keys[c.id], undefined, {});
+    expect(agg.map((a) => [a.key, a.count])).toEqual([["G2", 2], ["G1", 1]]);
+  });
+
+  it("ignora chave repetida dentro do mesmo processo", () => {
+    const agg = buildAggregation({}, rows, () => ["G1", "G1"], undefined, {});
+    expect(agg).toHaveLength(1);
+    expect(agg[0].count).toBe(3);
+  });
+
+  it("ignora chave vazia", () => {
+    const agg = buildAggregation({}, rows, (c) => (c.id === "c3" ? ["", null] : ["G1"]), undefined, {});
+    expect(agg.map((a) => [a.key, a.count])).toEqual([["G1", 2]]);
   });
 });

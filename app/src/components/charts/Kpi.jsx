@@ -34,13 +34,30 @@ function useAnimatedKpi(finalText) {
   return display;
 }
 
-// Porte 1:1 de kpi() do HTML original.
-export function Kpi({ n, l, cls, sub, alert }) {
+// Porte de kpi() do HTML original + clique (a pedido do usuário: todo campo
+// do Dashboard que representa um CONJUNTO de processos abre a tela Sinistros
+// já filtrada). Sem `onClick` o KPI segue exatamente como era — os cartões
+// de taxa, valor e tempo médio (que são cálculos, não um conjunto) ficam sem
+// clique de propósito.
+export function Kpi({ n, l, cls, sub, alert, onClick, title }) {
   const display = useAnimatedKpi(n);
+  const clicavel = typeof onClick === "function";
+  function keyDown(e) {
+    if (e.key !== "Enter" && e.key !== " ") return;
+    e.preventDefault();
+    onClick();
+  }
   return (
-    <div className={"kpi " + (cls || "") + (alert ? " kpi-alert" : "")}>
+    <div
+      className={"kpi " + (cls || "") + (alert ? " kpi-alert" : "") + (clicavel ? " clickable" : "")}
+      onClick={clicavel ? onClick : undefined}
+      title={clicavel ? (title || "Ver os sinistros deste indicador") : undefined}
+      role={clicavel ? "button" : undefined}
+      tabIndex={clicavel ? 0 : undefined}
+      onKeyDown={clicavel ? keyDown : undefined}
+    >
       <div className="n">{display}</div>
-      <div className="l">{l}</div>
+      <div className="l">{l}{clicavel ? <span className="kpi-go" aria-hidden="true">›</span> : null}</div>
       {sub ? <div className="sub">{sub}</div> : null}
     </div>
   );

@@ -553,6 +553,31 @@ export function produtorOuAgenteEfetivo(overrides, claimId) {
   const agentes = ap.agentes || [];
   return agentes.length ? agentes[0] : "";
 }
+// Vínculos de UM processo como lista (a pedido do usuário: métrica de
+// quantidade por Grupo de Produtores e por Agente no Dashboard). Um
+// processo normalmente tem VÁRIOS pares de agente/produtor (o mais comum
+// são 2), então ele conta em cada grupo/agente vinculado — mesmo critério
+// dos filtros da tela Sinistros (lf.grupoProdutor/lf.agente) e do vínculo
+// de acesso de usuários "Consulta" (claimVisivelParaUsuario). Repetições
+// dentro do mesmo processo são colapsadas (duas unidades do mesmo produtor
+// = um grupo só), pra ele não contar duas vezes na mesma linha.
+export function gruposProdutoresDoClaim(overrides, claimId) {
+  const ap = getAgenteProdutor(overrides, claimId);
+  const seen = {}; const out = [];
+  ((ap && ap.produtores) || []).forEach((p) => {
+    const g = grupoProdutor(p);
+    if (g && !seen[g]) { seen[g] = true; out.push(g); }
+  });
+  return out;
+}
+export function agentesDoClaim(overrides, claimId) {
+  const ap = getAgenteProdutor(overrides, claimId);
+  const seen = {}; const out = [];
+  ((ap && ap.agentes) || []).forEach((a) => {
+    if (a && !seen[a]) { seen[a] = true; out.push(a); }
+  });
+  return out;
+}
 // Lista combinada de grupos de produtores + agentes distintos, pro
 // seletor "V. Grupo do Produtor ou agente" da tarefa de Comunicação.
 export function distinctGruposOuAgentes(overrides, claims) {
@@ -706,24 +731,33 @@ export function dashOficinaKey(overrides, oficina) {
 }
 export function tipoPartyLabel(v) { return v === "Aviso" ? "Atendimento" : v; }
 
+// keyFn pode devolver UMA chave (oficina, seguradora, ramo — dimensões com
+// um valor por processo) ou uma LISTA de chaves (Grupo de Produtores /
+// Agente — ver gruposProdutoresDoClaim/agentesDoClaim: um processo com dois
+// vínculos entra na linha dos dois, então a soma das linhas pode passar do
+// total do recorte).
 export function buildAggregation(overrides, rows, keyFn, atendTemplateCfg, templates) {
   const map = {};
   rows.forEach((c) => {
-    const k = keyFn(c);
-    if (!k) return;
-    if (!map[k]) map[k] = { key: k, count: 0, valavi: 0, valind: 0, valdes: 0, tmaArr: [], tmeArr: [], tmrArr: [], atrasados: 0, semAtu: 0, indenizados: 0 };
-    const g = map[k];
-    g.count++;
-    g.valavi += c.valavi || 0; g.valind += c.valind || 0; g.valdes += c.valdes || 0;
-    const tma = diasEntre(c.datoco, c.datavi); if (tma != null && tma >= 0) g.tmaArr.push(tma);
-    const tme = diasEntre(c.datavi, c.datenc); if (tme != null && tme >= 0) g.tmeArr.push(tme);
-    const uj = getUserJourney(overrides, c.id);
-    if (uj && uj.caminho === "parcial" && uj.steps && uj.steps.conclusao && uj.steps.conclusao.date) {
-      const tmr = diasEntre(c.datavi, uj.steps.conclusao.date); if (tmr != null && tmr >= 0) g.tmrArr.push(tmr);
-    }
-    if (isAtrasado(overrides, c, atendTemplateCfg, templates)) g.atrasados++;
-    if (isSemAtualizacao(overrides, c, atendTemplateCfg, templates)) g.semAtu++;
-    if (situacaoEfetiva(overrides, c, atendTemplateCfg, templates).label === "Indenizado") g.indenizados++;
+    const kv = keyFn(c);
+    const contadas = {};
+    (Array.isArray(kv) ? kv : [kv]).forEach((k) => {
+      if (!k || contadas[k]) return;
+      contadas[k] = true;
+      if (!map[k]) map[k] = { key: k, count: 0, valavi: 0, valind: 0, valdes: 0, tmaArr: [], tmeArr: [], tmrArr: [], atrasados: 0, semAtu: 0, indenizados: 0 };
+      const g = map[k];
+      g.count++;
+      g.valavi += c.valavi || 0; g.valind += c.valind || 0; g.valdes += c.valdes || 0;
+      const tma = diasEntre(c.datoco, c.datavi); if (tma != null && tma >= 0) g.tmaArr.push(tma);
+      const tme = diasEntre(c.datavi, c.datenc); if (tme != null && tme >= 0) g.tmeArr.push(tme);
+      const uj = getUserJourney(overrides, c.id);
+      if (uj && uj.caminho === "parcial" && uj.steps && uj.steps.conclusao && uj.steps.conclusao.date) {
+        const tmr = diasEntre(c.datavi, uj.steps.conclusao.date); if (tmr != null && tmr >= 0) g.tmrArr.push(tmr);
+      }
+      if (isAtrasado(overrides, c, atendTemplateCfg, templates)) g.atrasados++;
+      if (isSemAtualizacao(overrides, c, atendTemplateCfg, templates)) g.semAtu++;
+      if (situacaoEfetiva(overrides, c, atendTemplateCfg, templates).label === "Indenizado") g.indenizados++;
+    });
   });
   return Object.keys(map).map((k) => {
     const g = map[k];

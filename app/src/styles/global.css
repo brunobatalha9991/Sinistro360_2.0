@@ -724,3 +724,72 @@ tr:hover td{background:var(--surface-2)}
 
 
 
+
+/* ==========================================================================
+   KPI clicável (a pedido do usuário: todo campo do Dashboard que representa
+   um CONJUNTO de processos abre a tela Sinistros já filtrada). Só ganha
+   cursor e seta quando o KPI recebeu onClick — os cartões de taxa, valor e
+   tempo médio continuam estáticos. Ver components/charts/Kpi.jsx.
+   ========================================================================== */
+.kpi.clickable{cursor:pointer}
+.kpi.clickable:focus-visible{outline:2px solid var(--brand);outline-offset:2px}
+.kpi .kpi-go{display:inline-block;margin-left:6px;color:var(--brand);font-weight:700;opacity:0;transform:translateX(-2px);transition:opacity .15s ease,transform .15s ease}
+.kpi.clickable:hover .kpi-go,.kpi.clickable:focus-visible .kpi-go{opacity:1;transform:translateX(0)}
+
+/* ==========================================================================
+   Impressão / PDF do Dashboard (a pedido do usuário: "impressão com
+   altíssima qualidade"). Quem gera o PDF é o próprio navegador (window.print
+   em pages/Dashboard.jsx): os gráficos são SVG e as tabelas são HTML, então
+   o arquivo sai VETORIAL, na resolução da impressora — muito melhor do que
+   rasterizar a tela com html2canvas, e sem nenhuma dependência nova.
+   Aqui só arrumamos o papel: fundo branco (mesmo no tema escuro), sem menu,
+   barra de filtros ou botões, e cada cartão inteiro numa página só.
+   ========================================================================== */
+.print-capa{display:none}
+
+@media print{
+  @page{size:A4 landscape;margin:10mm}
+
+  /* Tema claro à força — o escuro imprimiria fundos pretos e gastaria tinta.
+     Precisa repetir o seletor [data-theme="dark"] porque ele tem a mesma
+     especificidade do :root e venceria por vir depois no arquivo. */
+  :root,[data-theme="dark"]{
+    --bg:#ffffff;--card:#ffffff;--card-solid:#ffffff;--card-blur:none;--surface-2:#f6f8fc;
+    --border:#cbd5e1;--border-soft:#e2e8f0;--line:#cbd5e1;
+    --ink:#0f172a;--ink-soft:#334155;--muted:#475569;--muted-soft:#64748b;
+    --input-bg:#ffffff;--body-bg-image:none;
+    --shadow-sm:none;--shadow-md:none;--shadow-lg:none;
+  }
+  *{-webkit-print-color-adjust:exact!important;print-color-adjust:exact!important}
+  *,*::before,*::after{animation:none!important;transition:none!important}
+
+  html,body{height:auto!important;overflow:visible!important;background:#fff!important}
+  .app{display:block!important;min-height:0!important}
+  .main{display:block!important}
+  .content{overflow:visible!important;padding:0!important}
+  /* Menu, barra superior, faixa de modo offline, filtros e qualquer botão
+     não fazem sentido no papel. */
+  .sidebar,.topbar,.offline-banner,.dash-toolbar,.btn,.chip-btn,.kpi-go{display:none!important}
+
+  .page-head{margin-bottom:10px}
+  .page-head h1{font-size:19px}
+  .page-head p{font-size:11px}
+
+  /* Cabeçalho do relatório — só existe na impressão (ver Dashboard.jsx). */
+  .print-capa{display:block;border:1px solid #cbd5e1;border-radius:10px;padding:11px 13px;margin-bottom:13px;background:#f8fafc}
+  .print-capa h2{margin:0 0 3px;font-size:16px;font-family:var(--font-display)}
+  .print-capa-meta{font-size:11px;color:#475569}
+  .print-capa-filtros{font-size:11px;color:#0f172a;margin-top:5px;line-height:1.5}
+
+  /* Nada de cartão cortado no meio entre duas páginas. */
+  .card,.chart-card,.exec-summary,.kpi,.kpi-grid,.critical-item,.perf-table tr{break-inside:avoid;page-break-inside:avoid}
+  .card,.chart-card,.exec-summary,.kpi{box-shadow:none!important}
+  .section-title{break-after:avoid;page-break-after:avoid;margin:14px 0 9px}
+  .kpi:hover{transform:none!important}
+
+  .perf-table-wrap{overflow:visible!important}
+  /* Última coluna de toda tabela de desempenho é "Ações" (botão Ver
+     sinistros) — sem sentido impressa. */
+  .perf-table th:last-child,.perf-table td:last-child{display:none}
+  .rank-item,.legend-item,.critical-item{cursor:default}
+}

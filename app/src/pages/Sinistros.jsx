@@ -15,7 +15,7 @@ import {
   visibleClaims, campoEfetivo, situacaoEfetiva, getUserJourney, getNextAction,
   getSitAtend, getTemp, getResponsavel, isAtrasado, isSemAtualizacao, isManualClaim, isFinalizado,
   allJourneyStages, currentStage, getAgenteProdutor, getAgentesEfetivo, distinctGruposProdutores, grupoProdutor,
-  distinctComputed, claimTemFlagHistorico, claimTemEtapaForaDoPrazo, relatedClaims,
+  distinctComputed, claimTemFlagHistorico, claimTemEtapaForaDoPrazo, relatedClaims, dashCiaLabel,
 } from "../logic/claims";
 
 const DEFAULT_TEMP_OPTIONS = ["Tranquilo", "Moderado", "Grave", "Em atenção"];
@@ -85,6 +85,11 @@ export function Sinistros() {
   const agenteOptions = getAgentesEfetivo(config, overrides, claims);
   const grupoProdutorOptions = distinctGruposProdutores(overrides, claims);
   const oficinaOptions = distinctComputed(claims, (x) => campoEfetivo(overrides, x, "oficina"));
+  // Seguradora agrupada igual ao Dashboard (AZUL/ITAU/MITSI = "PORT") e ramo
+  // — a pedido do usuário, pro clique em qualquer campo do Dashboard cair
+  // aqui com o mesmo recorte (ver dashGoToSinistros em state/listFilter.js).
+  const ciaOptions = distinctComputed(claims, (x) => dashCiaLabel(overrides, x));
+  const ramoOptions = distinctComputed(claims, (x) => campoEfetivo(overrides, x, "ramo"));
 
   function updatePref(next) { setPref(next); saveCols(next); }
 
@@ -119,7 +124,9 @@ export function Sinistros() {
       else if (!rP || rP.id !== lf.responsavel) return false;
     }
     if (except !== "sitatend" && lf.sitatend && lf.sitatend !== "todas") {
-      if (getSitAtend(overrides, c.id) !== lf.sitatend) return false;
+      const sa = getSitAtend(overrides, c.id);
+      if (lf.sitatend === "__sem__") { if (sa) return false; }
+      else if (sa !== lf.sitatend) return false;
     }
     if (except !== "termometro" && lf.termometro && lf.termometro !== "todas") {
       const t = getTemp(overrides, c.id);
@@ -136,6 +143,12 @@ export function Sinistros() {
     }
     if (except !== "oficina" && lf.oficina && lf.oficina !== "todas") {
       if (campoEfetivo(overrides, c, "oficina") !== lf.oficina) return false;
+    }
+    if (except !== "cia" && lf.cia && lf.cia !== "todas") {
+      if (dashCiaLabel(overrides, c) !== lf.cia) return false;
+    }
+    if (except !== "ramo" && lf.ramo && lf.ramo !== "todos") {
+      if (campoEfetivo(overrides, c, "ramo") !== lf.ramo) return false;
     }
     if (except !== "aguardandoRetornoHist" && lf.aguardandoRetornoHist && !claimTemFlagHistorico(overrides, c.id, "aguardandoRetorno")) return false;
     if (except !== "limitacaoComunicacaoHist" && lf.limitacaoComunicacaoHist && !claimTemFlagHistorico(overrides, c.id, "limitacaoComunicacao")) return false;
@@ -226,7 +239,9 @@ export function Sinistros() {
       else if (!rL || rL.id !== lf.responsavel) return false;
     }
     if (lf.sitatend && lf.sitatend !== "todas") {
-      if (getSitAtend(overrides, c.id) !== lf.sitatend) return false;
+      const sa = getSitAtend(overrides, c.id);
+      if (lf.sitatend === "__sem__") { if (sa) return false; }
+      else if (sa !== lf.sitatend) return false;
     }
     if (lf.termometro && lf.termometro !== "todas") {
       const t = getTemp(overrides, c.id);
@@ -242,6 +257,8 @@ export function Sinistros() {
       if (!ap || !(ap.produtores || []).some((p) => grupoProdutor(p) === lf.grupoProdutor)) return false;
     }
     if (lf.oficina && lf.oficina !== "todas" && campoEfetivo(overrides, c, "oficina") !== lf.oficina) return false;
+    if (lf.cia && lf.cia !== "todas" && dashCiaLabel(overrides, c) !== lf.cia) return false;
+    if (lf.ramo && lf.ramo !== "todos" && campoEfetivo(overrides, c, "ramo") !== lf.ramo) return false;
     if (lf.aguardandoRetornoHist && !claimTemFlagHistorico(overrides, c.id, "aguardandoRetorno")) return false;
     if (lf.limitacaoComunicacaoHist && !claimTemFlagHistorico(overrides, c.id, "limitacaoComunicacao")) return false;
     if (lf.foraDoPrazo && !claimTemEtapaForaDoPrazo(overrides, c.id)) return false;
@@ -267,6 +284,8 @@ export function Sinistros() {
   if (lf.agente && lf.agente !== "todos") activeCount++;
   if (lf.grupoProdutor && lf.grupoProdutor !== "todos") activeCount++;
   if (lf.oficina && lf.oficina !== "todas") activeCount++;
+  if (lf.cia && lf.cia !== "todas") activeCount++;
+  if (lf.ramo && lf.ramo !== "todos") activeCount++;
   if (lf.aguardandoRetornoHist) activeCount++;
   if (lf.limitacaoComunicacaoHist) activeCount++;
   if (lf.foraDoPrazo) activeCount++;
@@ -368,6 +387,7 @@ export function Sinistros() {
               <span className="muted" style={{ fontSize: 12, marginRight: 4 }}>Situação:</span>
               <select className="inline" style={{ minWidth: 180 }} value={lf.sitatend} onChange={(e) => patchListFilter({ sitatend: e.target.value })}>
                 <option value="todas">Todas as situações</option>
+                <option value="__sem__">⚠ Não definida</option>
                 {sitOptions.map((op) => <option key={op} value={op}>{op}</option>)}
               </select>
               <span className="muted" style={{ fontSize: 12, marginLeft: 8, marginRight: 4 }}>Termômetro:</span>
@@ -401,6 +421,19 @@ export function Sinistros() {
                 {grupoProdutorOptions.map((g) => <option key={g} value={g}>{g}</option>)}
               </select>
               <span className="muted" style={{ fontSize: 11 }}>(dados de processos já buscados — importe em lote em Configurações se faltar algum)</span>
+            </div>
+          </FilterGroup>
+
+          <FilterGroup groupKey="cia" title="Seguradora / Ramo" lf={lf}>
+            <div className="chips" style={{ alignItems: "center" }}>
+              <select className="inline" style={{ minWidth: 220 }} value={lf.cia} onChange={(e) => patchListFilter({ cia: e.target.value })}>
+                <option value="todas">Seguradora: todas</option>
+                {ciaOptions.map((o) => <option key={o} value={o}>{o}</option>)}
+              </select>
+              <select className="inline" style={{ minWidth: 220 }} value={lf.ramo} onChange={(e) => patchListFilter({ ramo: e.target.value })}>
+                <option value="todos">Ramo: todos</option>
+                {ramoOptions.map((o) => <option key={o} value={o}>{o}</option>)}
+              </select>
             </div>
           </FilterGroup>
 
