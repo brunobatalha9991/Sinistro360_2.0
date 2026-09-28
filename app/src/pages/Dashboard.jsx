@@ -31,24 +31,93 @@ const DEFAULT_DASH_FILTER = {
   grupoProdutor: "todos", agente: "todos",
 };
 
-// Seções que podem ser marcadas/desmarcadas antes de gerar o PDF, na mesma
-// ordem da tela (ver DashboardPrintModal.jsx). Todas começam marcadas.
+// O que pode ser marcado/desmarcado antes de gerar o PDF: cada seção da tela
+// e, dentro dela, CADA campo (a pedido do usuário) — um KPI, um gráfico ou
+// uma tabela por vez. Mesma ordem da tela. Tudo começa marcado. Seção sem
+// `itens` é um bloco único (a própria chave é o campo). Ver
+// DashboardPrintModal.jsx e mostra()/mostraSecao() abaixo.
 const PRINT_BLOCKS = [
-  ["capa", "Cabeçalho do relatório", "Título, data/hora, usuário e a lista de filtros aplicados"],
-  ["resumo", "Resumo executivo"],
-  ["volume", "Volume e Situação", "KPIs de em andamento, indenizados, pendentes, atrasados, constatações..."],
-  ["financeiro", "Indicadores Financeiros", "Total avaliado, indenizado, ticket médio e franquias"],
-  ["tempo", "Indicadores de Tempo (SLA de Atendimento)", "TMA, TME, TMR e sinistros com vínculos"],
-  ["distribuicao", "Análise de Distribuição", "Situação, tipo de parte e funil por etapa da jornada"],
-  ["evolucao", "Evolução Temporal e Atendimento", "Abertura x encerramento nos 12 meses, temperatura e situação"],
-  ["rankings", "Rankings por Volume", "Top 10 oficinas e top 10 seguradoras"],
-  ["grupoAgente", "Volume por Grupo de Produtores e Agente", "Rankings e quantidade de processos por grupo e por agente"],
-  ["desempenho", "Cruzamento de Dados — Desempenho Operacional", "Tabelas por oficina, seguradora, ramo, grupo e agente"],
-  ["criticos", "Ação Imediata", "Lista dos sinistros mais críticos (atrasados)"],
+  { key: "capa", label: "Cabeçalho do relatório", hint: "Título, data/hora, usuário e a lista de filtros aplicados" },
+  { key: "resumo", label: "Resumo executivo", hint: "Parágrafo com a leitura geral do recorte" },
+  {
+    key: "volume", label: "Volume e Situação", itens: [
+      ["vol_total", "Sinistros no recorte"],
+      ["vol_andamento", "Em andamento"],
+      ["vol_indenizados", "Indenizados"],
+      ["vol_semIndeniz", "Sem indenização"],
+      ["vol_pendentes", "Pendentes"],
+      ["vol_negados", "Negados"],
+      ["vol_atrasados", "Atrasados"],
+      ["vol_semAtu", "Sem atualização"],
+      ["vol_constatacoes", "Constatações"],
+      ["vol_taxaPositiva", "Taxa de desfecho positivo"],
+    ],
+  },
+  {
+    key: "financeiro", label: "Indicadores Financeiros", itens: [
+      ["fin_avaliado", "Total avaliado"],
+      ["fin_indenizado", "Total indenizado"],
+      ["fin_ticket", "Ticket médio (indenizados)"],
+      ["fin_franquia", "Total em franquias"],
+    ],
+  },
+  {
+    key: "tempo", label: "Indicadores de Tempo (SLA de Atendimento)", itens: [
+      ["tmp_tma", "Tempo médio de abertura (TMA)"],
+      ["tmp_tme", "Tempo médio de encerramento (TME)"],
+      ["tmp_tmr", "Tempo médio de conclusão de reparo (TMR)"],
+      ["tmp_vinculos", "Sinistros com vínculos"],
+    ],
+  },
+  {
+    key: "distribuicao", label: "Análise de Distribuição", itens: [
+      ["dist_situacao", "Distribuição por Situação (rosca + legenda)"],
+      ["dist_tipo", "Distribuição por Tipo de Parte (rosca + legenda)"],
+      ["dist_funil", "Funil por Etapa da Jornada"],
+    ],
+  },
+  {
+    key: "evolucao", label: "Evolução Temporal e Atendimento", itens: [
+      ["evo_mensal", "Evolução Mensal — Abertura x Encerramento"],
+      ["evo_atendimento", "Análise de Atendimento (temperatura e situação)"],
+    ],
+  },
+  {
+    key: "rankings", label: "Rankings por Volume", itens: [
+      ["rk_oficinas", "Top 10 Oficinas/Prestadores"],
+      ["rk_seguradoras", "Top 10 Seguradoras"],
+    ],
+  },
+  {
+    key: "grupoAgente", label: "Volume por Grupo de Produtores e Agente", itens: [
+      ["ga_grupos", "Grupos de Produtores por volume (todos)"],
+      ["ga_agentes", "Agentes por volume (todos)"],
+    ],
+  },
+  {
+    key: "desempenho", label: "Cruzamento de Dados — Desempenho Operacional", itens: [
+      ["des_oficina", "Desempenho por Oficina/Prestador"],
+      ["des_seguradora", "Desempenho por Seguradora"],
+      ["des_ramo", "Desempenho por Ramo"],
+      ["des_grupo", "Quantidade de Processos por Grupo de Produtores"],
+      ["des_agente", "Quantidade de Processos por Agente"],
+    ],
+  },
+  { key: "criticos", label: "Ação Imediata", hint: "Lista dos sinistros mais críticos (atrasados)" },
 ];
+// Chaves "folha" — os campos de fato marcáveis. A seção sem itens é a
+// própria folha.
+function printChavesFolha() {
+  const out = [];
+  PRINT_BLOCKS.forEach((b) => {
+    if (b.itens) b.itens.forEach(([k]) => out.push(k));
+    else out.push(b.key);
+  });
+  return out;
+}
 function printOptsTodos(valor) {
   const o = {};
-  PRINT_BLOCKS.forEach(([k]) => { o[k] = valor; });
+  printChavesFolha().forEach((k) => { o[k] = valor; });
   return o;
 }
 
@@ -95,12 +164,33 @@ export function Dashboard() {
     setPrintOpen(true);
   }
   function togglePrintOpt(k) { setPrintOpts((o) => ({ ...o, [k]: !o[k] })); }
+  // Marcar/desmarcar uma seção inteira de uma vez (checkbox do título).
+  function togglePrintBloco(bloco, valor) {
+    const chaves = bloco.itens ? bloco.itens.map(([k]) => k) : [bloco.key];
+    setPrintOpts((o) => {
+      const next = { ...o };
+      chaves.forEach((k) => { next[k] = valor; });
+      return next;
+    });
+  }
   function gerarPdf() {
     setPrintOpen(false);
     setPrinting(true);
   }
-  // Durante a impressão, só as seções marcadas vão para o papel.
+  // Durante a impressão, só os campos marcados vão para o papel.
   function mostra(k) { return !printing || !!printOpts[k]; }
+  // Um contêiner (linha de KPIs, grade de gráficos) só aparece se sobrou
+  // pelo menos um campo dentro dele — senão o PDF ficaria com um vão em
+  // branco no lugar.
+  function algum(...chaves) { return chaves.some((k) => mostra(k)); }
+  // Título + conteúdo de uma seção: some inteira quando todos os campos dela
+  // foram desmarcados.
+  function mostraSecao(secKey) {
+    if (!printing) return true;
+    const sec = PRINT_BLOCKS.find((b) => b.key === secKey);
+    if (!sec) return true;
+    return sec.itens ? sec.itens.some(([k]) => !!printOpts[k]) : !!printOpts[secKey];
+  }
 
   const overrides = records.corp_overrides || {};
   const claims = useMemo(() => visibleClaims(records.corp_claims, overrides, currentUser), [records.corp_claims, overrides, currentUser]);
@@ -308,8 +398,10 @@ export function Dashboard() {
 
   const topOficinas = aggOficina.slice(0, 10).map((a) => ({ label: a.key, value: a.count }));
   const topSeguradoras = aggSeguradora.slice(0, 10).map((a) => ({ label: a.key, value: a.count }));
-  const topGrupos = aggGrupoProdutor.slice(0, 10).map((a) => ({ label: a.key, value: a.count }));
-  const topAgentes = aggAgente.slice(0, 10).map((a) => ({ label: a.key, value: a.count }));
+  // Todos os grupos e todos os agentes (a pedido do usuário) — sem corte de
+  // "top 10": as duas listas e as duas tabelas mostram o recorte inteiro.
+  const rankGrupos = aggGrupoProdutor.map((a) => ({ label: a.key, value: a.count }));
+  const rankAgentes = aggAgente.map((a) => ({ label: a.key, value: a.count }));
 
   function goSinistros(patch) { dashGoToSinistros(navigate, dashFilter, patch); }
 
@@ -319,7 +411,7 @@ export function Dashboard() {
   // número da linha.
   function grupoAgenteRows(agg, campo) {
     const outro = campo === "grupoProdutor" ? "agente" : "grupoProdutor";
-    return agg.slice(0, 15).map((a) => {
+    return agg.map((a) => {
       const ir = () => goSinistros({ [campo]: a.key, [outro]: "todos" });
       return {
         onClick: ir,
@@ -472,7 +564,7 @@ export function Dashboard() {
         </div>
       </div>
 
-      {mostra("resumo") && (
+      {mostraSecao("resumo") && (
         <>
           <div className="exec-summary">
             <h3>📊 Resumo executivo</h3>
@@ -491,89 +583,95 @@ export function Dashboard() {
         </>
       )}
 
-      {mostra("volume") && (
+      {mostraSecao("volume") && (
         <>
           <div className="section-title">Volume e Situação</div>
-          <div className="kpi-grid">
-            <Kpi n={fmtNum(total)} l="Sinistros no recorte" cls="c-blue" sub={totalGeral !== total ? `de ${fmtNum(totalGeral)} no total` : null} onClick={() => goSinistros({})} title="Ver todos os sinistros deste recorte" />
-            <Kpi n={fmtNum(emAndamento)} l="Em andamento" cls="c-amber" onClick={() => goSinistros({ status: "Em andamento" })} />
-            <Kpi n={fmtNum(indenizados)} l="Indenizados" cls="c-green" sub={`${fmtPct(taxaIndeniz)} de taxa`} onClick={() => goSinistros({ status: "Indenizado" })} />
-            <Kpi n={fmtNum(semIndeniz)} l="Sem indenização" cls="c-gray" onClick={() => goSinistros({ status: "Encerrado sem Indenização" })} />
-          </div>
-          <div className="kpi-grid" style={{ marginTop: 14 }}>
-            <Kpi n={fmtNum(pendente)} l="Pendentes" cls="c-amber" onClick={() => goSinistros({ status: "Pendente" })} />
-            <Kpi n={fmtNum(negado)} l="Negados" cls="c-red" alert={negado > 0} onClick={() => goSinistros({ status: "Negado" })} />
-            <Kpi n={fmtNum(atrasados)} l="Atrasados" cls="c-red" sub="Próxima ação vencida" alert={atrasados > 0} onClick={() => goSinistros({ atrasado: true })} />
-            <Kpi n={fmtNum(semAtu)} l="Sem atualização" cls="c-amber" sub="+3 dias sem histórico" alert={semAtu > 0} onClick={() => goSinistros({ semAtu: true })} />
-          </div>
-          <div className="kpi-grid" style={{ marginTop: 14 }}>
-            <Kpi n={fmtNum(constatacoes)} l="Constatações" cls="c-blue" sub="Cobertura ao terceiro, sem indenização ao segurado" onClick={() => goSinistros({ status: "Constatação" })} />
-            {/* Taxa não é um conjunto de processos (é indenizados + constatações
-                sobre o total), então não tem lista equivalente pra abrir — fica
-                sem clique de propósito, como os cartões de valor e tempo médio. */}
-            <Kpi n={fmtPct(taxaPositiva)} l="Taxa de desfecho positivo" cls="c-green" sub="Indenizados + Constatações" />
-          </div>
+          {algum("vol_total", "vol_andamento", "vol_indenizados", "vol_semIndeniz") && (
+            <div className="kpi-grid">
+              {mostra("vol_total") && <Kpi n={fmtNum(total)} l="Sinistros no recorte" cls="c-blue" sub={totalGeral !== total ? `de ${fmtNum(totalGeral)} no total` : null} onClick={() => goSinistros({})} title="Ver todos os sinistros deste recorte" />}
+              {mostra("vol_andamento") && <Kpi n={fmtNum(emAndamento)} l="Em andamento" cls="c-amber" onClick={() => goSinistros({ status: "Em andamento" })} />}
+              {mostra("vol_indenizados") && <Kpi n={fmtNum(indenizados)} l="Indenizados" cls="c-green" sub={`${fmtPct(taxaIndeniz)} de taxa`} onClick={() => goSinistros({ status: "Indenizado" })} />}
+              {mostra("vol_semIndeniz") && <Kpi n={fmtNum(semIndeniz)} l="Sem indenização" cls="c-gray" onClick={() => goSinistros({ status: "Encerrado sem Indenização" })} />}
+            </div>
+          )}
+          {algum("vol_pendentes", "vol_negados", "vol_atrasados", "vol_semAtu") && (
+            <div className="kpi-grid" style={{ marginTop: 14 }}>
+              {mostra("vol_pendentes") && <Kpi n={fmtNum(pendente)} l="Pendentes" cls="c-amber" onClick={() => goSinistros({ status: "Pendente" })} />}
+              {mostra("vol_negados") && <Kpi n={fmtNum(negado)} l="Negados" cls="c-red" alert={negado > 0} onClick={() => goSinistros({ status: "Negado" })} />}
+              {mostra("vol_atrasados") && <Kpi n={fmtNum(atrasados)} l="Atrasados" cls="c-red" sub="Próxima ação vencida" alert={atrasados > 0} onClick={() => goSinistros({ atrasado: true })} />}
+              {mostra("vol_semAtu") && <Kpi n={fmtNum(semAtu)} l="Sem atualização" cls="c-amber" sub="+3 dias sem histórico" alert={semAtu > 0} onClick={() => goSinistros({ semAtu: true })} />}
+            </div>
+          )}
+          {algum("vol_constatacoes", "vol_taxaPositiva") && (
+            <div className="kpi-grid" style={{ marginTop: 14 }}>
+              {mostra("vol_constatacoes") && <Kpi n={fmtNum(constatacoes)} l="Constatações" cls="c-blue" sub="Cobertura ao terceiro, sem indenização ao segurado" onClick={() => goSinistros({ status: "Constatação" })} />}
+              {/* Taxa não é um conjunto de processos (é indenizados + constatações
+                  sobre o total), então não tem lista equivalente pra abrir — fica
+                  sem clique de propósito, como os cartões de valor e tempo médio. */}
+              {mostra("vol_taxaPositiva") && <Kpi n={fmtPct(taxaPositiva)} l="Taxa de desfecho positivo" cls="c-green" sub="Indenizados + Constatações" />}
+            </div>
+          )}
         </>
       )}
 
-      {mostra("financeiro") && (
+      {mostraSecao("financeiro") && (
         <>
           <div className="section-title">Indicadores Financeiros</div>
           <div className="kpi-grid">
-            <Kpi n={money(totalAvaliado)} l="Total avaliado" cls="c-blue" />
-            <Kpi n={money(totalIndenizado)} l="Total indenizado" cls="c-green" />
-            <Kpi n={money(ticketMedio)} l="Ticket médio (indenizados)" cls="c-purple" />
-            <Kpi n={money(totalFranquia)} l="Total em franquias" cls="c-gray" />
+            {mostra("fin_avaliado") && <Kpi n={money(totalAvaliado)} l="Total avaliado" cls="c-blue" />}
+            {mostra("fin_indenizado") && <Kpi n={money(totalIndenizado)} l="Total indenizado" cls="c-green" />}
+            {mostra("fin_ticket") && <Kpi n={money(ticketMedio)} l="Ticket médio (indenizados)" cls="c-purple" />}
+            {mostra("fin_franquia") && <Kpi n={money(totalFranquia)} l="Total em franquias" cls="c-gray" />}
           </div>
         </>
       )}
 
-      {mostra("tempo") && (
+      {mostraSecao("tempo") && (
         <>
           <div className="section-title">Indicadores de Tempo (SLA de Atendimento)</div>
           <div className="kpi-grid">
-            <Kpi n={fmtDias(tmaMedio)} l="Tempo médio de abertura" cls="c-blue" sub={`Ocorrência → Aviso (n=${tmaArr.length})`} />
-            <Kpi n={fmtDias(tmeMedio)} l="Tempo médio de encerramento" cls="c-green" sub={`Aviso → Encerramento (n=${tmeArr.length})`} />
-            <Kpi n={fmtDias(tmrMedio)} l="Tempo médio de conclusão de reparo" cls="c-amber" sub={`Aviso → Conclusão, Perda Parcial (n=${tmrArr.length})`} />
-            <Kpi n={fmtNum(vinculados)} l="Sinistros com vínculos" cls="c-purple" sub="Segurado + Terceiros relacionados" />
+            {mostra("tmp_tma") && <Kpi n={fmtDias(tmaMedio)} l="Tempo médio de abertura" cls="c-blue" sub={`Ocorrência → Aviso (n=${tmaArr.length})`} />}
+            {mostra("tmp_tme") && <Kpi n={fmtDias(tmeMedio)} l="Tempo médio de encerramento" cls="c-green" sub={`Aviso → Encerramento (n=${tmeArr.length})`} />}
+            {mostra("tmp_tmr") && <Kpi n={fmtDias(tmrMedio)} l="Tempo médio de conclusão de reparo" cls="c-amber" sub={`Aviso → Conclusão, Perda Parcial (n=${tmrArr.length})`} />}
+            {mostra("tmp_vinculos") && <Kpi n={fmtNum(vinculados)} l="Sinistros com vínculos" cls="c-purple" sub="Segurado + Terceiros relacionados" />}
           </div>
         </>
       )}
 
-      {mostra("distribuicao") && (
+      {mostraSecao("distribuicao") && (
         <>
           <div className="section-title">Análise de Distribuição</div>
           <div className="charts-grid c3">
-            <div className="chart-card">
+            {mostra("dist_situacao") && <div className="chart-card">
               <h4>Distribuição por Situação</h4>
               <p className="sub">Clique numa fatia para ver os sinistros</p>
               <div className="flexrow">
                 <DonutChart data={statusData} onClick={(d) => goSinistros({ status: d.label })} />
                 <Legend data={statusData} onClick={(d) => goSinistros({ status: d.label })} />
               </div>
-            </div>
-            <div className="chart-card">
+            </div>}
+            {mostra("dist_tipo") && <div className="chart-card">
               <h4>Distribuição por Tipo de Parte</h4>
               <p className="sub">Segurado, Terceiro ou Atendimento</p>
               <div className="flexrow">
                 <DonutChart data={tipoData} onClick={(d) => goSinistros({ tipo: d.key })} />
                 <Legend data={tipoData} onClick={(d) => goSinistros({ tipo: d.key })} />
               </div>
-            </div>
-            <div className="chart-card">
+            </div>}
+            {mostra("dist_funil") && <div className="chart-card">
               <h4>Funil por Etapa da Jornada</h4>
               <p className="sub">Onde os sinistros em aberto estão parados</p>
               <RankList data={etapaData} onClick={(d) => goSinistros({ etapa: d.label })} />
-            </div>
+            </div>}
           </div>
         </>
       )}
 
-      {mostra("evolucao") && (
+      {mostraSecao("evolucao") && (
         <>
           <div className="section-title">Evolução Temporal e Atendimento</div>
           <div className="charts-grid">
-            <div className="chart-card">
+            {mostra("evo_mensal") && <div className="chart-card">
               <h4>Evolução Mensal — Abertura x Encerramento</h4>
               <p className="sub">Últimos 12 meses • clique num ponto para abrir o mês</p>
               <LineChartDual
@@ -589,8 +687,8 @@ export function Dashboard() {
                 <span><span className="legend-dot" style={{ background: serieAbertos.color, display: "inline-block", marginRight: 5 }} />Abertos</span>
                 <span><span className="legend-dot" style={{ background: serieEncerrados.color, display: "inline-block", marginRight: 5 }} />Encerrados</span>
               </div>
-            </div>
-            <div className="chart-card">
+            </div>}
+            {mostra("evo_atendimento") && <div className="chart-card">
               <h4>Análise de Atendimento</h4>
               <p className="sub">Temperatura e situação de atendimento registradas nos processos • clique num item para ver os sinistros</p>
               <div style={{ display: "flex", gap: 20, flexWrap: "wrap" }}>
@@ -605,81 +703,81 @@ export function Dashboard() {
                   <Legend data={sitData} onClick={(d) => goSinistros({ sitatend: d.label === "Não definida" ? "__sem__" : d.label })} />
                 </div>
               </div>
-            </div>
+            </div>}
           </div>
         </>
       )}
 
-      {mostra("rankings") && (
+      {mostraSecao("rankings") && (
         <>
           <div className="section-title">Rankings por Volume</div>
           <div className="charts-grid">
-            <div className="chart-card">
+            {mostra("rk_oficinas") && <div className="chart-card">
               <h4>Top 10 Oficinas/Prestadores por Volume</h4>
               <p className="sub">Clique numa barra para ver os sinistros da oficina</p>
               <RankList data={topOficinas} onClick={(d) => goSinistros({ oficina: d.label })} />
-            </div>
-            <div className="chart-card">
+            </div>}
+            {mostra("rk_seguradoras") && <div className="chart-card">
               <h4>Top 10 Seguradoras por Volume</h4>
               <p className="sub">Clique numa barra para ver os sinistros da seguradora</p>
               <RankList data={topSeguradoras} onClick={(d) => goSinistros({ cia: d.label })} />
-            </div>
+            </div>}
           </div>
         </>
       )}
 
-      {mostra("grupoAgente") && (
+      {mostraSecao("grupoAgente") && (
         <>
           <div className="section-title">Volume por Grupo de Produtores e Agente</div>
           <div className="charts-grid">
-            <div className="chart-card">
-              <h4>Top 10 Grupos de Produtores por Volume</h4>
+            {mostra("ga_grupos") && <div className="chart-card">
+              <h4>Grupos de Produtores por Volume</h4>
               <p className="sub">
-                {fmtNum(aggGrupoProdutor.length)} grupo(s) no recorte • clique numa barra para ver os processos do grupo
+                Todos os {fmtNum(aggGrupoProdutor.length)} grupo(s) do recorte • clique numa barra para ver os processos do grupo
                 {semGrupo ? ` • ${fmtNum(semGrupo)} sem produtor vinculado` : ""}
               </p>
-              <RankList data={topGrupos} onClick={(d) => goSinistros({ grupoProdutor: d.label, agente: "todos" })} />
-            </div>
-            <div className="chart-card">
-              <h4>Top 10 Agentes por Volume</h4>
+              <RankList data={rankGrupos} onClick={(d) => goSinistros({ grupoProdutor: d.label, agente: "todos" })} />
+            </div>}
+            {mostra("ga_agentes") && <div className="chart-card">
+              <h4>Agentes por Volume</h4>
               <p className="sub">
-                {fmtNum(aggAgente.length)} agente(s) no recorte • clique numa barra para ver os processos do agente
+                Todos os {fmtNum(aggAgente.length)} agente(s) do recorte • clique numa barra para ver os processos do agente
                 {semAgente ? ` • ${fmtNum(semAgente)} sem agente vinculado` : ""}
               </p>
-              <RankList data={topAgentes} onClick={(d) => goSinistros({ agente: d.label, grupoProdutor: "todos" })} />
-            </div>
+              <RankList data={rankAgentes} onClick={(d) => goSinistros({ agente: d.label, grupoProdutor: "todos" })} />
+            </div>}
           </div>
         </>
       )}
 
-      {mostra("desempenho") && (
+      {mostraSecao("desempenho") && (
         <>
           <div className="section-title">Cruzamento de Dados — Desempenho Operacional</div>
-          <div className="card">
+          {mostra("des_oficina") && <div className="card">
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 8 }}>
               <h3 style={{ margin: 0 }}>Desempenho por Oficina/Prestador</h3>
               <span className="muted" style={{ fontSize: 12 }}>{aggOficina.length} oficina(s) no recorte</span>
             </div>
             <p className="muted" style={{ margin: "6px 0 12px" }}>TMR = tempo médio entre o aviso e a conclusão do reparo (etapa "Conclusão", caminho Perda Parcial). Ordenado por volume.</p>
             {aggOficina.length ? <PerfTable headers={["Oficina", "Qtd.", "TMR médio", "Total indenizado", "Ticket médio", "% Atrasados", "Ações"]} rows={oficinaRows} /> : <EmptyState>Sem dados de oficina para este recorte.</EmptyState>}
-          </div>
-          <div className="card">
+          </div>}
+          {mostra("des_seguradora") && <div className="card">
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 8 }}>
               <h3 style={{ margin: 0 }}>Desempenho por Seguradora</h3>
               <span className="muted" style={{ fontSize: 12 }}>{aggSeguradora.length} seguradora(s) no recorte</span>
             </div>
             <p className="muted" style={{ margin: "6px 0 12px" }}>TMA = ocorrência → aviso. TME = aviso → encerramento. Taxa de indenização = indenizados / total de cada seguradora.</p>
             {aggSeguradora.length ? <PerfTable headers={["Seguradora", "Qtd.", "TMA médio", "TME médio", "Total indenizado", "Taxa indeniz.", "Ações"]} rows={seguradoraRows} /> : <EmptyState>Sem dados de seguradora para este recorte.</EmptyState>}
-          </div>
-          <div className="card">
+          </div>}
+          {mostra("des_ramo") && <div className="card">
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 8 }}>
               <h3 style={{ margin: 0 }}>Desempenho por Ramo</h3>
               <span className="muted" style={{ fontSize: 12 }}>{aggRamo.length} ramo(s) no recorte</span>
             </div>
             {aggRamo.length ? <PerfTable headers={["Ramo", "Qtd.", "TMA médio", "TME médio", "TMR médio", "Total indenizado", "Ações"]} rows={ramoRows} /> : <EmptyState>Sem dados de ramo para este recorte.</EmptyState>}
-          </div>
+          </div>}
 
-          <div className="card">
+          {mostra("des_grupo") && <div className="card">
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 8 }}>
               <h3 style={{ margin: 0 }}>Quantidade de Processos por Grupo de Produtores</h3>
               <span className="muted" style={{ fontSize: 12 }}>{aggGrupoProdutor.length} grupo(s) no recorte</span>
@@ -690,8 +788,8 @@ export function Dashboard() {
               soma das linhas pode passar do total do recorte.{semGrupo ? ` ${fmtNum(semGrupo)} processo(s) do recorte estão sem produtor vinculado e não aparecem aqui.` : ""}
             </p>
             {grupoProdutorRows.length ? <PerfTable headers={["Grupo de Produtores", "Qtd.", "% do recorte", "Indenizados", "Atrasados", "Sem atualização", "Ações"]} rows={grupoProdutorRows} /> : <EmptyState>Nenhum produtor vinculado nos processos deste recorte.</EmptyState>}
-          </div>
-          <div className="card">
+          </div>}
+          {mostra("des_agente") && <div className="card">
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 8 }}>
               <h3 style={{ margin: 0 }}>Quantidade de Processos por Agente</h3>
               <span className="muted" style={{ fontSize: 12 }}>{aggAgente.length} agente(s) no recorte</span>
@@ -701,11 +799,11 @@ export function Dashboard() {
               deles.{semAgente ? ` ${fmtNum(semAgente)} processo(s) do recorte estão sem agente vinculado e não aparecem aqui.` : ""}
             </p>
             {agenteRows.length ? <PerfTable headers={["Agente", "Qtd.", "% do recorte", "Indenizados", "Atrasados", "Sem atualização", "Ações"]} rows={agenteRows} /> : <EmptyState>Nenhum agente vinculado nos processos deste recorte.</EmptyState>}
-          </div>
+          </div>}
         </>
       )}
 
-      {mostra("criticos") && (
+      {mostraSecao("criticos") && (
         <>
           <div className="section-title">Ação Imediata</div>
           <div className="card">
@@ -739,6 +837,7 @@ export function Dashboard() {
           blocos={PRINT_BLOCKS}
           opts={printOpts}
           onToggle={togglePrintOpt}
+          onToggleBloco={togglePrintBloco}
           onMarcarTodos={(v) => setPrintOpts(printOptsTodos(v))}
           onConfirm={gerarPdf}
           onClose={() => setPrintOpen(false)}

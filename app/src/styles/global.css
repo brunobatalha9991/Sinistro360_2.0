@@ -546,6 +546,10 @@ tr:hover td{background:var(--surface-2)}
 .charts-grid{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:6px}
 .charts-grid.c3{grid-template-columns:1fr 1fr 1fr}
 @media(max-width:1000px){.charts-grid,.charts-grid.c3{grid-template-columns:1fr}}
+/* Ao imprimir, campos podem ser desmarcados um a um (ver DashboardPrintModal):
+   o gráfico que sobrar sozinho na grade ocupa a linha inteira em vez de
+   deixar metade da página em branco. */
+.charts-grid > .chart-card:only-child{grid-column:1/-1}
 .chart-card{
   background:var(--card);backdrop-filter:var(--card-blur);-webkit-backdrop-filter:var(--card-blur);
   border:1px solid var(--border);border-radius:var(--r-lg);padding:17px;margin-bottom:16px;box-shadow:var(--shadow-sm);
