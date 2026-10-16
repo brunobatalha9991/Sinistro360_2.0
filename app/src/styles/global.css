@@ -814,3 +814,9 @@ tr:hover td{background:var(--surface-2)}
   .rel-acomp-print thead{display:table-header-group}
   .rel-acomp-print tr{break-inside:avoid;page-break-inside:avoid}
 }
+
+/* Alertas neon de tempo no topo do processo (DetailHeader.jsx): dias em
+   aberto e dias na etapa atual da jornada. Cor via --neon-rgb, brilho da
+   .neon-alert. */
+.neon-tempo{display:inline-flex;align-items:center;gap:4px;padding:4px 11px;border-radius:999px;font-size:12.5px;font-weight:700;white-space:nowrap;
+  color:rgb(var(--neon-rgb));background:rgba(var(--neon-rgb),.12);border:1px solid rgba(var(--neon-rgb),.7);text-shadow:0 0 6px rgba(var(--neon-rgb),.55)}

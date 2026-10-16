@@ -751,6 +751,68 @@ export function currentStage(overrides, templates, atendTemplateCfg, c) {
   return lista.length ? lista[lista.length - 1].title : "Definir caminho";
 }
 
+function hojeLocalISO(agora) {
+  const d = agora || new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+}
+function isoLocalDe(ts) {
+  if (!ts) return "";
+  if (/^\d{4}-\d{2}-\d{2}$/.test(ts)) return ts;
+  const d = new Date(ts);
+  return isNaN(d.getTime()) ? "" : hojeLocalISO(d);
+}
+
+// Dias em aberto (alerta neon no cabeçalho do processo, a pedido do
+// usuário): da data de aviso (ou criação, no manual) até hoje. Processo
+// finalizado conta até o encerramento (datenc, ou o desfecho da última
+// etapa) e volta `encerrado: true`; sem data de fim conhecida, null.
+export function diasEmAberto(overrides, templates, atendTemplateCfg, c, agora) {
+  const inicio = c.datavi || isoLocalDe(c.criadoEm);
+  if (!inicio) return null;
+  if (isFinalizado(overrides, c, atendTemplateCfg, templates)) {
+    let fim = c.datenc || "";
+    if (!fim) {
+      const ult = ultimaEtapaEfetiva(overrides, templates, atendTemplateCfg, c);
+      const sd = ult ? ((getUserJourney(overrides, c.id) || {}).steps || {})[ult.id] : null;
+      fim = isoLocalDe(sd && sd.concludedAt);
+    }
+    const d = fim ? diasEntre(inicio, fim) : null;
+    return d == null ? null : { dias: Math.max(0, d), encerrado: true };
+  }
+  const d = diasEntre(inicio, hojeLocalISO(agora));
+  return d == null ? null : { dias: Math.max(0, d), encerrado: false };
+}
+
+// Há quanto tempo o processo está na etapa atual da jornada (alerta neon no
+// cabeçalho). A etapa vira "atual" quando a anterior teve desfecho, então a
+// entrada é o desfecho mais recente (concludedAt) entre as OUTRAS etapas —
+// ou a escolha do caminho (caminhoDefinidoEm), se for depois. Sem nenhum
+// desfecho ainda, conta desde o aviso/criação do processo. Processo
+// finalizado não tem etapa atual (null).
+export function tempoNaEtapaAtual(overrides, templates, atendTemplateCfg, c, agora) {
+  const titulo = currentStage(overrides, templates, atendTemplateCfg, c);
+  if (!titulo) return null;
+  const uj = getUserJourney(overrides, c.id) || {};
+  const steps = uj.steps || {};
+  const tpl = getRamoTemplate(templates, c.ramo);
+  const todas = [
+    ...atendimentoStepsList(atendTemplateCfg, uj),
+    ...getComunsSteps(tpl), ...(tpl.parcial || []), ...(tpl.integral || []), ...getOutrosSteps(tpl),
+  ];
+  const idsAtual = new Set(todas.filter((s) => s && s.title === titulo).map((s) => s.id));
+  let desde = "";
+  Object.keys(steps).forEach((id) => {
+    if (idsAtual.has(id)) return;
+    const em = steps[id] && steps[id].concludedAt;
+    if (em && em > desde) desde = em;
+  });
+  if (uj.caminhoDefinidoEm && uj.caminhoDefinidoEm > desde) desde = uj.caminhoDefinidoEm;
+  const desdeISO = isoLocalDe(desde) || c.datavi || isoLocalDe(c.criadoEm);
+  if (!desdeISO) return { titulo, dias: null };
+  const d = diasEntre(desdeISO, hojeLocalISO(agora));
+  return { titulo, dias: d == null ? null : Math.max(0, d), desde: desdeISO };
+}
+
 export function last12Months() {
   const out = [];
   const base = new Date();

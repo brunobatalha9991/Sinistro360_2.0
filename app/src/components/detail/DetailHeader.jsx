@@ -15,8 +15,11 @@ import {
   getTemp, tempColor, getSitAtend, getUserJourney, isManualClaim, situacaoEfetiva,
   getNextAction, isAtrasado, loadComms, isSemAtualizacao, getResponsavel, campoEfetivo,
   campoFoiEditado, getEmailAlertas, isFinalizado, pesquisaSatisfacaoCompleta,
+  diasEmAberto, tempoNaEtapaAtual,
 } from "../../logic/claims";
 import { fmtDateBR, fmtDateHoraBR, txt } from "../../logic/format";
+
+function plural(n, um, varios) { return `${n} ${n === 1 ? um : varios}`; }
 
 const DEFAULT_TEMP_OPTIONS = ["Tranquilo", "Moderado", "Grave", "Em atenção"];
 const DEFAULT_SIT_OPTIONS = ["Aguard. Cliente", "Aguard. Seguradora", "Aguard. Corretora", "Aguard. Oficina"];
@@ -185,6 +188,8 @@ export function DetailHeader({ c, sit, rel, claims, allClaimsRaw, overrides, use
   const situacaoEfe = situacaoEfetiva(overrides, c, config.corp_atendimento_template, config.corp_journey_templates);
   const finalizado = isFinalizado(overrides, c, config.corp_atendimento_template, config.corp_journey_templates);
   const pesqCompleta = pesquisaSatisfacaoCompleta(overrides, c.id);
+  const emAberto = diasEmAberto(overrides, config.corp_journey_templates, config.corp_atendimento_template, c);
+  const naEtapa = tempoNaEtapaAtual(overrides, config.corp_journey_templates, config.corp_atendimento_template, c);
   usePublicTrackingSync(c, overrides, config.corp_journey_templates, config.corp_atendimento_template);
   const emailAlertas = getEmailAlertas(overrides, c.id);
   // Índice do e-mail aberto no modal (não o objeto direto): quando o
@@ -415,7 +420,23 @@ export function DetailHeader({ c, sit, rel, claims, allClaimsRaw, overrides, use
     <div className="detail-head">
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 8, marginBottom: 12 }}>
         <button className="btn sec sm" onClick={() => navigate("sinistros")}>← Voltar aos sinistros</button>
-        <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+        <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
+          {emAberto && (
+            <span
+              className="neon-tempo neon-alert" style={{ "--neon-rgb": "var(--info-rgb)" }}
+              title={emAberto.encerrado ? "Tempo total do aviso até o encerramento" : `Desde o aviso (${fmtDateBR(c.datavi)})`}
+            >
+              ⏱ {emAberto.encerrado ? "Encerrado após" : "Em aberto há"} {plural(emAberto.dias, "dia", "dias")}
+            </span>
+          )}
+          {naEtapa && (
+            <span
+              className="neon-tempo neon-alert" style={{ "--neon-rgb": "var(--purple-rgb)" }}
+              title={naEtapa.desde ? `Nesta etapa desde ${fmtDateBR(naEtapa.desde)}` : "Etapa atual da jornada"}
+            >
+              📍 {naEtapa.titulo}{naEtapa.dias != null ? ` há ${plural(naEtapa.dias, "dia", "dias")}` : ""}
+            </span>
+          )}
           <button className="btn sec sm" onClick={() => setLinkAberto(true)}>🔗 Link de acompanhamento</button>
           {canEdit && <button className="btn sec sm" onClick={abrirProcessoVinculado}>+ Abrir processo vinculado</button>}
           {canEdit && <button className="btn danger sm" onClick={excluirProcesso}>🗑 Excluir processo</button>}

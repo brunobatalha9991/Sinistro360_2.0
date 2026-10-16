@@ -468,3 +468,26 @@ describe("produtorConsideradoDoClaim / grupoConsideradoDoClaim", () => {
     expect(produtorEhIndireto({}, "B - Y")).toBe(false);
   });
 });
+
+describe("diasEmAberto / tempoNaEtapaAtual", async () => {
+  const { diasEmAberto, tempoNaEtapaAtual } = await import("./claims");
+  const agora = new Date(2026, 9, 16, 12, 0, 0); // 16/10/2026
+  const c = { id: "p1", ramo: "AUTO", partyType: "Segurado", datavi: "2026-10-01", situacao: "PENDENTE" };
+
+  it("conta dias desde o aviso", () => {
+    expect(diasEmAberto({}, {}, undefined, c, agora)).toEqual({ dias: 15, encerrado: false });
+  });
+  it("sem nenhum desfecho, etapa atual desde o aviso", () => {
+    expect(tempoNaEtapaAtual({}, {}, undefined, c, agora)).toMatchObject({ titulo: "Vistoria", dias: 15 });
+  });
+  it("etapa atual conta desde o desfecho da anterior / escolha do caminho", () => {
+    const ov = { p1: { journeyUser: {
+      caminho: "parcial", caminhoDefinidoEm: new Date(2026, 9, 5, 9).toISOString(),
+      steps: {
+        vistoria: { status: "Concluído", concludedAt: new Date(2026, 9, 4, 9).toISOString() },
+        rep_autorizados: { status: "Concluído", concludedAt: new Date(2026, 9, 10, 9).toISOString() },
+      },
+    } } };
+    expect(tempoNaEtapaAtual(ov, {}, undefined, c, agora)).toMatchObject({ titulo: "Peças", dias: 6, desde: "2026-10-10" });
+  });
+});
