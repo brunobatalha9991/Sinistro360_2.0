@@ -820,3 +820,22 @@ tr:hover td{background:var(--surface-2)}
    .neon-alert. */
 .neon-tempo{display:inline-flex;align-items:center;gap:4px;padding:4px 11px;border-radius:999px;font-size:12.5px;font-weight:700;white-space:nowrap;
   color:rgb(var(--neon-rgb));background:rgba(var(--neon-rgb),.12);border:1px solid rgba(var(--neon-rgb),.7);text-shadow:0 0 6px rgba(var(--neon-rgb),.55)}
+
+/* Catálogo e filtros do módulo Relatórios (pages/Relatorios.jsx e
+   components/relatorios/). */
+.rel-catalogo{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:14px}
+.rel-cat-item{display:flex;gap:14px;align-items:flex-start;text-align:left;cursor:pointer;font:inherit;color:inherit;width:100%;transition:transform .15s ease,border-color .15s ease}
+.rel-cat-item:hover,.rel-cat-item:focus-visible{transform:translateY(-2px);border-color:rgba(var(--brand-rgb),.55)}
+.rel-cat-icone{font-size:26px;line-height:1;width:46px;height:46px;flex-shrink:0;display:flex;align-items:center;justify-content:center;border-radius:12px;background:rgba(var(--brand-rgb),.1)}
+.rel-cat-grupo{font-size:10.5px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:var(--brand)}
+.rel-cat-titulo{font-size:15px;font-weight:700;margin-top:1px}
+.rel-cat-formatos{font-size:11px;color:var(--muted);margin-top:6px;font-weight:600}
+.rel-filtros{display:grid;grid-template-columns:repeat(auto-fill,minmax(170px,1fr));gap:10px 12px}
+.rel-filtros .field{min-width:0!important}
+.rel-colunas{display:grid;grid-template-columns:repeat(auto-fill,minmax(190px,1fr));gap:4px 12px;margin-top:8px}
+.rel-colunas label{display:flex;gap:6px;align-items:center;font-size:12.5px;cursor:pointer}
+.rel-resumo{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px}
+.rel-resumo span{font-size:12.5px;padding:5px 10px;border-radius:999px;background:var(--surface-2);border:1px solid var(--border-soft)}
+@media print{
+  .rel-acomp-print .rel-acomp-table td.pre{word-break:break-word}
+}

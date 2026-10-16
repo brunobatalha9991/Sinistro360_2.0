@@ -4,8 +4,9 @@
 // é enviado a lugar nenhum — igual ao exportCSV.
 //
 // columns: [{ label, width, type }] — type "date" (valor ISO yyyy-mm-dd vira
-// data de verdade no Excel, ordenável/filtrável), "wrap" (texto longo com
-// quebra de linha) ou omitido (texto simples).
+// data de verdade no Excel, ordenável/filtrável), "datetime" (timestamp ISO
+// vira data+hora no fuso local), "number", "wrap" (texto longo com quebra
+// de linha) ou omitido (texto simples).
 // rows: array de arrays, na mesma ordem das colunas.
 
 const enc = new TextEncoder();
@@ -33,8 +34,18 @@ export function isoToExcelSerial(iso) {
   return Math.round((t - Date.UTC(1899, 11, 30)) / 86400000);
 }
 
+// Data+hora no fuso local de quem exporta (é o que a tela mostra).
+export function isoToExcelSerialDateTime(iso) {
+  if (!iso) return null;
+  if (/^\d{4}-\d{2}-\d{2}$/.test(String(iso))) return isoToExcelSerial(iso);
+  const d = new Date(iso);
+  if (isNaN(d.getTime())) return null;
+  const t = Date.UTC(d.getFullYear(), d.getMonth(), d.getDate(), d.getHours(), d.getMinutes(), d.getSeconds());
+  return Math.round(((t - Date.UTC(1899, 11, 30)) / 86400000) * 1e6) / 1e6;
+}
+
 // Índices de estilo de styles.xml (cellXfs).
-const S_HEADER = 1, S_DATE = 2, S_WRAP = 3, S_TEXT = 4;
+const S_HEADER = 1, S_DATE = 2, S_WRAP = 3, S_TEXT = 4, S_DATETIME = 5, S_NUMBER = 6;
 
 function sheetXml(columns, rows) {
   const lastCol = colLetter(columns.length - 1);
@@ -49,9 +60,14 @@ function sheetXml(columns, rows) {
     return `<row r="${rn}">${columns.map((c, ci) => {
       const ref = colLetter(ci) + rn;
       const v = r[ci];
-      if (c.type === "date") {
-        const n = isoToExcelSerial(v);
-        return n == null ? `<c r="${ref}" s="${S_DATE}"/>` : `<c r="${ref}" s="${S_DATE}"><v>${n}</v></c>`;
+      if (c.type === "date" || c.type === "datetime") {
+        const st = c.type === "date" ? S_DATE : S_DATETIME;
+        const n = c.type === "date" ? isoToExcelSerial(v) : isoToExcelSerialDateTime(v);
+        return n == null ? `<c r="${ref}" s="${st}"/>` : `<c r="${ref}" s="${st}"><v>${n}</v></c>`;
+      }
+      if (c.type === "number") {
+        const n = typeof v === "number" ? v : v === "" || v == null ? NaN : Number(v);
+        return isFinite(n) ? `<c r="${ref}" s="${S_NUMBER}"><v>${n}</v></c>` : cell(ref, v, S_TEXT);
       }
       return cell(ref, v, c.type === "wrap" ? S_WRAP : S_TEXT);
     }).join("")}</row>`;
@@ -67,18 +83,20 @@ function sheetXml(columns, rows) {
 
 const STYLES = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
   + '<styleSheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">'
-  + '<numFmts count="1"><numFmt numFmtId="164" formatCode="dd/mm/yyyy"/></numFmts>'
+  + '<numFmts count="2"><numFmt numFmtId="164" formatCode="dd/mm/yyyy"/><numFmt numFmtId="165" formatCode="dd/mm/yyyy hh:mm"/></numFmts>'
   + '<fonts count="2"><font><sz val="11"/><name val="Calibri"/></font><font><b/><sz val="11"/><color rgb="FFFFFFFF"/><name val="Calibri"/></font></fonts>'
   + '<fills count="3"><fill><patternFill patternType="none"/></fill><fill><patternFill patternType="gray125"/></fill>'
   + '<fill><patternFill patternType="solid"><fgColor rgb="FF1E3A8A"/><bgColor indexed="64"/></patternFill></fill></fills>'
   + '<borders count="1"><border><left/><right/><top/><bottom/><diagonal/></border></borders>'
   + '<cellStyleXfs count="1"><xf numFmtId="0" fontId="0" fillId="0" borderId="0"/></cellStyleXfs>'
-  + '<cellXfs count="5">'
+  + '<cellXfs count="7">'
   + '<xf numFmtId="0" fontId="0" fillId="0" borderId="0" xfId="0"/>'
   + '<xf numFmtId="0" fontId="1" fillId="2" borderId="0" xfId="0" applyFont="1" applyFill="1" applyAlignment="1"><alignment vertical="center"/></xf>'
   + '<xf numFmtId="164" fontId="0" fillId="0" borderId="0" xfId="0" applyNumberFormat="1" applyAlignment="1"><alignment horizontal="center" vertical="top"/></xf>'
   + '<xf numFmtId="0" fontId="0" fillId="0" borderId="0" xfId="0" applyAlignment="1"><alignment vertical="top" wrapText="1"/></xf>'
   + '<xf numFmtId="0" fontId="0" fillId="0" borderId="0" xfId="0" applyAlignment="1"><alignment vertical="top"/></xf>'
+  + '<xf numFmtId="165" fontId="0" fillId="0" borderId="0" xfId="0" applyNumberFormat="1" applyAlignment="1"><alignment horizontal="center" vertical="top"/></xf>'
+  + '<xf numFmtId="0" fontId="0" fillId="0" borderId="0" xfId="0" applyAlignment="1"><alignment horizontal="right" vertical="top"/></xf>'
   + "</cellXfs>"
   + '<cellStyles count="1"><cellStyle name="Normal" xfId="0" builtinId="0"/></cellStyles>'
   + "</styleSheet>";
