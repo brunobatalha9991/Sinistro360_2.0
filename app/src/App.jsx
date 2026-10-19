@@ -105,7 +105,7 @@ function SyncBanner() {
   return (
     <div style={{ background: "#fee2e2", color: "#991b1b", fontSize: 13, fontWeight: 600, textAlign: "center", padding: "6px 10px" }}>
       {syncStatus.error
-        ? `⚠ Falha ao salvar no servidor (${syncStatus.error}). NÃO atualize nem feche a página — verifique a internet; se persistir, avise o suporte.`
+        ? `⚠ Falha ao salvar no servidor (${syncStatus.error}). A última alteração NÃO foi salva — anote o que fez, atualize a página (F5) e refaça. Se repetir, avise o suporte.`
         : "⏳ Salvando no servidor... sem confirmação ainda. Verifique sua internet e NÃO feche a página até este aviso sumir."}
     </div>
   );

@@ -12,7 +12,7 @@ import {
   getFirestore, initializeFirestore, persistentLocalCache, persistentMultipleTabManager,
   doc, setDoc, onSnapshot, serverTimestamp, collection, writeBatch,
 } from "firebase/firestore";
-import { getAuth, signInAnonymously } from "firebase/auth";
+import { getAuth, signInAnonymously, onAuthStateChanged } from "firebase/auth";
 import { CONFIG_COLLECTION, CONFIG_KEYS, RECORD_SPECS } from "./schema";
 
 export function firebaseEnvConfigured() {
@@ -57,12 +57,32 @@ export function createFirebaseAdapter() {
   // de qualquer forma, então enquanto o método "Anônimo" não estiver
   // habilitado no Console (Authentication > Sign-in method), o app
   // continua funcionando exatamente como antes desta mudança.
-  signInAnonymously(getAuth(app)).catch((e) => {
-    console.warn(
-      "[firebaseAdapter] login anônimo falhou — habilite 'Anônimo' em Authentication > Sign-in method no Console do Firebase.",
-      e && e.message
-    );
+  const auth = getAuth(app);
+  function loginAnonimo() {
+    return signInAnonymously(auth).catch((e) => {
+      console.warn(
+        "[firebaseAdapter] login anônimo falhou — habilite 'Anônimo' em Authentication > Sign-in method no Console do Firebase.",
+        e && e.message
+      );
+      throw e;
+    });
+  }
+  loginAnonimo().catch(() => { /* já avisado */ });
+  // Bug relatado 2026-10-19 ("Missing or insufficient permissions"): o
+  // login anônimo só era feito uma vez, ao abrir a página. Se ele caísse
+  // com a aba aberta (token não renovado, conta anônima removida), toda
+  // gravação passava a ser recusada até alguém dar F5 — e o que tinha sido
+  // feito nesse meio-tempo se perdia. Agora o login é refeito sozinho
+  // sempre que cair, e uma gravação recusada por permissão é repetida uma
+  // vez depois de renovar a credencial (ver renovarCredencial abaixo).
+  onAuthStateChanged(auth, (u) => {
+    if (!u) loginAnonimo().catch(() => { /* já avisado */ });
   });
+  function renovarCredencial() {
+    if (auth.currentUser) return auth.currentUser.getIdToken(true).catch(() => loginAnonimo());
+    return loginAnonimo();
+  }
+  function ehErroPermissao(e) { return !!(e && e.code === "permission-denied"); }
 
   // Espelha localStorage[key] em memória, pra poder expor getAllRecords()
   // de forma síncrona (mesma UX do adapter offline) e pra servir de base
@@ -94,7 +114,9 @@ export function createFirebaseAdapter() {
   }
   if (typeof window !== "undefined") {
     window.addEventListener("beforeunload", (ev) => {
-      if (!syncStatus.pending && !syncStatus.error) return;
+      // Só pede confirmação com gravação ainda pendente — com erro, a
+      // gravação já foi recusada e atualizar a página é justamente a saída.
+      if (!syncStatus.pending) return;
       ev.preventDefault();
       ev.returnValue = "";
     });
@@ -129,17 +151,23 @@ export function createFirebaseAdapter() {
     if (!ops.length) return;
 
     const CHUNK = 400; // limite do Firestore é 500 operações por lote
-    function commitChunk(i) {
-      if (i >= ops.length) return;
-      const slice = ops.slice(i, i + CHUNK);
+    function enviarLote(slice) {
       const batch = writeBatch(db);
       slice.forEach((op) => {
         const ref = doc(db, spec.col, String(op.id));
         if (op.type === "delete") batch.delete(ref);
         else batch.set(ref, { json: op.json, updatedAt: serverTimestamp() });
       });
+      return batch.commit();
+    }
+    function commitChunk(i) {
+      if (i >= ops.length) return;
+      const slice = ops.slice(i, i + CHUNK);
       writeStarted();
-      batch.commit().then(() => {
+      enviarLote(slice).catch((e) => {
+        if (!ehErroPermissao(e)) throw e;
+        return renovarCredencial().then(() => enviarLote(slice));
+      }).then(() => {
         slice.forEach((op) => {
           if (op.type === "delete") delete remoteJsonCache[key][op.id];
           else remoteJsonCache[key][op.id] = op.json;
@@ -157,7 +185,12 @@ export function createFirebaseAdapter() {
   function saveConfig(key, value) {
     configCache[key] = value;
     writeStarted();
-    setDoc(doc(db, CONFIG_COLLECTION, key), { json: JSON.stringify(value), updatedAt: serverTimestamp() })
+    const enviar = () => setDoc(doc(db, CONFIG_COLLECTION, key), { json: JSON.stringify(value), updatedAt: serverTimestamp() });
+    enviar()
+      .catch((e) => {
+        if (!ehErroPermissao(e)) throw e;
+        return renovarCredencial().then(enviar);
+      })
       .then(() => writeFinished(null))
       .catch((e) => {
         console.warn("[firebaseAdapter] falha ao enviar config", key, e && e.message);
@@ -166,10 +199,17 @@ export function createFirebaseAdapter() {
   }
 
   function startListeners() {
+    // Um listener que recebe erro do Firestore para de vez — se foi por
+    // permissão (login anônimo caiu), renova a credencial e escuta de novo,
+    // senão a tela deixa de receber as alterações dos outros usuários.
+    function reescutarDepois(err, iniciar) {
+      if (!ehErroPermissao(err)) return;
+      setTimeout(() => { renovarCredencial().catch(() => {}).then(iniciar); }, 3000);
+    }
     Object.keys(RECORD_SPECS).forEach((key) => {
       const spec = RECORD_SPECS[key];
       let pendingFlush = false;
-      onSnapshot(collection(db, spec.col), (qs) => {
+      const iniciar = () => onSnapshot(collection(db, spec.col), (qs) => {
         qs.docChanges().forEach((ch) => {
           if (ch.type === "removed") {
             delete remoteJsonCache[key][ch.doc.id];
@@ -183,15 +223,23 @@ export function createFirebaseAdapter() {
         if (pendingFlush) return;
         pendingFlush = true;
         setTimeout(() => { pendingFlush = false; notify(); }, 400);
-      }, (err) => console.warn("[firebaseAdapter] erro no listener", key, err && err.message));
+      }, (err) => {
+        console.warn("[firebaseAdapter] erro no listener", key, err && err.message);
+        reescutarDepois(err, iniciar);
+      });
+      iniciar();
     });
     CONFIG_KEYS.forEach((key) => {
-      onSnapshot(doc(db, CONFIG_COLLECTION, key), (snap) => {
+      const iniciar = () => onSnapshot(doc(db, CONFIG_COLLECTION, key), (snap) => {
         if (snap.exists()) {
           try { configCache[key] = JSON.parse(snap.data().json); } catch { /* ignore */ }
         }
         notify();
-      }, (err) => console.warn("[firebaseAdapter] erro no listener de config", key, err && err.message));
+      }, (err) => {
+        console.warn("[firebaseAdapter] erro no listener de config", key, err && err.message);
+        reescutarDepois(err, iniciar);
+      });
+      iniciar();
     });
   }
 
