@@ -43,15 +43,22 @@ export function DataProvider({ children }) {
   // (ex.: vincular dois processos, que grava os dois lados do vínculo),
   // usar a função updater garante que a segunda gravação parte do dado que
   // a primeira acabou de salvar, e não de um retrato desatualizado.
+  // Updater que devolve o próprio `current` = nada mudou: não grava nem
+  // re-renderiza. Sem isso, efeitos que gravam ao renderizar (ex.:
+  // usePublicTrackingSync) entravam em laço — cada setRecords gerava
+  // referências novas, o efeito rodava de novo e chamava saveRecord de novo
+  // (bug 2026-10-19).
   function saveRecord(key, valueOrUpdater) {
     const current = adapter.getAllRecords()[key];
     const value = typeof valueOrUpdater === "function" ? valueOrUpdater(current) : valueOrUpdater;
+    if (value === current) return;
     adapter.saveRecord(key, value);
     setRecords(adapter.getAllRecords());
   }
   function saveConfig(key, valueOrUpdater) {
     const current = adapter.getAllConfig()[key];
     const value = typeof valueOrUpdater === "function" ? valueOrUpdater(current) : valueOrUpdater;
+    if (value === current) return;
     adapter.saveConfig(key, value);
     setConfig(adapter.getAllConfig());
   }

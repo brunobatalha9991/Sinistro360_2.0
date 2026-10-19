@@ -9,8 +9,7 @@
 // rodar localmente, ou Secrets do GitHub Actions para o site publicado).
 import { initializeApp } from "firebase/app";
 import {
-  getFirestore, initializeFirestore, persistentLocalCache, persistentMultipleTabManager,
-  doc, setDoc, onSnapshot, serverTimestamp, collection, writeBatch,
+  getFirestore, doc, setDoc, onSnapshot, serverTimestamp, collection, writeBatch,
 } from "firebase/firestore";
 import { getAuth, signInAnonymously, onAuthStateChanged } from "firebase/auth";
 import { CONFIG_COLLECTION, CONFIG_KEYS, RECORD_SPECS } from "./schema";
@@ -34,20 +33,12 @@ export function readFirebaseConfigFromEnv() {
 
 export function createFirebaseAdapter() {
   const app = initializeApp(readFirebaseConfigFromEnv());
-  // Cache persistente (IndexedDB) — bug relatado 2026-10-19: dois processos
-  // criados na Abertura apareceram na tela mas nunca chegaram ao servidor
-  // (a aba tinha perdido a conexão com o Firestore); como as gravações
-  // pendentes ficavam só na memória, ao atualizar a página elas se
-  // perderam. Com o cache persistente, a gravação pendente sobrevive ao
-  // recarregamento e é enviada assim que a conexão voltar. Se o navegador
-  // não suportar (ex.: aba anônima sem IndexedDB), cai pro modo antigo.
-  let db;
-  try {
-    db = initializeFirestore(app, { localCache: persistentLocalCache({ tabManager: persistentMultipleTabManager() }) });
-  } catch (e) {
-    console.warn("[firebaseAdapter] cache persistente indisponível — usando memória.", e && e.message);
-    db = getFirestore(app);
-  }
+  // Cache em memória (padrão). O cache persistente (IndexedDB) foi testado
+  // em 2026-10-19 e retirado no mesmo dia: ele guardava entre recargas e
+  // entre abas uma fila de gravações repetidas (laço), que levou quase uma
+  // hora pra esvaziar. Gravação pendente/recusada agora é avisada na tela
+  // (SyncBanner) e o navegador pede confirmação antes de sair com pendência.
+  const db = getFirestore(app);
 
   // Login anônimo do Firebase — NÃO é o login do sistema (a tela de
   // e-mail/senha continua sendo a mesma, própria do app). É só uma
@@ -94,6 +85,29 @@ export function createFirebaseAdapter() {
   // "voltava" remoteJsonCache pro valor antigo e a próxima saveRecord
   // reenviava o mesmo conteúdo de novo (bug 2026-10-19, gravação em laço).
   const ultimoEnviado = {};
+  // Disjuntor (garantia contra laço de gravação): um mesmo registro
+  // gravado mais de LIMITE_POR_MINUTO vezes em 60s tem as gravações
+  // seguintes descartadas até a janela esvaziar, com aviso na tela —
+  // uso normal nunca chega perto disso (o laço de 2026-10-19 passou de 500).
+  const LIMITE_POR_MINUTO = 120;
+  const historicoGravacoes = {}; // "key/id" -> [timestamps]
+  function disjuntorAberto(key, id) {
+    const k = key + "/" + id;
+    const agora = Date.now();
+    const lista = (historicoGravacoes[k] || []).filter((t) => agora - t < 60000);
+    if (lista.length >= LIMITE_POR_MINUTO) {
+      historicoGravacoes[k] = lista;
+      if (!syncStatus.error) {
+        console.warn("[firebaseAdapter] gravações repetidas bloqueadas em", k);
+        syncStatus.error = "gravações repetidas bloqueadas — atualize a página (F5)";
+        notifyStatus();
+      }
+      return true;
+    }
+    lista.push(agora);
+    historicoGravacoes[k] = lista;
+    return false;
+  }
   const configCache = {};
   Object.keys(RECORD_SPECS).forEach((k) => { recordCache[k] = {}; remoteJsonCache[k] = {}; ultimoEnviado[k] = {}; });
   CONFIG_KEYS.forEach((k) => { configCache[k] = null; });
@@ -152,7 +166,10 @@ export function createFirebaseAdapter() {
     const ops = [];
     Object.keys(nextMap).forEach((id) => {
       const json = JSON.stringify(nextMap[id]);
-      if (remoteJsonCache[key][id] !== json) ops.push({ type: "set", id, json });
+      // Mesmo conteúdo já enviado (pendente ou confirmado) não é reenviado.
+      if (remoteJsonCache[key][id] === json || ultimoEnviado[key][id] === json) return;
+      if (disjuntorAberto(key, id)) return;
+      ops.push({ type: "set", id, json });
     });
     Object.keys(recordCache[key]).forEach((id) => {
       if (!(id in nextMap)) ops.push({ type: "delete", id });
@@ -190,16 +207,27 @@ export function createFirebaseAdapter() {
         commitChunk(i + CHUNK);
       }).catch((e) => {
         console.warn("[firebaseAdapter] falha ao enviar lote de", key, e && e.message);
+        // Recusada: libera o reenvio do mesmo conteúdo numa próxima gravação.
+        slice.forEach((op) => {
+          if (ultimoEnviado[key][op.id] === (op.type === "delete" ? null : op.json)) delete ultimoEnviado[key][op.id];
+        });
         writeFinished(e || new Error("falha ao gravar"));
       });
     }
     commitChunk(0);
   }
 
+  const configJsonRemoto = {}; // último json visto no servidor, por chave
+  const configJsonEnviado = {}; // último json enviado, por chave
   function saveConfig(key, value) {
     configCache[key] = value;
+    const json = JSON.stringify(value);
+    // Mesma proteção de saveRecord: não reenvia conteúdo idêntico.
+    if (configJsonRemoto[key] === json || configJsonEnviado[key] === json) return;
+    if (disjuntorAberto("config", key)) return;
+    configJsonEnviado[key] = json;
     writeStarted();
-    const enviar = () => setDoc(doc(db, CONFIG_COLLECTION, key), { json: JSON.stringify(value), updatedAt: serverTimestamp() });
+    const enviar = () => setDoc(doc(db, CONFIG_COLLECTION, key), { json, updatedAt: serverTimestamp() });
     enviar()
       .catch((e) => {
         if (!ehErroPermissao(e)) throw e;
@@ -208,6 +236,7 @@ export function createFirebaseAdapter() {
       .then(() => writeFinished(null))
       .catch((e) => {
         console.warn("[firebaseAdapter] falha ao enviar config", key, e && e.message);
+        if (configJsonEnviado[key] === json) delete configJsonEnviado[key];
         writeFinished(e || new Error("falha ao gravar"));
       });
   }
@@ -216,21 +245,31 @@ export function createFirebaseAdapter() {
     // Um listener que recebe erro do Firestore para de vez — se foi por
     // permissão (login anônimo caiu), renova a credencial e escuta de novo,
     // senão a tela deixa de receber as alterações dos outros usuários.
-    function reescutarDepois(err, iniciar) {
+    // Intervalo crescente (3s, 6s, 12s... até 60s) pra não martelar o
+    // Firebase se a permissão continuar negada.
+    const tentativas = {};
+    function reescutarDepois(err, iniciar, nome) {
       if (!ehErroPermissao(err)) return;
-      setTimeout(() => { renovarCredencial().catch(() => {}).then(iniciar); }, 3000);
+      const n = tentativas[nome] = (tentativas[nome] || 0) + 1;
+      const espera = Math.min(60000, 3000 * Math.pow(2, n - 1));
+      setTimeout(() => { renovarCredencial().catch(() => {}).then(iniciar); }, espera);
     }
     Object.keys(RECORD_SPECS).forEach((key) => {
       const spec = RECORD_SPECS[key];
       let pendingFlush = false;
       const iniciar = () => onSnapshot(collection(db, spec.col), (qs) => {
+        tentativas[key] = 0;
         qs.docChanges().forEach((ch) => {
           if (ch.type === "removed") {
             delete remoteJsonCache[key][ch.doc.id];
+            delete ultimoEnviado[key][ch.doc.id];
             delete recordCache[key][ch.doc.id];
           } else {
             const data = ch.doc.data() || {};
             remoteJsonCache[key][ch.doc.id] = data.json;
+            // Alteração de outro usuário: o que eu enviei antes deixa de
+            // valer como "já enviado" (senão regravar o mesmo valor seria pulado).
+            if (ultimoEnviado[key][ch.doc.id] !== undefined && ultimoEnviado[key][ch.doc.id] !== data.json) delete ultimoEnviado[key][ch.doc.id];
             try { recordCache[key][ch.doc.id] = JSON.parse(data.json); } catch { /* ignore */ }
           }
         });
@@ -239,19 +278,23 @@ export function createFirebaseAdapter() {
         setTimeout(() => { pendingFlush = false; notify(); }, 400);
       }, (err) => {
         console.warn("[firebaseAdapter] erro no listener", key, err && err.message);
-        reescutarDepois(err, iniciar);
+        reescutarDepois(err, iniciar, key);
       });
       iniciar();
     });
     CONFIG_KEYS.forEach((key) => {
       const iniciar = () => onSnapshot(doc(db, CONFIG_COLLECTION, key), (snap) => {
+        tentativas["cfg:" + key] = 0;
         if (snap.exists()) {
-          try { configCache[key] = JSON.parse(snap.data().json); } catch { /* ignore */ }
+          const json = snap.data().json;
+          configJsonRemoto[key] = json;
+          if (configJsonEnviado[key] !== undefined && configJsonEnviado[key] !== json) delete configJsonEnviado[key];
+          try { configCache[key] = JSON.parse(json); } catch { /* ignore */ }
         }
         notify();
       }, (err) => {
         console.warn("[firebaseAdapter] erro no listener de config", key, err && err.message);
-        reescutarDepois(err, iniciar);
+        reescutarDepois(err, iniciar, "cfg:" + key);
       });
       iniciar();
     });
