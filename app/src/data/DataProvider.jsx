@@ -23,11 +23,14 @@ export function DataProvider({ children }) {
   const adapter = useMemo(resolveAdapter, []);
   const [records, setRecords] = useState(() => adapter.getAllRecords());
   const [config, setConfig] = useState(() => adapter.getAllConfig());
+  const readSync = () => (adapter.getSyncStatus ? adapter.getSyncStatus() : { pending: 0, pendingSince: null, error: null });
+  const [syncStatus, setSyncStatus] = useState(readSync);
 
   useEffect(() => {
     return adapter.subscribe(() => {
       setRecords(adapter.getAllRecords());
       setConfig(adapter.getAllConfig());
+      setSyncStatus(readSync());
     });
   }, [adapter]);
 
@@ -50,7 +53,7 @@ export function DataProvider({ children }) {
     setConfig(adapter.getAllConfig());
   }
 
-  const value = { mode: adapter.mode, records, config, saveRecord, saveConfig };
+  const value = { mode: adapter.mode, records, config, saveRecord, saveConfig, syncStatus };
   return <DataContext.Provider value={value}>{children}</DataContext.Provider>;
 }
 

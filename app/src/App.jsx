@@ -1,4 +1,4 @@
-import { Suspense, useEffect } from "react";
+import { Suspense, useEffect, useState } from "react";
 import { useAuth } from "./hooks/useAuth";
 import { useTheme } from "./hooks/useTheme";
 import { useHashRoute } from "./hooks/useHashRoute";
@@ -59,6 +59,7 @@ function App() {
 
   return (
     <>
+      <SyncBanner />
       {mode === "offline" && (
         <div className="offline-banner" style={{ background: "#fef3c7", color: "#92400e", fontSize: 12, textAlign: "center", padding: "4px 8px" }}>
           Modo offline (dados fictícios) — nenhuma leitura/escrita no Firebase de produção.
@@ -84,3 +85,28 @@ function App() {
 }
 
 export default App;
+
+// Aviso de gravação não confirmada pelo Firebase (bug relatado 2026-10-19:
+// processos criados sumiram ao atualizar a página porque a gravação nunca
+// chegou ao servidor, e nada avisava). Só aparece se a gravação demorar
+// mais de 5s ou falhar — gravações normais levam menos de 1s.
+function SyncBanner() {
+  const { syncStatus } = useData();
+  const [, setTick] = useState(0);
+  const pendingSince = syncStatus && syncStatus.pendingSince;
+  useEffect(() => {
+    if (!pendingSince) return undefined;
+    const t = setInterval(() => setTick((n) => n + 1), 1000);
+    return () => clearInterval(t);
+  }, [pendingSince]);
+  if (!syncStatus) return null;
+  const atrasado = pendingSince && Date.now() - pendingSince > 5000;
+  if (!syncStatus.error && !atrasado) return null;
+  return (
+    <div style={{ background: "#fee2e2", color: "#991b1b", fontSize: 13, fontWeight: 600, textAlign: "center", padding: "6px 10px" }}>
+      {syncStatus.error
+        ? `⚠ Falha ao salvar no servidor (${syncStatus.error}). NÃO atualize nem feche a página — verifique a internet; se persistir, avise o suporte.`
+        : "⏳ Salvando no servidor... sem confirmação ainda. Verifique sua internet e NÃO feche a página até este aviso sumir."}
+    </div>
+  );
+}

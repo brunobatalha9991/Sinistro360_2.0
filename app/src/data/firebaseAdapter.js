@@ -9,8 +9,8 @@
 // rodar localmente, ou Secrets do GitHub Actions para o site publicado).
 import { initializeApp } from "firebase/app";
 import {
-  getFirestore, doc, getDoc, setDoc, onSnapshot, serverTimestamp,
-  collection, writeBatch,
+  getFirestore, initializeFirestore, persistentLocalCache, persistentMultipleTabManager,
+  doc, setDoc, onSnapshot, serverTimestamp, collection, writeBatch,
 } from "firebase/firestore";
 import { getAuth, signInAnonymously } from "firebase/auth";
 import { CONFIG_COLLECTION, CONFIG_KEYS, RECORD_SPECS } from "./schema";
@@ -34,7 +34,20 @@ export function readFirebaseConfigFromEnv() {
 
 export function createFirebaseAdapter() {
   const app = initializeApp(readFirebaseConfigFromEnv());
-  const db = getFirestore(app);
+  // Cache persistente (IndexedDB) — bug relatado 2026-10-19: dois processos
+  // criados na Abertura apareceram na tela mas nunca chegaram ao servidor
+  // (a aba tinha perdido a conexão com o Firestore); como as gravações
+  // pendentes ficavam só na memória, ao atualizar a página elas se
+  // perderam. Com o cache persistente, a gravação pendente sobrevive ao
+  // recarregamento e é enviada assim que a conexão voltar. Se o navegador
+  // não suportar (ex.: aba anônima sem IndexedDB), cai pro modo antigo.
+  let db;
+  try {
+    db = initializeFirestore(app, { localCache: persistentLocalCache({ tabManager: persistentMultipleTabManager() }) });
+  } catch (e) {
+    console.warn("[firebaseAdapter] cache persistente indisponível — usando memória.", e && e.message);
+    db = getFirestore(app);
+  }
 
   // Login anônimo do Firebase — NÃO é o login do sistema (a tela de
   // e-mail/senha continua sendo a mesma, própria do app). É só uma
@@ -62,6 +75,30 @@ export function createFirebaseAdapter() {
 
   const listeners = new Set();
   function notify() { listeners.forEach((fn) => fn()); }
+
+  // Situação das gravações (a pedido do usuário, mesmo bug acima): antes,
+  // uma falha só ia pro console e ninguém ficava sabendo. Agora o App
+  // mostra um aviso enquanto houver gravação pendente/com erro, e o
+  // navegador pede confirmação antes de fechar/atualizar a página.
+  const syncStatus = { pending: 0, pendingSince: null, error: null };
+  function writeStarted() {
+    if (!syncStatus.pending) syncStatus.pendingSince = Date.now();
+    syncStatus.pending++;
+    notify();
+  }
+  function writeFinished(err) {
+    syncStatus.pending = Math.max(0, syncStatus.pending - 1);
+    if (!syncStatus.pending) syncStatus.pendingSince = null;
+    syncStatus.error = err ? ((err && err.message) || String(err)) : (syncStatus.pending ? syncStatus.error : null);
+    notify();
+  }
+  if (typeof window !== "undefined") {
+    window.addEventListener("beforeunload", (ev) => {
+      if (!syncStatus.pending && !syncStatus.error) return;
+      ev.preventDefault();
+      ev.returnValue = "";
+    });
+  }
 
   function getAllRecords() {
     const out = {};
@@ -101,21 +138,31 @@ export function createFirebaseAdapter() {
         if (op.type === "delete") batch.delete(ref);
         else batch.set(ref, { json: op.json, updatedAt: serverTimestamp() });
       });
+      writeStarted();
       batch.commit().then(() => {
         slice.forEach((op) => {
           if (op.type === "delete") delete remoteJsonCache[key][op.id];
           else remoteJsonCache[key][op.id] = op.json;
         });
+        writeFinished(null);
         commitChunk(i + CHUNK);
-      }).catch((e) => console.warn("[firebaseAdapter] falha ao enviar lote de", key, e && e.message));
+      }).catch((e) => {
+        console.warn("[firebaseAdapter] falha ao enviar lote de", key, e && e.message);
+        writeFinished(e || new Error("falha ao gravar"));
+      });
     }
     commitChunk(0);
   }
 
   function saveConfig(key, value) {
     configCache[key] = value;
+    writeStarted();
     setDoc(doc(db, CONFIG_COLLECTION, key), { json: JSON.stringify(value), updatedAt: serverTimestamp() })
-      .catch((e) => console.warn("[firebaseAdapter] falha ao enviar config", key, e && e.message));
+      .then(() => writeFinished(null))
+      .catch((e) => {
+        console.warn("[firebaseAdapter] falha ao enviar config", key, e && e.message);
+        writeFinished(e || new Error("falha ao gravar"));
+      });
   }
 
   function startListeners() {
@@ -154,6 +201,7 @@ export function createFirebaseAdapter() {
     mode: "firebase",
     getAllRecords,
     getAllConfig,
+    getSyncStatus() { return { ...syncStatus }; },
     saveRecord,
     saveConfig,
     subscribe(onChange) { listeners.add(onChange); return () => listeners.delete(onChange); },
