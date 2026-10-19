@@ -30,8 +30,11 @@ export function DataProvider({ children }) {
     return adapter.subscribe(() => {
       setRecords(adapter.getAllRecords());
       setConfig(adapter.getAllConfig());
-      setSyncStatus(readSync());
     });
+  }, [adapter]);
+  useEffect(() => {
+    if (!adapter.subscribeStatus) return undefined;
+    return adapter.subscribeStatus(() => setSyncStatus(readSync()));
   }, [adapter]);
 
   // Aceita um valor OU uma função updater(current) => next — igual ao

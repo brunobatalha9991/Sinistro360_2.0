@@ -89,8 +89,13 @@ export function createFirebaseAdapter() {
   // de comparação nos diffs de escrita.
   const recordCache = {}; // recordCache[key] = { id: registro }
   const remoteJsonCache = {}; // remoteJsonCache[key] = { id: jsonString } (o que já sabemos que está salvo)
+  // Último json ENVIADO por id — a confirmação de uma gravação antiga pode
+  // chegar depois de uma mais nova já ter sido enviada; sem isso ela
+  // "voltava" remoteJsonCache pro valor antigo e a próxima saveRecord
+  // reenviava o mesmo conteúdo de novo (bug 2026-10-19, gravação em laço).
+  const ultimoEnviado = {};
   const configCache = {};
-  Object.keys(RECORD_SPECS).forEach((k) => { recordCache[k] = {}; remoteJsonCache[k] = {}; });
+  Object.keys(RECORD_SPECS).forEach((k) => { recordCache[k] = {}; remoteJsonCache[k] = {}; ultimoEnviado[k] = {}; });
   CONFIG_KEYS.forEach((k) => { configCache[k] = null; });
 
   const listeners = new Set();
@@ -100,17 +105,23 @@ export function createFirebaseAdapter() {
   // uma falha só ia pro console e ninguém ficava sabendo. Agora o App
   // mostra um aviso enquanto houver gravação pendente/com erro, e o
   // navegador pede confirmação antes de fechar/atualizar a página.
+  // Listeners próprios, separados de `listeners`: avisar os de dados a
+  // cada gravação recriava `records` inteiro e re-renderizava a tela toda
+  // (bug 2026-10-19 — com o processo aberto, o usePublicTrackingSync
+  // regravava o resumo público em laço, centenas de vezes por minuto).
   const syncStatus = { pending: 0, pendingSince: null, error: null };
+  const statusListeners = new Set();
+  function notifyStatus() { statusListeners.forEach((fn) => fn()); }
   function writeStarted() {
     if (!syncStatus.pending) syncStatus.pendingSince = Date.now();
     syncStatus.pending++;
-    notify();
+    notifyStatus();
   }
   function writeFinished(err) {
     syncStatus.pending = Math.max(0, syncStatus.pending - 1);
     if (!syncStatus.pending) syncStatus.pendingSince = null;
     syncStatus.error = err ? ((err && err.message) || String(err)) : (syncStatus.pending ? syncStatus.error : null);
-    notify();
+    notifyStatus();
   }
   if (typeof window !== "undefined") {
     window.addEventListener("beforeunload", (ev) => {
@@ -149,6 +160,7 @@ export function createFirebaseAdapter() {
 
     recordCache[key] = nextMap;
     if (!ops.length) return;
+    ops.forEach((op) => { ultimoEnviado[key][op.id] = op.type === "delete" ? null : op.json; });
 
     const CHUNK = 400; // limite do Firestore é 500 operações por lote
     function enviarLote(slice) {
@@ -169,6 +181,8 @@ export function createFirebaseAdapter() {
         return renovarCredencial().then(() => enviarLote(slice));
       }).then(() => {
         slice.forEach((op) => {
+          const json = op.type === "delete" ? null : op.json;
+          if (ultimoEnviado[key][op.id] !== json) return; // já há gravação mais nova
           if (op.type === "delete") delete remoteJsonCache[key][op.id];
           else remoteJsonCache[key][op.id] = op.json;
         });
@@ -250,6 +264,7 @@ export function createFirebaseAdapter() {
     getAllRecords,
     getAllConfig,
     getSyncStatus() { return { ...syncStatus }; },
+    subscribeStatus(onChange) { statusListeners.add(onChange); return () => statusListeners.delete(onChange); },
     saveRecord,
     saveConfig,
     subscribe(onChange) { listeners.add(onChange); return () => listeners.delete(onChange); },
