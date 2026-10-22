@@ -16,6 +16,7 @@ import { descreverAlteracoesTarefa, TASK_FLAGS_DEFAULT, proximoCI, RECORRENCIA_U
 import { getChecklistEfetivo, checklistProgresso, checklistVazio, sincronizarComFormulario } from "../logic/checklistMesaAtendimento";
 import { getFormularioEfetivo, formularioDisponivel, caminhoPastaSolicitacao, secaoRepetivel } from "../logic/solicitacaoAtendimento";
 import { isDriveUploadConfigured, uploadArquivoDrive, CONTEXTO_MESA_ATENDIMENTO } from "../logic/driveUpload";
+import { montarHtmlSolicitacao, imprimirHtml } from "../logic/solicitacaoPdf";
 
 const ATENDIMENTO_OPCOES = [
   ["sinistro", "Sinistro"],
@@ -148,11 +149,21 @@ function CampoInput({ campo, valores, onChange, endpoint, uploadOk, pasta }) {
 // de sempre (retrocompatível com solicitações já salvas); terceiros
 // extras entram em valores.terceirosExtra[], cada um com o mesmo conjunto
 // de campos da seção (ver secaoRepetivel em logic/solicitacaoAtendimento.js).
-function SolicitacaoFields({ tipoAtendimento, valores, onChange, config, pastaDrive }) {
+// `contextoPdf` ({ tituloTarefa, processoLabel, solicitante, geradoPor })
+// entra no cabeçalho do PDF exportado pelo botão "Exportar PDF" (a pedido
+// do usuário) — ver logic/solicitacaoPdf.js.
+function SolicitacaoFields({ tipoAtendimento, valores, onChange, config, pastaDrive, contextoPdf }) {
   const def = getFormularioEfetivo(tipoAtendimento, config);
   const v = valores || {};
   const uploadOk = isDriveUploadConfigured(config);
   const endpoint = config.corp_drive_upload_endpoint || "";
+  const [erroPdf, setErroPdf] = useState(null);
+
+  function exportarPdf() {
+    setErroPdf(null);
+    const html = montarHtmlSolicitacao({ tipoAtendimento, valores: v, config, contexto: contextoPdf });
+    if (!imprimirHtml(html)) setErroPdf("Não foi possível abrir a impressão neste navegador. Tente novamente ou use outro navegador.");
+  }
 
   if (!def) {
     return (
@@ -177,7 +188,13 @@ function SolicitacaoFields({ tipoAtendimento, valores, onChange, config, pastaDr
 
   return (
     <div style={{ marginTop: 10, border: "1px solid var(--border)", borderRadius: 8, padding: 14, background: "var(--surface-2)" }}>
-      <div style={{ fontWeight: 700, fontSize: 13 }}>{def.titulo}</div>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
+        <div style={{ fontWeight: 700, fontSize: 13 }}>{def.titulo}</div>
+        <button type="button" className="btn sec xs" onClick={exportarPdf} title="Gera um PDF com tudo que está preenchido neste formulário (campos em branco aparecem como —)">
+          🖨 Exportar PDF
+        </button>
+      </div>
+      {erroPdf && <div style={{ color: "var(--danger)", fontSize: 11.5, marginTop: 6 }}>{erroPdf}</div>}
       {secoes.map((secao) => {
         if (def.secaoVisivel && !def.secaoVisivel(secao, v)) return null;
         const camposSecao = def.campos.filter((c) => c.secao === secao);
@@ -650,7 +667,16 @@ export function TaskModal() {
         )}
 
         {isMesaAtendimento && tipoAtendimento && solicitacaoAberta && (
-          <SolicitacaoFields tipoAtendimento={tipoAtendimento} valores={solicitacao} onChange={setSolicitacao} config={config} pastaDrive={caminhoPastaSolicitacao(tipoAtendimento, solicitacao, pastaDriveId)} />
+          <SolicitacaoFields
+            tipoAtendimento={tipoAtendimento} valores={solicitacao} onChange={setSolicitacao} config={config}
+            pastaDrive={caminhoPastaSolicitacao(tipoAtendimento, solicitacao, pastaDriveId)}
+            contextoPdf={{
+              tituloTarefa: titulo,
+              processoLabel: (() => { const cl = processoId ? claims.find((c) => c.id === processoId) : null; return cl ? `${cl.numsin || "#" + cl.nosnum} — ${cl.segurado}` : ""; })(),
+              solicitante: (editing ? users.find((u) => u.id === editing.origem)?.nome : currentUser && currentUser.nome) || "",
+              geradoPor: (currentUser && currentUser.nome) || "",
+            }}
+          />
         )}
 
         <div className="field" style={{ marginTop: isMesaAtendimento && tipoAtendimento && solicitacaoAberta ? 14 : 0 }}><label>Título</label>
