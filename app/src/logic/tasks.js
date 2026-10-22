@@ -97,6 +97,14 @@ export function tarefasNoEscopo(tasks, escopoUserId) {
   if (escopoUserId == null) return tasks || [];
   return (tasks || []).filter((t) => taskParticipants(t).indexOf(escopoUserId) >= 0);
 }
+// Comunicações internas vinculadas a um processo (t.processo) — usadas no
+// detalhe do processo (aba "Comunicação interna" e atalho no cabeçalho).
+export function tarefasDoProcesso(tasks, claimId) {
+  return (tasks || []).filter((t) => t.processo === claimId);
+}
+export function tarefasAbertasDoProcesso(tasks, claimId) {
+  return tarefasDoProcesso(tasks, claimId).filter((t) => t.status !== "Concluído");
+}
 export function myTasks(tasks, currentUser) {
   if (!currentUser) return [];
   return tarefasNoEscopo(tasks, currentUser.id);

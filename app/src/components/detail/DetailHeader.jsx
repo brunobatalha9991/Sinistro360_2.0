@@ -7,6 +7,7 @@ import { usePublicTrackingSync } from "../../hooks/usePublicTrackingSync";
 import { useData } from "../../data/DataProvider.jsx";
 import { podeSerResponsavel } from "../../data/auth";
 import { setDemandaPrefill } from "../../state/taskModal";
+import { tarefasAbertasDoProcesso } from "../../logic/tasks";
 import { setComsPrefill } from "../../state/comsPrefill";
 import { setAberturaPrefill } from "../../state/aberturaPrefill";
 import { getGmailToken } from "../../gmail/googleAuthClient";
@@ -148,7 +149,8 @@ function ObservacoesBox({ c, overrides, actions, canEdit }) {
 }
 
 export function DetailHeader({ c, sit, rel, claims, allClaimsRaw, overrides, users, currentUser, isAdminUser, canEdit, actions, navigate, setDetailTab }) {
-  const { config, saveConfig } = useData();
+  const { config, saveConfig, records } = useData();
+  const comunicacoesAbertas = tarefasAbertasDoProcesso(records.corp_tasks, c.id);
   const tempOpts = config.corp_temp_options && config.corp_temp_options.length ? config.corp_temp_options : DEFAULT_TEMP_OPTIONS;
   const sitOpts = config.corp_sit_options && config.corp_sit_options.length ? config.corp_sit_options : DEFAULT_SIT_OPTIONS;
   const temp = getTemp(overrides, c.id);
@@ -314,15 +316,29 @@ export function DetailHeader({ c, sit, rel, claims, allClaimsRaw, overrides, use
     responsavel: <ResponsavelBox c={c} users={users} overrides={overrides} actions={actions} canEdit={canEdit} />,
 
     criarTarefa: finalizado ? null : (
-      <button
-        className="btn sec xs" style={{ width: "100%", height: "100%" }}
-        onClick={() => {
-          setDemandaPrefill({ titulo: `Processo ${numsinEf || "#" + c.nosnum} — ${txt(seguradoEf)}`, descricao: "", processoId: c.id });
-          navigate("tarefas", "newfromdemanda");
-        }}
-      >
-        + Criar tarefa vinculada a este processo
-      </button>
+      <div style={{ display: "flex", flexDirection: "column", gap: 6, height: "100%" }}>
+        <button
+          className="btn sec xs" style={{ width: "100%", flex: 1 }}
+          onClick={() => {
+            setDemandaPrefill({ titulo: `Processo ${numsinEf || "#" + c.nosnum} — ${txt(seguradoEf)}`, descricao: "", processoId: c.id });
+            navigate("tarefas", "newfromdemanda");
+          }}
+        >
+          + Criar tarefa vinculada a este processo
+        </button>
+        {/* Comunicações internas já vinculadas a este processo (a pedido do
+            usuário) — atalho pra aba "Comunicação interna" do detalhe, de
+            onde cada uma abre direto. */}
+        {comunicacoesAbertas.length > 0 && (
+          <a
+            className="badge purple" style={{ cursor: "pointer", justifyContent: "center" }}
+            title="Ver as comunicações internas vinculadas a este processo"
+            onClick={() => (comunicacoesAbertas.length === 1 ? navigate("tarefas", "open-" + comunicacoesAbertas[0].id) : setDetailTab("comunicacao"))}
+          >
+            💬 {comunicacoesAbertas.length === 1 ? "1 comunicação interna em aberto" : `${comunicacoesAbertas.length} comunicações internas em aberto`} →
+          </a>
+        )}
+      </div>
     ),
 
     proximaAcao: finalizado ? null : (

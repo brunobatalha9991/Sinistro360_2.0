@@ -16,6 +16,8 @@ import { LinksPanel } from "../components/detail/LinksPanel.jsx";
 import { AuditPanel } from "../components/detail/AuditPanel.jsx";
 import { AnexosPanel } from "../components/detail/AnexosPanel.jsx";
 import { PesquisaSatisfacaoPanel } from "../components/detail/PesquisaSatisfacaoPanel.jsx";
+import { ComunicacaoInternaPanel } from "../components/detail/ComunicacaoInternaPanel.jsx";
+import { tarefasAbertasDoProcesso } from "../logic/tasks";
 import { visibleClaims, relatedClaims } from "../logic/claims";
 import { mapSituacao } from "../logic/situacao";
 import { isAdmin, canEdit as canEditRole } from "../data/auth";
@@ -89,6 +91,7 @@ export function Sinistro() {
 
   const sit = mapSituacao(c.situacao);
   const rel = relatedClaims(overrides, allClaimsRaw, c);
+  const comunicacoesAbertas = tarefasAbertasDoProcesso(records.corp_tasks, c.id).length;
   const canEdit = canEditRole(currentUser);
   const isAdminUser = isAdmin(currentUser);
   const isConsulta = currentUser?.role === "consulta" && !isAdminUser;
@@ -101,6 +104,7 @@ export function Sinistro() {
     ["financeiro", "Financeiro"],
     ["atendimento", "Atendimento"],
     ["vinculos", `Vínculos (${rel.length})`],
+    ["comunicacao", `Comunicação interna${comunicacoesAbertas ? ` (${comunicacoesAbertas})` : ""}`],
     ["satisfacao", "Pesquisa de satisfação"],
     ["anexos", "Anexos"],
     ...(isConsulta ? [] : [
@@ -116,6 +120,7 @@ export function Sinistro() {
       case "proxima": return <NextActionPanel c={c} overrides={overrides} actions={trackedActions} canEdit={canEdit} />;
       case "auditoria": return isConsulta ? null : <AuditPanel c={c} overrides={overrides} records={records} />;
       case "vinculos": return <LinksPanel c={c} claims={claims} allClaimsRaw={allClaimsRaw} overrides={overrides} actions={trackedActions} navigate={navigate} setDetailTab={setDetailTab} />;
+      case "comunicacao": return <ComunicacaoInternaPanel c={c} users={users} navigate={navigate} canCriar={!isConsulta} />;
       case "satisfacao": return <PesquisaSatisfacaoPanel c={c} overrides={overrides} actions={trackedActions} canEdit={canEdit} atendTemplateCfg={config.corp_atendimento_template} templates={config.corp_journey_templates} />;
       case "anexos": return <AnexosPanel c={c} overrides={overrides} config={config} actions={trackedActions} canEdit={canEdit} currentUser={currentUser} />;
       case "geral": return <GeralPanel c={c} claims={claims} overrides={overrides} actions={trackedActions} canEdit={canEdit} config={config} navigate={navigate} />;
