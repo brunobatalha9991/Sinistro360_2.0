@@ -54,6 +54,10 @@ export const CONFIG_KEYS = [
   // processo — a pedido do usuário: caixas arrastáveis/redimensionáveis,
   // compartilhadas pra todo mundo que usa o sistema. Ver DetailHeader.jsx.
   "corp_detail_layout",
+  // Cadastro de processo por texto (a pedido do usuário) — personalização
+  // do prompt copiado pro Claude Chat: { instrucoesExtras }. Ver
+  // logic/cadastroPorTexto.js e CadastroPorTextoCard.jsx.
+  "corp_cadastro_texto_cfg",
 ];
 
 // Registros grandes/multiusuário: 1 documento por registro.

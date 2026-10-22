@@ -215,6 +215,9 @@ export function Abertura() {
   // já existe; senão fica em branco pra revisão humana (o formulário externo
   // só coleta texto livre, sem acesso aos catálogos/usuários do sistema).
   const importado = aberturaPrefillValue?.importado || null;
+  // Mesmo prefill, origem diferente: texto devolvido pelo Claude Chat (ver
+  // Configurações → Cadastro por texto e logic/cadastroPorTexto.js).
+  const importadoDeTexto = importado?._origem === "sinistro360_cadastro_texto";
 
   function matchCatalog(opts, valor) {
     if (!valor) return null;
@@ -421,7 +424,10 @@ export function Abertura() {
       actions.logAudit(claim.id, "Vinculado automaticamente", alvo ? `Vinculado ao processo ${alvo.numsin || "#" + alvo.nosnum} — ${alvo.segurado}` : "");
     }
     actions.logAudit(claim.id, "Processo criado manualmente", "Via módulo Abertura");
-    if (importado) {
+    if (importadoDeTexto) {
+      const lidoEm = importado._geradoEm ? new Date(importado._geradoEm).toLocaleString("pt-BR") : null;
+      actions.logAudit(claim.id, "Processo criado a partir de cadastro por texto (IA)", "Pré-preenchido com o texto devolvido pelo Claude Chat, revisado e confirmado manualmente" + (lidoEm ? " — texto interpretado em " + lidoEm : ""));
+    } else if (importado) {
       const geradoEm = importado._geradoEm ? new Date(importado._geradoEm).toLocaleString("pt-BR") : null;
       actions.logAudit(claim.id, "Processo criado a partir de formulário comercial importado", "Via PDF do Formulário de Abertura Comercial" + (geradoEm ? " — preenchido em " + geradoEm : ""));
     }
@@ -458,7 +464,9 @@ export function Abertura() {
 
         {importado && (
           <div className="status ok" style={{ marginBottom: 12 }}>
-            Processo pré-preenchido a partir de um formulário comercial importado (PDF). Revise os campos antes de criar — especialmente Seguradora, Ramo, Agente, Produtor e Responsável.
+            {importadoDeTexto
+              ? "Processo pré-preenchido a partir do texto devolvido pelo Claude (cadastro por texto). Campos não identificados ficaram em branco — complete-os e revise o restante antes de criar, especialmente Seguradora, Ramo, Agente, Produtor e Responsável. Nada é gravado até o clique em \"Criar processo\"."
+              : "Processo pré-preenchido a partir de um formulário comercial importado (PDF). Revise os campos antes de criar — especialmente Seguradora, Ramo, Agente, Produtor e Responsável."}
             {importInit && importInit.produtorSemMatch && (
               <div style={{ marginTop: 4 }}>Produtor sugerido no formulário: "{importado.produtor}" — não encontrado no catálogo, selecione manualmente.</div>
             )}

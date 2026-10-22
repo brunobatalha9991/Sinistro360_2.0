@@ -3,10 +3,11 @@ import { useData } from "../data/DataProvider.jsx";
 import { useAuth } from "../hooks/useAuth";
 import { useHashRoute } from "../hooks/useHashRoute";
 import { useOverrideActions } from "../hooks/useOverrideActions";
-import { isAdmin } from "../data/auth";
+import { isAdmin, canEdit as canEditRole, podeSerResponsavel } from "../data/auth";
 import { EmptyState } from "../components/EmptyState.jsx";
 import { HistoricoImportCard } from "../components/config/HistoricoImportCard.jsx";
 import { ImportarFormularioComercialCard } from "../components/config/ImportarFormularioComercialCard.jsx";
+import { CadastroPorTextoCard } from "../components/config/CadastroPorTextoCard.jsx";
 import { ProximaAcaoImportCard } from "../components/config/ProximaAcaoImportCard.jsx";
 import { ResponsabilidadeBackfillCard } from "../components/config/ResponsabilidadeBackfillCard.jsx";
 import { MemoriasIACard } from "../components/config/MemoriasIACard.jsx";
@@ -26,7 +27,7 @@ import { GruposDashboardCard } from "../components/config/GruposDashboardCard.js
 import { GmailConfigCard } from "../components/config/GmailConfigCard.jsx";
 import { EmailAssinaturaCard } from "../components/config/EmailAssinaturaCard.jsx";
 import { EmailRegrasCard } from "../components/config/EmailRegrasCard.jsx";
-import { visibleClaims, ensureRamoTemplateInto, distinctProdutores, distinctGruposProdutores, getAgentesEfetivo } from "../logic/claims";
+import { visibleClaims, ensureRamoTemplateInto, distinctProdutores, distinctGruposProdutores, getAgentesEfetivo, distinctComputed } from "../logic/claims";
 import { getToken, setToken } from "../logic/corpApi";
 
 // Agrupador colapsável — a pedido do usuário: Configurações tinha ~10
@@ -74,6 +75,18 @@ export function Configuracoes() {
   const produtoresEfetivo = distinctProdutores(overrides, claims);
   const gruposProdutoresEfetivo = distinctGruposProdutores(overrides, claims);
 
+  // Catálogos que entram no prompt do cadastro por texto — mesmas listas que
+  // o módulo Abertura oferece nos <select>, pra o Claude devolver o nome
+  // exato e o prefill casar direto.
+  const catalogosCadastroTexto = {
+    seguradoras: distinctComputed(claims, (c) => c.cia),
+    ramos: Object.keys(templates).sort(),
+    oficinas: distinctComputed(claims, (c) => c.oficina),
+    agentes: agentesEfetivo,
+    produtores: produtoresEfetivo,
+    responsaveis: (records.corp_users || []).filter(podeSerResponsavel).map((u) => u.nome).filter(Boolean),
+  };
+
   return (
     <div className="page-enter">
       <div className="page-head">
@@ -85,6 +98,16 @@ export function Configuracoes() {
         <p className="muted">Sinistros: {claims.length} • Ramos configurados: {ramosCount} • Token: {getToken() ? "ativo" : "inativo"}</p>
         <button className="btn danger sm" onClick={() => { setToken(""); alert("Sessão encerrada."); }}>Sair (logout)</button>
       </div>
+
+      {/* Fora do bloqueio de admin de propósito: quem abre processos
+          (analista/atendente) também usa o cadastro por texto; só a edição
+          do prompt fica restrita a administradores. */}
+      <ConfigGroup title="Cadastro por texto (IA)" subtitle="Prompt para o Claude Chat e tela de cadastro automático de processo a partir do texto devolvido — o processo só é criado no clique manual." defaultOpen>
+        <CadastroPorTextoCard
+          config={config} saveConfig={saveConfig} catalogos={catalogosCadastroTexto} navigate={navigate}
+          canEdit={canEditRole(currentUser)} canEditPrompt={admin}
+        />
+      </ConfigGroup>
 
       {!admin ? (
         <div className="card"><EmptyState>Apenas administradores podem editar os modelos de jornada por ramo. Altere o perfil no topo para Administrador.</EmptyState></div>
