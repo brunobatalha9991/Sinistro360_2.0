@@ -80,7 +80,14 @@ export function CadastroPorTextoCard({ config, saveConfig, catalogos, navigate, 
       {status && <div className={"status " + status.cls}>{status.msg}</div>}
 
       {telaAberta && (
-        <CadastroPorTextoModal catalogos={catalogos} navigate={navigate} onClose={() => setTelaAberta(false)} />
+        <CadastroPorTextoModal
+          catalogos={catalogos} prompt={prompt} onClose={() => setTelaAberta(false)}
+          onAplicar={(data) => {
+            setAberturaPrefill({ tipoParte: data.tipoParte, segurado: data.segurado, importado: data });
+            setTelaAberta(false);
+            navigate("abertura");
+          }}
+        />
       )}
     </div>
   );
@@ -112,9 +119,16 @@ function formatarValor(campo, valor) {
   return valor;
 }
 
-function CadastroPorTextoModal({ catalogos, navigate, onClose }) {
+// Tela de cadastro por texto. Também usada como atalho dentro do módulo
+// Abertura (a pedido do usuário) — por isso quem decide o que fazer com os
+// dados lidos é `onAplicar(data)`: em Configurações vira prefill + navegação
+// pra Abertura; na própria Abertura preenche o formulário na hora. `prompt`
+// (opcional) habilita o botão de copiar o prompt pro Claude aqui dentro.
+export function CadastroPorTextoModal({ catalogos, prompt, onAplicar, onClose }) {
   const [texto, setTexto] = useState("");
   const [resultado, setResultado] = useState(null);
+  const [copiado, setCopiado] = useState(false);
+  const [mostrarPrompt, setMostrarPrompt] = useState(false);
 
   function interpretar() {
     setResultado(parseCadastroTexto(texto));
@@ -122,9 +136,17 @@ function CadastroPorTextoModal({ catalogos, navigate, onClose }) {
 
   function abrirAbertura() {
     if (!resultado || !resultado.ok) return;
-    setAberturaPrefill({ tipoParte: resultado.data.tipoParte, segurado: resultado.data.segurado, importado: resultado.data });
-    onClose();
-    navigate("abertura");
+    onAplicar(resultado.data);
+  }
+
+  function copiarPrompt() {
+    if (!prompt) return;
+    const fim = () => { setCopiado(true); setTimeout(() => setCopiado(false), 2000); };
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(prompt).then(fim).catch(() => setMostrarPrompt(true));
+    } else {
+      setMostrarPrompt(true);
+    }
   }
 
   // TELEFONE/EMAIL viram clienteContatos no parse — pra prévia, mostra de
@@ -148,8 +170,21 @@ function CadastroPorTextoModal({ catalogos, navigate, onClose }) {
           <button type="button" className="btn sec xs" onClick={onClose}>✕ Fechar</button>
         </div>
         <p className="muted" style={{ fontSize: 12.5 }}>
-          Cole abaixo a resposta do Claude (o bloco entre os marcadores, ou a resposta inteira). Clique em "Interpretar" para conferir o que foi reconhecido antes de seguir para o formulário.
+          {prompt ? "Ainda não tem o texto? Copie o prompt, abra o Claude Chat, anexe o PDF/prints do sinistro e cole o prompt. Depois, " : ""}
+          {prompt ? "cole" : "Cole"} abaixo a resposta do Claude (o bloco entre os marcadores, ou a resposta inteira). Clique em "Interpretar" para conferir o que foi reconhecido antes de seguir para o formulário.
         </p>
+        {prompt && (
+          <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 12 }}>
+            <button type="button" className="btn sec sm" onClick={copiarPrompt}>{copiado ? "✔ Prompt copiado!" : "📋 Copiar prompt para o Claude"}</button>
+            <button type="button" className="btn ghost sm" onClick={() => setMostrarPrompt((v) => !v)}>{mostrarPrompt ? "Ocultar prompt" : "Ver prompt"}</button>
+          </div>
+        )}
+        {prompt && mostrarPrompt && (
+          <div className="field">
+            <label>Prompt (selecione tudo e copie, caso o botão não funcione no seu navegador)</label>
+            <textarea readOnly rows={10} value={prompt} style={{ fontFamily: "monospace", fontSize: 12 }} onFocus={(e) => e.target.select()} />
+          </div>
+        )}
 
         <div className="field">
           <label>Texto devolvido pelo Claude</label>

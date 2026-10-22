@@ -16,6 +16,8 @@ import { listaClientes, clienteIdFromNome } from "../logic/clientes";
 import { todayISO, isoFromBR } from "../logic/format";
 import { takePendingTaskLink } from "../state/taskModal";
 import { takeAberturaPrefill } from "../state/aberturaPrefill";
+import { CadastroPorTextoModal } from "../components/config/CadastroPorTextoCard.jsx";
+import { gerarPromptCadastro } from "../logic/cadastroPorTexto";
 
 const NEW_SENTINEL = "__novo__";
 
@@ -214,10 +216,14 @@ export function Abertura() {
   // preenche se houver correspondência exata (case-insensitive) com o que
   // já existe; senão fica em branco pra revisão humana (o formulário externo
   // só coleta texto livre, sem acesso aos catálogos/usuários do sistema).
-  const importado = aberturaPrefillValue?.importado || null;
+  // Estado (e não const) porque o atalho "Cadastro por texto (IA)" desta
+  // própria tela também preenche o formulário, sem passar por Configurações
+  // (ver aplicarImportado abaixo).
+  const [importado, setImportado] = useState(aberturaPrefillValue?.importado || null);
   // Mesmo prefill, origem diferente: texto devolvido pelo Claude Chat (ver
   // Configurações → Cadastro por texto e logic/cadastroPorTexto.js).
   const importadoDeTexto = importado?._origem === "sinistro360_cadastro_texto";
+  const [telaTextoAberta, setTelaTextoAberta] = useState(false);
 
   function matchCatalog(opts, valor) {
     if (!valor) return null;
@@ -297,21 +303,59 @@ export function Abertura() {
   // comercial importado — grava direto (mesmo saveCadastro do módulo
   // Clientes/ClienteCadastroBox acima) uma única vez ao montar, pra já
   // aparecer em "Ver/editar dados do cliente" sem precisar redigitar.
-  useEffect(() => {
-    if (!importado) return;
-    const temDados = importado.clienteDocumento || importado.clienteEndereco || importado.clienteObservacoes
-      || (importado.clienteContatos && importado.clienteContatos.length);
+  function salvarCadastroClienteImportado(imp) {
+    if (!imp) return;
+    const temDados = imp.clienteDocumento || imp.clienteEndereco || imp.clienteObservacoes
+      || (imp.clienteContatos && imp.clienteContatos.length);
     if (!temDados) return;
-    const nome = (importado.segurado || "").trim();
+    const nome = (imp.segurado || "").trim();
     if (!nome) return;
     clienteActions.saveCadastro(clienteIdFromNome(nome), {
-      documento: (importado.clienteDocumento || "").trim(),
-      endereco: (importado.clienteEndereco || "").trim(),
-      observacoes: (importado.clienteObservacoes || "").trim(),
-      contatos: importado.clienteContatos || [],
+      documento: (imp.clienteDocumento || "").trim(),
+      endereco: (imp.clienteEndereco || "").trim(),
+      observacoes: (imp.clienteObservacoes || "").trim(),
+      contatos: imp.clienteContatos || [],
     });
+  }
+  useEffect(() => {
+    salvarCadastroClienteImportado(importado);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // Atalho "Cadastro por texto (IA)" dentro da própria Abertura (a pedido do
+  // usuário): aplica no formulário já montado o mesmo que o prefill faria
+  // ao montar — mesmas regras de computeImportInit. Campo vazio no texto
+  // limpa o campo correspondente (o operador está começando um processo
+  // novo a partir do texto, não completando um já digitado).
+  function aplicarImportado(data) {
+    const init = computeImportInit(data);
+    setImportado(data);
+    setTipoParte(data.tipoParte || "Segurado");
+    setSegurado(data.segurado || "");
+    setPlaca(data.placa || "");
+    setVeiculoMarca(data.veiculoMarca || "");
+    setVeiculoModelo(data.veiculoModelo || "");
+    setVeiculoAno(data.veiculoAno || "");
+    setNumsin(data.numsin || "");
+    setCia(init.ciaValue); setCiaNova(init.ciaNova);
+    setRamo(init.ramoValue); setRamoNovo(init.ramoNovo);
+    setOficina(init.oficinaValue); setOficinaNova(init.oficinaNova);
+    setAgenteSel(init.agenteValue); setAgenteNovo(init.agenteNovo);
+    setProdutorSel(init.produtorValue);
+    setResponsavelId(init.responsavelId);
+    setNumapo(data.numapo || "");
+    setNumend(data.numend || "");
+    setItem(data.item || "");
+    setDatoco(data.datoco || "");
+    setDatavi(data.datavi || todayISO());
+    setFranquia(data.franquia || "");
+    setValavi(data.valavi || "");
+    setDescricao(data.descricao || "");
+    setObservacoes(data.observacoes || "");
+    setStatus(null);
+    salvarCadastroClienteImportado(data);
+    setTelaTextoAberta(false);
+  }
 
   function aplicarVinculo(claimId) {
     setVinculoId(claimId);
@@ -383,6 +427,13 @@ export function Abertura() {
   const exigeVinculos = tipoParte !== "Atendimento";
   const agenteFinal = agenteSel === NEW_SENTINEL ? agenteNovo.trim() : agenteSel;
 
+  // Mesmos catálogos dos <select> abaixo, no formato que o cadastro por
+  // texto espera (prompt + prévia) — ver CadastroPorTextoCard.jsx.
+  const catalogosTexto = {
+    seguradoras: ciaOpts, ramos: ramoOpts, oficinas: oficinaOpts, agentes: agenteOpts, produtores: produtorOpts,
+    responsaveis: users.filter(podeSerResponsavel).map((u) => u.nome).filter(Boolean),
+  };
+
   function criar() {
     const nome = segurado.trim();
     if (!nome) { setStatus({ cls: "err", msg: "Informe o nome do segurado/terceiro." }); return; }
@@ -451,7 +502,20 @@ export function Abertura() {
         <div><h1>Abertura</h1><p>Cria novos processos direto no sistema — Segurado, Terceiro ou Atendimento</p></div>
       </div>
       <div className="card">
-        <h3 style={{ marginTop: 0 }}>Novo processo</h3>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
+          <h3 style={{ marginTop: 0, marginBottom: 0 }}>Novo processo</h3>
+          <button type="button" className="btn sec sm" onClick={() => setTelaTextoAberta(true)} title="Cole o texto devolvido pelo Claude Chat e preencha o formulário automaticamente">
+            🤖 Cadastro por texto (IA)
+          </button>
+        </div>
+        {telaTextoAberta && (
+          <CadastroPorTextoModal
+            catalogos={catalogosTexto}
+            prompt={gerarPromptCadastro(catalogosTexto, (config.corp_cadastro_texto_cfg || {}).instrucoesExtras)}
+            onAplicar={aplicarImportado}
+            onClose={() => setTelaTextoAberta(false)}
+          />
+        )}
         <p className="muted">
           Cria um processo direto no sistema (não vem da API CORP). Ele aparece em Sinistros, Clientes, Seguradoras, Oficinas, Dashboard e nos filtros normalmente, com identificação de "criado manualmente", e é preservado nas próximas sincronizações com a API.
         </p>
