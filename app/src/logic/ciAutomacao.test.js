@@ -153,3 +153,28 @@ describe("CI sem interação dos destinatários", () => {
     expect(minutosUteisEntre(new Date(2026, 9, 31, 9, 0), new Date(2026, 10, 1, 17, 0), cfg)).toBe(0);
   });
 });
+
+describe("convivência com a versão anterior (sem loop de alertas)", () => {
+  const cfg = SEM_INTERACAO_CFG_DEFAULT;
+  const t = (extra) => ({ id: "t", origem: "adm", destinatarios: ["luiz"], status: "Pendente", urgencia: "Leve", createdAt: "2026-10-28T12:00:00.000Z", comments: [], log: [], ciente: {}, ...extra });
+  const em = (min) => new Date(Date.parse("2026-10-28T12:00:00.000Z") + min * 60000);
+  // Regra da versão antiga: só alerta se alertaSemInteracao.ref !== ref.
+  const versaoAntiga = (task) => {
+    const ref = referenciaInteracao(task);
+    return task.alertaSemInteracao && task.alertaSemInteracao.ref === ref ? null : { ...task, alertaSemInteracao: { ref, at: "x", minutos: 10 } };
+  };
+  it("período considerado vencido: nova e antiga não se desmentem", () => {
+    let task = t({ interacaoConsiderada: { ate: em(30).toISOString() } });
+    let r = verificarSemInteracao([task], em(40), cfg);
+    expect(r.alertas).toHaveLength(1);
+    task = r.tasks[0];
+    expect(versaoAntiga(task)).toBeNull(); // a antiga não regrava
+    expect(verificarSemInteracao([task], em(41), cfg).alertas).toHaveLength(0);
+    // Se a antiga gravou antes (sem consid), a nova avisa uma vez e estabiliza.
+    const gravadaPelaAntiga = versaoAntiga(t({ interacaoConsiderada: { ate: em(30).toISOString() } }));
+    r = verificarSemInteracao([gravadaPelaAntiga], em(40), cfg);
+    expect(r.alertas).toHaveLength(1);
+    expect(versaoAntiga(r.tasks[0])).toBeNull();
+    expect(verificarSemInteracao(r.tasks, em(42), cfg).alertas).toHaveLength(0);
+  });
+});

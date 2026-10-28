@@ -14,6 +14,20 @@ import { useTasksActions } from "./useTasksActions";
 const CHECK_MS = 60 * 1000;
 const DIAS_GUARDADOS = 30;
 
+const ANTI_REPETICAO_MS = 5 * 60 * 1000;
+
+// Destinatários que NÃO receberam alerta automático igual (mesma CI, mesmo
+// tipo) nos últimos 5 min — trava contra tempestade de notificações (várias
+// abas/versões rodando a mesma verificação ao mesmo tempo).
+function semAlertaRecente(notifs, taskId, tipos, userIds) {
+  const limite = Date.now() - ANTI_REPETICAO_MS;
+  const recentes = new Set((notifs || [])
+    .filter((n) => n.taskId === taskId && tipos(n) && new Date(n.at).getTime() > limite)
+    .map((n) => n.userId));
+  return (userIds || []).filter((id) => !recentes.has(id));
+}
+const ehAlertaGestor = (n) => n.tipo === "sem_interacao" || (!n.tipo && String(n.text || "").startsWith("⏱"));
+
 export function useCiAusencia(currentUser) {
   const { records, config, saveRecord, recordCarregado } = useData();
   const { pushNotif } = useTasksActions();
@@ -87,7 +101,8 @@ export function useCiAusencia(currentUser) {
       const texto = aposConsiderada
         ? `⏱ ${task.ci || "CI"} continua sem interação após o período de interação considerada${task.urgencia === "Urgente" ? " (URGENTE)" : ""} — sem interação: ${nomes}: ${task.titulo || ""}`
         : `⏱ ${task.ci || "CI"} sem interação dos destinatários há mais de ${minutos} min${task.urgencia === "Urgente" ? " (URGENTE)" : ""} — sem interação: ${nomes}: ${task.titulo || ""}`;
-      pushNotif(task.id, gestores, texto, undefined, false, false, false, { tipo: "sem_interacao", ausentes });
+      const alvos = semAlertaRecente(records.corp_notifs, task.id, ehAlertaGestor, gestores);
+      if (alvos.length) pushNotif(task.id, alvos, texto, undefined, false, false, false, { tipo: "sem_interacao", ausentes });
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [userId, prontos, agora, records.corp_tasks, config.corp_ci_sem_interacao]);
@@ -109,9 +124,9 @@ export function useCiAusencia(currentUser) {
     alertas.forEach(({ task, minutos, ausentes, escalar, escalonadoPara }) => {
       const nomes = ausentes.map(nomeDe).join(", ");
       const urg = task.urgencia === "Urgente" ? " (URGENTE)" : "";
-      pushNotif(task.id, [task.origem], `⏱ ${task.ci || "CI"} sem interação dos destinatários há ${minutos} min${urg} — sem interação: ${nomes}: ${task.titulo || ""}`,
+      if (semAlertaRecente(records.corp_notifs, task.id, (n) => n.tipo === "sem_interacao_criador", [task.origem]).length) pushNotif(task.id, [task.origem], `⏱ ${task.ci || "CI"} sem interação dos destinatários há ${minutos} min${urg} — sem interação: ${nomes}: ${task.titulo || ""}`,
         undefined, false, false, false, { tipo: "sem_interacao_criador", ausentes });
-      if (escalar && escalonadoPara) {
+      if (escalar && escalonadoPara && semAlertaRecente(records.corp_notifs, task.id, (n) => n.tipo === "escalonamento_ci", [escalonadoPara]).length) {
         pushNotif(task.id, [escalonadoPara], `🟣 ${task.ci || "CI"} com alertas seguidos sem interação${urg} — avalie um pedido de intervenção. Criada por ${nomeDe(task.origem)}; sem interação: ${nomes}: ${task.titulo || ""}`,
           undefined, false, false, false, { tipo: "escalonamento_ci", ausentes });
       }

@@ -315,15 +315,21 @@ export function verificarSemInteracao(tasks, agora, cfg) {
     const ref = referenciaInteracao(t);
     const refMs = new Date(ref).getTime();
     // Um período de "interação considerada" já vencido sem nova interação
-    // conta como um novo silêncio: alerta de novo (chave = ref + fim dele).
+    // conta como um novo silêncio: alerta de novo.
     const consid = t.interacaoConsiderada && String(t.interacaoConsiderada.ate) > ref ? String(t.interacaoConsiderada.ate) : "";
-    const chave = consid ? ref + "|" + consid : ref;
+    // Compatibilidade com a versão anterior (abas sem F5): `ref` continua
+    // sendo só o instante da última interação — a versão antiga compara
+    // exatamente esse campo; o período considerado vai em `consid`. Antes,
+    // gravar "ref|fim" aqui fazia as duas versões se desmentirem e
+    // dispararem alertas em loop.
     const desdeMs = consid ? new Date(consid).getTime() : refMs;
     if (isNaN(refMs) || t0 - desdeMs > JANELA_SEM_INTERACAO_MS) return t;
     const minutos = limiteSemInteracaoMin(t, cfg);
     if (minutosUteisEntre(refMs, t0, cfg) < minutos) return t;
-    if (t.alertaSemInteracao && t.alertaSemInteracao.ref === chave) return t;
-    const atualizada = { ...t, alertaSemInteracao: { ref: chave, at: agora.toISOString(), minutos } };
+    const ja = t.alertaSemInteracao;
+    const jaAvisado = ja && (ja.ref === ref + "|" + consid || (ja.ref === ref && (!consid || ja.consid === consid)));
+    if (jaAvisado) return t;
+    const atualizada = { ...t, alertaSemInteracao: { ref, ...(consid ? { consid } : {}), at: agora.toISOString(), minutos } };
     alertas.push({ task: atualizada, minutos, ausentes: ultimaInteracaoPorDestinatario(t).map((d) => d.userId), aposConsiderada: !!consid });
     return atualizada;
   });
