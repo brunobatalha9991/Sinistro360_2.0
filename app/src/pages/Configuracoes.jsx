@@ -29,6 +29,7 @@ import { GruposDashboardCard } from "../components/config/GruposDashboardCard.js
 import { GmailConfigCard } from "../components/config/GmailConfigCard.jsx";
 import { EmailAssinaturaCard } from "../components/config/EmailAssinaturaCard.jsx";
 import { EmailRegrasCard } from "../components/config/EmailRegrasCard.jsx";
+import { VersoesSistemaCard } from "../components/config/VersoesSistemaCard.jsx";
 import { visibleClaims, ensureRamoTemplateInto, distinctProdutores, distinctGruposProdutores, getAgentesEfetivo, distinctComputed } from "../logic/claims";
 import { getToken, setToken } from "../logic/corpApi";
 
@@ -115,6 +116,10 @@ export function Configuracoes() {
         <div className="card"><EmptyState>Apenas administradores podem editar os modelos de jornada por ramo. Altere o perfil no topo para Administrador.</EmptyState></div>
       ) : (
         <>
+          <ConfigGroup title="Versões do sistema" subtitle="Registro de cada atualização publicada (o que mudou) e relatório visual para compartilhar com a equipe.">
+            <VersoesSistemaCard config={config} saveConfig={saveConfig} canEdit={admin} currentUser={currentUser} />
+          </ConfigGroup>
+
           <ConfigGroup title="Usuários & Acesso" subtitle="Cadastro, papéis, módulos e vínculo de Agente/Produtor (usuários Consulta) por usuário.">
             <UsersCard
               users={records.corp_users || []} currentUser={currentUser} saveRecord={saveRecord}

@@ -72,6 +72,9 @@ export const CONFIG_KEYS = [
   "corp_ci_sem_interacao",
   // Pesos do Índice de Desempenho (logic/desempenhoPainel.js).
   "corp_desempenho_pesos",
+  // Registro de versões/atualizações do sistema (Configurações → Versões do
+  // sistema) — ver logic/versoesSistema.js.
+  "corp_versoes_sistema",
 ];
 
 // Registros grandes/multiusuário: 1 documento por registro.

@@ -20,6 +20,7 @@ import { useHorarioAlarme } from "../hooks/useHorarioAlarme";
 import { useTarefaAlarme } from "../hooks/useTarefaAlarme";
 import { useAgendaAlarme } from "../hooks/useAgendaAlarme";
 import { useCiAusencia } from "../hooks/useCiAusencia";
+import { versaoAtual } from "../logic/versoesSistema";
 import { useDesempenhoMonitor } from "../hooks/useDesempenhoMonitor";
 import { useDicasAssistente } from "../hooks/useDicasAssistente";
 
@@ -138,7 +139,7 @@ export function Shell({ route, param, crumb, currentUser, currentRole, onNavigat
             );
           })}
         </nav>
-        <div className="ver">v3.0 • Integração CORP</div>
+        <div className="ver" title="Versão atual — histórico em Configurações → Versões do sistema">v{versaoAtual(config) || "3.0"} • Integração CORP</div>
       </div>
 
       <div className="main">
