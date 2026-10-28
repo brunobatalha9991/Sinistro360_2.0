@@ -11,6 +11,8 @@ import { isDriveUploadConfigured, uploadArquivoDrive, sanitizarNomePasta, CONTEX
 import { isAdmin, ROLE_LABELS } from "../data/auth";
 import { isGeminiConfigured } from "../ai/geminiApi";
 import { gerarFeedbackEmTextoCorrido } from "../ai/gerarFeedbackTexto";
+import { metricasAgenda, temAgendaPropria, agendaCfg, fmtPct } from "../logic/agenda";
+import { IndicadoresAgendaGrid } from "../components/agenda/IndicadoresPanel.jsx";
 
 function todayISO() { return new Date().toISOString().slice(0, 10); }
 function diasAtras(n) { const d = new Date(); d.setDate(d.getDate() - n); return d.toISOString().slice(0, 10); }
@@ -42,7 +44,7 @@ function Section({ title, desc, children }) {
 // lista de sinistros já filtrada. Reaproveita o mesmo upload de anexos pro
 // Drive (logic/driveUpload.js), numa pasta-contexto própria (uma subpasta
 // por usuário, pelo nome).
-function PerfilUsuario({ m, u, config, saveRecord, currentUser, isAdminUser, navigate, periodoLabel, analise }) {
+function PerfilUsuario({ m, u, config, saveRecord, currentUser, isAdminUser, navigate, periodoLabel, analise, agenda }) {
   const [enviandoFoto, setEnviandoFoto] = useState(false);
   const [erroFoto, setErroFoto] = useState(null);
   const uploadOk = isDriveUploadConfigured(config);
@@ -225,6 +227,17 @@ function PerfilUsuario({ m, u, config, saveRecord, currentUser, isAdminUser, nav
         <Stat label="Assistências (Mesa de Atendimento)" value={fmtNum(m.assistenciasNoPeriodo)} />
       </Section>
 
+      {agenda && (
+        <div className="card">
+          <h3 style={{ marginTop: 0 }}>Agenda ({periodoLabel})</h3>
+          <p className="muted" style={{ marginTop: -6, marginBottom: 12, fontSize: 12 }}>
+            Cumprimento do planejamento do dia (módulo Agenda): ações iniciadas e finalizadas com feedback, no horário.
+          </p>
+          <IndicadoresAgendaGrid m={agenda} cfg={agendaCfg(config)} />
+          <button className="btn ghost xs" style={{ marginTop: 10 }} onClick={() => navigate("agenda")}>Abrir Agenda</button>
+        </div>
+      )}
+
       <div className="card">
         <h3 style={{ marginTop: 0 }}>Ver sinistros</h3>
         <div className="chips">
@@ -240,6 +253,21 @@ function PerfilUsuario({ m, u, config, saveRecord, currentUser, isAdminUser, nav
       </div>
     </div>
   );
+}
+
+// Soma a Agenda ao feedback automático do perfil: abaixo de 70% de
+// cumprimento ou com ações sem registro vira ponto de atenção; 90% ou
+// mais vira ponto forte. Sem nenhuma ação vencida no período, não opina.
+function comAgenda(analise, ag) {
+  if (!ag || ag.taxaCumprimento == null) return analise;
+  const fortes = analise.pontosFortes.slice();
+  const atencao = analise.pontosAtencao.slice();
+  const pct = fmtPct(ag.taxaCumprimento);
+  if (ag.taxaCumprimento >= 0.9) fortes.push(`Cumpre a agenda planejada (${pct} das ações concluídas no período).`);
+  else if (ag.taxaCumprimento < 0.7) atencao.push(`Cumprimento da agenda baixo: ${pct} das ações concluídas (${ag.concluidas} de ${ag.vencidas}).`);
+  if (ag.semRegistro > 0) atencao.push(`${ag.semRegistro} ação(ões) da agenda passaram do horário sem nenhum registro.`);
+  if (ag.pontualidade != null && ag.pontualidade < 0.7) atencao.push(`Pontualidade no início das ações da agenda: ${fmtPct(ag.pontualidade)}.`);
+  return { ...analise, pontosFortes: fortes, pontosAtencao: atencao };
 }
 
 // Fase 5 (IA Sinistros) — painel de Desempenho, ampliado numa "v2" a
@@ -271,6 +299,19 @@ export function Desempenho() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [users, claims, overrides, historico, inicioISO, fimISO, atendTemplateCfg, templates, tasks]
   );
+
+  // Indicadores da Agenda por usuário (só Atendente/Analista têm agenda).
+  const blocosAgenda = records.corp_agenda;
+  const feedbacksAgenda = records.corp_agenda_feedback;
+  const agendaPorUsuario = useMemo(() => {
+    const cfg = agendaCfg(config);
+    const out = {};
+    users.filter(temAgendaPropria).forEach((u) => {
+      out[u.id] = metricasAgenda({ blocos: blocosAgenda || [], feedbacks: feedbacksAgenda || [], userId: u.id, deISO: periodoDe || null, ateISO: periodoAte || null, cfg });
+    });
+    return out;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [users, blocosAgenda, feedbacksAgenda, periodoDe, periodoAte, config.corp_agenda_cfg]);
 
   function verSinistrosDoUsuario(usuarioId) {
     resetListFilter();
@@ -308,7 +349,9 @@ export function Desempenho() {
         <PerfilUsuario
           key={u.id}
           m={m} u={u} config={config} saveRecord={saveRecord} currentUser={currentUser} isAdminUser={isAdminUser}
-          navigate={navigate} periodoLabel={periodoLabel} analise={gerarFeedbackEPlanoDeAcao(m, metricas)}
+          navigate={navigate} periodoLabel={periodoLabel}
+          analise={comAgenda(gerarFeedbackEPlanoDeAcao(m, metricas), agendaPorUsuario[u.id])}
+          agenda={agendaPorUsuario[u.id]}
         />
       </div>
     );
@@ -366,6 +409,7 @@ export function Desempenho() {
                   <th className="right">Atrasados</th>
                   <th className="right">Finalizados no período</th>
                   <th className="right">Tempo médio de responsabilidade</th>
+                  <th className="right" title="Ações da agenda concluídas ÷ ações cujo horário já terminou, no período">Agenda (cumprimento)</th>
                   <th>Ações</th>
                 </tr>
               </thead>
@@ -378,6 +422,11 @@ export function Desempenho() {
                     <td className="mono right">{m.atrasadosAtual > 0 ? <span className="badge red">{m.atrasadosAtual}</span> : "0"}</td>
                     <td className="mono right">{fmtNum(m.finalizadosNoPeriodo)}</td>
                     <td className="mono right">{fmtDiasMedia(m.tempoMedioResponsabilidadeDias)}</td>
+                    <td className="mono right">
+                      {agendaPorUsuario[m.usuarioId]
+                        ? <span className={agendaPorUsuario[m.usuarioId].taxaCumprimento != null && agendaPorUsuario[m.usuarioId].taxaCumprimento < 0.7 ? "badge red" : undefined}>{fmtPct(agendaPorUsuario[m.usuarioId].taxaCumprimento)}</span>
+                        : "—"}
+                    </td>
                     <td>
                       <button className="btn sec xs" style={{ marginRight: 6 }} onClick={() => navigate("desempenho", m.usuarioId)}>Ver perfil</button>
                       <button className="btn ghost xs" onClick={() => verSinistrosDoUsuario(m.usuarioId)}>Ver sinistros</button>

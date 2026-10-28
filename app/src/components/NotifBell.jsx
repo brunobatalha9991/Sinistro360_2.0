@@ -37,6 +37,7 @@ export function NotifBell() {
     actions.markNotifRead(n.id);
     notifPanelStore.patch({ open: false });
     if (n.tipo === "dica") return;
+    if (n.tipo === "agenda_feedback") { navigate("agenda", "feedbacks"); return; }
     if (n.taskId === "__demanda__") { navigate("demandas"); return; }
     const t = tasks.find((x) => x.id === n.taskId);
     if (t) navigate("tarefas", "open-" + t.id);
@@ -59,8 +60,9 @@ export function NotifBell() {
           {!list.length ? <EmptyState>Nenhuma notificação.</EmptyState> : list.map((n) => {
             const isDemanda = n.taskId === "__demanda__";
             const isDica = n.tipo === "dica";
-            const t = (isDemanda || isDica) ? null : tasks.find((x) => x.id === n.taskId);
-            const titulo = isDemanda ? "Nova demanda recebida" : isDica ? "💡 Dica do Assistente" : t ? t.titulo : "(tarefa removida)";
+            const isAgenda = n.tipo === "agenda_feedback";
+            const t = (isDemanda || isDica || isAgenda) ? null : tasks.find((x) => x.id === n.taskId);
+            const titulo = isDemanda ? "Nova demanda recebida" : isDica ? "💡 Dica do Assistente" : isAgenda ? "🗓 Feedback da agenda" : t ? t.titulo : "(tarefa removida)";
             const when = new Date(n.at);
             const w = `${String(when.getDate()).padStart(2, "0")}/${String(when.getMonth() + 1).padStart(2, "0")} ${String(when.getHours()).padStart(2, "0")}:${String(when.getMinutes()).padStart(2, "0")}`;
             return (

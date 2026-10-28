@@ -15,6 +15,7 @@ export const MODULOS_DISPONIVEIS = [
   ["seguradoras", "Seguradoras"], ["oficinas", "Oficinas"], ["relatorios", "Relatórios"],
   ["assistente", "Assistente IA"],
   ["desempenho", "Desempenho"],
+  ["agenda", "Agenda"],
   ["emails", "E-mails"],
   ["integracao", "Integração CORP"], ["config", "Configurações"],
 ];
@@ -58,6 +59,10 @@ export function userModulos(u) {
   if (!u) return [];
   if (isAdmin(u)) return MODULOS_DISPONIVEIS.map((m) => m[0]);
   if (!u.modulos || !u.modulos.length) return MODULOS_DISPONIVEIS.map((m) => m[0]);
+  // Agenda é obrigatória pra Atendente/Analista (a pedido do usuário: cada
+  // um tem a sua) — entra mesmo em quem tem uma lista de módulos própria,
+  // salva antes de o módulo existir.
+  if ((u.role === "atendente" || u.role === "analista") && u.modulos.indexOf("agenda") < 0) return [...u.modulos, "agenda"];
   return u.modulos;
 }
 

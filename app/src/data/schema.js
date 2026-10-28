@@ -58,6 +58,12 @@ export const CONFIG_KEYS = [
   // do prompt copiado pro Claude Chat: { instrucoesExtras }. Ver
   // logic/cadastroPorTexto.js e CadastroPorTextoCard.jsx.
   "corp_cadastro_texto_cfg",
+  // Módulo Agenda (a pedido do usuário) — presets de ação, modelos de dia
+  // e regras gerais (expediente, soneca, tolerância...). Ver
+  // logic/agenda.js e components/agenda/AgendaConfigPanel.jsx.
+  "corp_agenda_presets",
+  "corp_agenda_modelos",
+  "corp_agenda_cfg",
 ];
 
 // Registros grandes/multiusuário: 1 documento por registro.
@@ -128,6 +134,13 @@ export const RECORD_SPECS = {
   // DataProvider/login — não usa esta constante diretamente, lê o
   // documento direto via data/publicTrackingClient.js).
   corp_public_tracking: { col: "s360_public_tracking", keyed: true },
+
+  // Módulo Agenda (a pedido do usuário) — blocos de tempo do dia de cada
+  // Atendente/Analista (com recorrência) e TODO feedback dado aos alarmes
+  // (início, fim, não realizada, soneca, lembrete). O andamento de cada
+  // ação é derivado dos feedbacks — ver src/logic/agenda.js.
+  corp_agenda: { col: "s360_agenda", keyed: false },
+  corp_agenda_feedback: { col: "s360_agenda_feedback", keyed: false },
 };
 
 export const CONFIG_COLLECTION = "s360_config";

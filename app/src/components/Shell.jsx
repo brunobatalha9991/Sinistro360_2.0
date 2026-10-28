@@ -4,6 +4,7 @@ import { Avatar } from "./Avatar.jsx";
 import { NotifBell } from "./NotifBell.jsx";
 import { HorarioAlarmeModal } from "./HorarioAlarmeModal.jsx";
 import { TarefaAlarmeModal } from "./TarefaAlarmeModal.jsx";
+import { AgendaAlarmeModal } from "./AgendaAlarmeModal.jsx";
 import { ROLE_LABELS, userModulos, isAdmin } from "../data/auth";
 import { useData } from "../data/DataProvider.jsx";
 import { useAuth } from "../hooks/useAuth";
@@ -11,6 +12,7 @@ import { visibleClaims, isAtrasado } from "../logic/claims";
 import { myUnreadCount, demandaUnreadCount } from "../logic/tasks";
 import { useHorarioAlarme } from "../hooks/useHorarioAlarme";
 import { useTarefaAlarme } from "../hooks/useTarefaAlarme";
+import { useAgendaAlarme } from "../hooks/useAgendaAlarme";
 import { useDicasAssistente } from "../hooks/useDicasAssistente";
 
 const SIDEBAR_KEY = "corp_sidebar_collapsed";
@@ -27,6 +29,7 @@ export const MENU = [
   ["relatorios", "Relatórios", "relatorios"],
   ["assistente", "Assistente IA", "assistente"],
   ["desempenho", "Desempenho", "desempenho"],
+  ["agenda", "Agenda", "agenda"],
   ["emails", "E-mails", "emails"],
   ["integracao", "Integração CORP", "integracao"],
   ["config", "Configurações", "config"],
@@ -83,6 +86,7 @@ export function Shell({ route, param, crumb, currentUser, currentRole, onNavigat
   const { isRealVip, vipViewActive, toggleVipView } = useAuth();
   const { alarmes: alarmesHora, dismiss: dismissAlarmeHora, dismissAll: dismissAllAlarmeHora } = useHorarioAlarme(currentUser);
   const { alarmes: alarmesTarefa, dismiss: dismissAlarmeTarefa, dismissAll: dismissAllAlarmeTarefa, markViewed: markViewedAlarmeTarefa } = useTarefaAlarme(currentUser);
+  const { alarmes: alarmesAgenda, cfg: agendaCfg } = useAgendaAlarme(currentUser);
   useDicasAssistente(currentUser);
   const menu = visibleMenu(currentUser, currentRole);
   const nome = currentUser?.nome || "Usuário";
@@ -182,6 +186,9 @@ export function Shell({ route, param, crumb, currentUser, currentRole, onNavigat
           alarmes={alarmesTarefa} onDismiss={dismissAlarmeTarefa} onDismissAll={dismissAllAlarmeTarefa}
           onView={markViewedAlarmeTarefa} navigate={onNavigate}
         />
+      )}
+      {alarmesAgenda.length > 0 && (
+        <AgendaAlarmeModal alarmes={alarmesAgenda} cfg={agendaCfg} currentUser={currentUser} />
       )}
     </div>
   );

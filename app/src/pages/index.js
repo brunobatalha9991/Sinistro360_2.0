@@ -21,6 +21,7 @@ export const PAGES = {
   oficina: lazy(() => import("./Oficina.jsx").then((m) => ({ default: m.Oficina }))),
   relatorios: lazy(() => import("./Relatorios.jsx").then((m) => ({ default: m.Relatorios }))),
   assistente: lazy(() => import("./Assistente.jsx").then((m) => ({ default: m.Assistente }))),
+  agenda: lazy(() => import("./Agenda.jsx").then((m) => ({ default: m.Agenda }))),
   desempenho: lazy(() => import("./Desempenho.jsx").then((m) => ({ default: m.Desempenho }))),
   emails: lazy(() => import("./Emails.jsx").then((m) => ({ default: m.Emails }))),
   integracao: lazy(() => import("./Integracao.jsx").then((m) => ({ default: m.Integracao }))),

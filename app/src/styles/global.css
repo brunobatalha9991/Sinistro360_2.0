@@ -839,3 +839,91 @@ tr:hover td{background:var(--surface-2)}
 @media print{
   .rel-acomp-print .rel-acomp-table td.pre{word-break:break-word}
 }
+
+/* ==========================================================================
+   Módulo Agenda (pages/Agenda.jsx, components/agenda/*). A cor de cada ação
+   vem de --bloco-cor (inline), escolhida no preset/ação. O alarme em tela
+   cheia reaproveita .alarme-geral-*; o lembrete tem visual próprio
+   (cartão âmbar no canto, sem bloquear a tela).
+   ========================================================================== */
+.agenda-toolbar{display:flex;flex-wrap:wrap;gap:10px;align-items:center}
+.agenda-navdia{display:flex;gap:6px;align-items:center;flex-wrap:wrap}
+.agenda-layout{display:grid;grid-template-columns:minmax(0,1.6fr) minmax(280px,1fr);gap:14px;align-items:start}
+@media(max-width:1000px){.agenda-layout{grid-template-columns:1fr}}
+.agenda-roteiro{max-height:calc(100vh - 230px);overflow:auto}
+
+.agenda-timeline{display:flex;gap:8px;user-select:none}
+.agenda-horas{position:relative;width:46px;flex-shrink:0}
+.agenda-hora{position:absolute;right:0;transform:translateY(-50%);font-family:var(--font-mono);font-size:11px;color:var(--muted)}
+.agenda-hora.meia{font-size:10px;color:var(--muted-soft)}
+.agenda-grade{position:relative;flex:1;min-width:0;border-left:1px solid var(--border)}
+.agenda-grade.editavel{cursor:copy}
+.agenda-linha{position:absolute;left:0;right:0;border-top:1px solid var(--border)}
+.agenda-linha.meia{border-top-style:dashed;border-top-color:var(--border-soft)}
+.agenda-expediente{position:absolute;left:0;right:0;background:rgba(var(--brand-rgb),.035);pointer-events:none}
+.agenda-agora{position:absolute;left:-6px;right:0;border-top:2px solid var(--danger);z-index:3;pointer-events:none}
+.agenda-agora span{position:absolute;left:-44px;top:-9px;background:var(--danger);color:#fff;font-size:10px;font-weight:700;padding:1px 4px;border-radius:4px;font-family:var(--font-mono)}
+
+.agenda-bloco{
+  position:absolute;z-index:2;overflow:hidden;border-radius:8px;
+  background:color-mix(in srgb,var(--bloco-cor) 16%,var(--card-solid));
+  border:1px solid color-mix(in srgb,var(--bloco-cor) 45%,transparent);
+  border-left:4px solid var(--bloco-cor);
+  cursor:pointer;transition:box-shadow .15s ease,opacity .15s ease;
+}
+.agenda-bloco.editavel{cursor:grab;touch-action:none}
+.agenda-bloco:hover{box-shadow:var(--shadow-md);z-index:4}
+.agenda-bloco.arrastando{cursor:grabbing;opacity:.85;box-shadow:var(--shadow-lg);z-index:5}
+.agenda-bloco.marco{border-style:dashed;border-left-style:solid}
+.agenda-bloco.st-concluida{opacity:.62}
+.agenda-bloco.st-concluida .agenda-bloco-titulo{text-decoration:line-through}
+.agenda-bloco.st-em_andamento{box-shadow:0 0 0 2px rgba(var(--brand-rgb),.55)}
+.agenda-bloco.st-atrasada,.agenda-bloco.st-perdida{box-shadow:0 0 0 2px rgba(var(--danger-rgb),.45)}
+.agenda-bloco-conteudo{display:flex;flex-direction:column;gap:2px;padding:4px 8px;font-size:12px;line-height:1.25}
+.agenda-bloco-conteudo.curto{flex-direction:row;align-items:center;gap:8px;padding:1px 8px;white-space:nowrap}
+.agenda-bloco-titulo{font-weight:700;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.agenda-bloco-hora{font-family:var(--font-mono);font-size:10.5px;color:var(--muted)}
+.agenda-bloco-conteudo .badge{align-self:flex-start}
+.agenda-bloco-alca{position:absolute;left:0;right:0;bottom:0;height:7px;cursor:ns-resize}
+.agenda-bloco-alca:hover{background:color-mix(in srgb,var(--bloco-cor) 40%,transparent)}
+
+.agenda-roteiro-item{border:1px solid var(--border);border-left:4px solid var(--bloco-cor);border-radius:8px;padding:8px 10px;margin-bottom:8px}
+.agenda-roteiro-fbs{margin-top:6px;padding-top:6px;border-top:1px dashed var(--border);display:flex;flex-direction:column;gap:4px}
+
+.agenda-presets{display:flex;flex-wrap:wrap;gap:6px}
+.agenda-preset-chip{
+  border:1px solid var(--border);border-left:4px solid var(--bloco-cor,var(--muted-soft));
+  background:var(--card);color:var(--ink);border-radius:8px;padding:5px 9px;font-size:12px;cursor:pointer;font:inherit;font-size:12px;
+}
+.agenda-preset-chip:hover{border-color:var(--muted-soft)}
+.agenda-preset-chip.active{background:color-mix(in srgb,var(--bloco-cor,var(--brand)) 18%,var(--card-solid));box-shadow:0 0 0 2px var(--bloco-cor,var(--brand))}
+
+.agenda-modal-fundo{position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:100;display:flex;align-items:flex-start;justify-content:center;padding:30px 16px;overflow:auto}
+.agenda-modal{width:640px;max-width:100%;background:var(--card-solid);border:1px solid var(--border);border-radius:16px;padding:22px;box-shadow:var(--shadow-lg)}
+.agenda-modal-secao{border:1px solid var(--border);background:var(--surface-2);border-radius:10px;padding:10px 12px;margin-bottom:12px}
+
+.agenda-tabela-edit td{padding:4px 6px;vertical-align:middle}
+.agenda-tabela-edit input,.agenda-tabela-edit select{padding:5px 7px}
+.agenda-cor-ponto{display:inline-block;width:9px;height:9px;border-radius:50%;margin-right:6px;vertical-align:middle}
+
+.agenda-feedbacks{display:flex;flex-direction:column;gap:8px}
+.agenda-feedback{display:flex;gap:10px;align-items:flex-start;border:1px solid var(--border);border-radius:10px;padding:10px 12px}
+
+/* Alarme em tela cheia: acima de tudo, inclusive dos outros alarmes. */
+.alarme-geral-overlay.agenda-alarme{z-index:320}
+.agenda-alarme-acao{margin:6px auto 0;max-width:460px;border:1px solid var(--border);border-left:6px solid var(--bloco-cor);border-radius:10px;padding:12px 14px;text-align:left;background:var(--surface-2)}
+.agenda-alarme-acao-titulo{font-size:18px;font-weight:700}
+.agenda-alarme-acao-hora{font-family:var(--font-mono);font-size:13px;color:var(--muted);margin-top:2px}
+
+/* Lembrete: visual diferente do alarme (cartão no canto, sem bloquear). */
+@keyframes agendaLembreteEntra{from{opacity:0;transform:translateY(20px)}to{opacity:1;transform:translateY(0)}}
+@keyframes agendaLembretePulsa{0%,100%{box-shadow:0 12px 32px rgba(0,0,0,.28),0 0 0 2px rgba(var(--warn-rgb),.5)}50%{box-shadow:0 12px 32px rgba(0,0,0,.28),0 0 0 5px rgba(var(--warn-rgb),.25)}}
+.agenda-lembrete{
+  position:fixed;right:20px;bottom:20px;z-index:310;width:360px;max-width:calc(100vw - 32px);
+  background:var(--card-solid);border:1px solid rgba(var(--warn-rgb),.6);border-top:5px solid var(--warn);border-radius:14px;padding:14px 16px;
+  animation:agendaLembreteEntra .3s ease-out,agendaLembretePulsa 2s ease-in-out .3s infinite;
+}
+.agenda-lembrete-topo{display:flex;gap:10px;align-items:flex-start}
+.agenda-lembrete-icone{font-size:26px;line-height:1}
+.agenda-lembrete-titulo{font-weight:700;font-size:14px}
+.agenda-lembrete-sub{font-size:12.5px;color:var(--muted);margin-top:2px}

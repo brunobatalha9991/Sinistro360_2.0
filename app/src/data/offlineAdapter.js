@@ -32,6 +32,8 @@ const RECORD_SEED = {
   corp_cliente_ocorrencias: MOCK_CLIENTE_OCORRENCIAS,
   corp_cliente_comunicacoes: MOCK_CLIENTE_COMUNICACOES,
   corp_public_tracking: {},
+  corp_agenda: [],
+  corp_agenda_feedback: [],
 };
 
 function readKey(key, fallback) {
