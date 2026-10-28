@@ -34,6 +34,9 @@ const RECORD_SEED = {
   corp_public_tracking: {},
   corp_agenda: [],
   corp_agenda_feedback: [],
+  corp_acessos: {},
+  corp_conduta: [],
+  corp_ci_historico: [],
 };
 
 function readKey(key, fallback) {

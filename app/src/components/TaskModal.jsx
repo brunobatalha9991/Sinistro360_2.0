@@ -12,6 +12,7 @@ import { listaOficinas, oficinaIdFromNome } from "../logic/oficinas";
 import { listaSeguradoras, seguradoraIdFromNome } from "../logic/seguradoras";
 import { txt, todayISO } from "../logic/format";
 import { isAdmin, canEdit } from "../data/auth";
+import { regrasDestAuto, destinatariosAutomaticos, AUTOR_SISTEMA } from "../logic/ciAutomacao";
 import { descreverAlteracoesTarefa, TASK_FLAGS_DEFAULT, proximoCI, RECORRENCIA_UNIDADES, resumoRecorrencia } from "../logic/tasks";
 import { getChecklistEfetivo, checklistProgresso, checklistVazio, sincronizarComFormulario } from "../logic/checklistMesaAtendimento";
 import { getFormularioEfetivo, formularioDisponivel, caminhoPastaSolicitacao, secaoRepetivel } from "../logic/solicitacaoAtendimento";
@@ -303,16 +304,99 @@ function RecorrenciaFields({ recorrencia, onChange }) {
   );
 }
 
+// Intervenção (Admin/VIP): comentário obrigatório que trava a tela de cada
+// destinatário até ele responder (IntervencaoAlertaModal.jsx).
+function IntervencaoForm({ task, currentUser, actions, onFechar }) {
+  const [texto, setTexto] = useState("");
+  const alvos = (task.destinatarios || []).filter((id) => id !== currentUser.id);
+  function enviar() {
+    const t = texto.trim();
+    if (!t) { alert("Escreva o comentário da intervenção — ele é enviado aos destinatários."); return; }
+    if (!alvos.length) { alert("Esta CI não tem outros destinatários para receber a intervenção."); return; }
+    actions.intervir(task, t, currentUser);
+    onFechar();
+  }
+  return (
+    <div className="intervencao-form">
+      <label>🚨 Comentário da intervenção (obrigatório)</label>
+      <textarea autoFocus rows={3} value={texto} onChange={(e) => setTexto(e.target.value)} placeholder="Ex.: Preciso de um retorno sobre esta CI agora — qual é a situação?" />
+      <div className="muted" style={{ fontSize: 11.5, margin: "6px 0" }}>
+        A tela de cada destinatário ({alvos.length}) fica travada até ele responder com um comentário.
+      </div>
+      <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
+        <button type="button" className="btn sec sm" onClick={onFechar}>Cancelar</button>
+        <button type="button" className="btn danger sm" onClick={enviar}>Enviar intervenção</button>
+      </div>
+    </div>
+  );
+}
+
+function IntervencoesStatus({ task, users }) {
+  const nome = (id) => (users.find((u) => u.id === id) || {}).nome || "?";
+  const lista = task.intervencoes || [];
+  if (!lista.length) return null;
+  return (
+    <div style={{ marginBottom: 8, display: "flex", flexDirection: "column", gap: 4 }}>
+      {lista.map((iv) => {
+        const resp = (iv.alvos || []).filter((id) => iv.respostas && iv.respostas[id]);
+        return (
+          <div key={iv.id} style={{ fontSize: 12 }}>
+            <span className="badge red">🚨 Intervenção {fmtDataHoraCurta(iv.at)} — {nome(iv.autorId)}</span>{" "}
+            {(iv.alvos || []).map((id) => (
+              <span key={id} className={"badge " + (iv.respostas && iv.respostas[id] ? "green" : "orange")} style={{ marginLeft: 4 }}>
+                {iv.respostas && iv.respostas[id] ? "✓" : "⏳"} {nome(id)}
+              </span>
+            ))}
+            <span className="muted" style={{ marginLeft: 6 }}>{resp.length}/{(iv.alvos || []).length} responderam</span>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+// Data de criação no topo da CI (a pedido do usuário, como indicador pros
+// operadores) — data/hora completa + há quanto tempo foi aberta.
+function fmtCriacaoCI(iso) {
+  const d = new Date(iso);
+  if (isNaN(d)) return "—";
+  return `${String(d.getDate()).padStart(2, "0")}/${String(d.getMonth() + 1).padStart(2, "0")}/${d.getFullYear()} ${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
+}
+function tempoDesde(iso) {
+  const min = Math.floor((Date.now() - new Date(iso).getTime()) / 60000);
+  if (isNaN(min) || min < 0) return "";
+  if (min < 60) return ` • há ${min} min`;
+  const h = Math.floor(min / 60);
+  if (h < 24) return ` • há ${h} h`;
+  const d = Math.floor(h / 24);
+  return ` • há ${d} dia${d > 1 ? "s" : ""}`;
+}
+
+function fmtDataHoraCurta(iso) {
+  const d = new Date(iso);
+  return `${String(d.getDate()).padStart(2, "0")}/${String(d.getMonth() + 1).padStart(2, "0")} ${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
+}
+
 function Chat({ task, currentUser, actions, users }) {
   const [text, setText] = useState("");
+  const [intervindo, setIntervindo] = useState(false);
+  const podeIntervir = isAdmin(currentUser) && task.status !== "Concluído";
   const boxRef = useRef(null);
   const msgs = task.comments || [];
 
   useEffect(() => { if (boxRef.current) boxRef.current.scrollTop = boxRef.current.scrollHeight; }, [msgs.length]);
 
+  // A pedido do usuário: CI finalizada não recebe mais comentário de
+  // usuário Consulta — ele deve abrir uma nova CI.
+  const consultaBloqueado = currentUser?.role === "consulta" && !isAdmin(currentUser) && task.status === "Concluído";
+
   function send() {
     const t = text.trim();
     if (!t) return;
+    if (consultaBloqueado) {
+      alert(`A ${task.ci || "CI"} já foi finalizada e não aceita novos comentários.\n\nPara dar continuidade ao assunto, abra uma nova CI.`);
+      return;
+    }
     const next = { ...task, comments: [...msgs, { id: "cmt_" + Math.random().toString(36).slice(2, 9), userId: currentUser.id, text: t, at: new Date().toISOString() }] };
     actions.saveTask(next);
     actions.taskInteract(next, `${currentUser.nome} comentou: ${t.slice(0, 40)}`, currentUser.id);
@@ -321,16 +405,24 @@ function Chat({ task, currentUser, actions, users }) {
 
   return (
     <div style={{ marginTop: 14, borderTop: "1px solid var(--line)", paddingTop: 14 }}>
-      <label style={{ marginBottom: 8, display: "block" }}>Comentários / histórico da conversa</label>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8, marginBottom: 8, flexWrap: "wrap" }}>
+        <label style={{ margin: 0 }}>Comentários / histórico da conversa</label>
+        {podeIntervir && !intervindo && (
+          <button type="button" className="btn danger xs" onClick={() => setIntervindo(true)}>🚨 Intervenção</button>
+        )}
+      </div>
+      {intervindo && <IntervencaoForm task={task} currentUser={currentUser} actions={actions} onFechar={() => setIntervindo(false)} />}
+      <IntervencoesStatus task={task} users={users} />
       <div className="chat-box" ref={boxRef}>
         {!msgs.length ? <div className="chat-empty">Nenhum comentário ainda. Inicie a conversa abaixo.</div> : msgs.map((m) => {
           const mine = m.userId === currentUser.id;
           const dt = new Date(m.at);
           const w = `${String(dt.getDate()).padStart(2, "0")}/${String(dt.getMonth() + 1).padStart(2, "0")} ${String(dt.getHours()).padStart(2, "0")}:${String(dt.getMinutes()).padStart(2, "0")}`;
-          const who = users.find((u) => u.id === m.userId) || { nome: "?" };
+          const who = m.userId === AUTOR_SISTEMA ? { nome: "Sistema" } : users.find((u) => u.id === m.userId) || { nome: "?" };
           return (
-            <div key={m.id} className={"chat-msg " + (mine ? "mine" : "theirs")}>
-              {!mine && <div className="cm-who">{who.nome}</div>}
+            <div key={m.id} className={"chat-msg " + (mine ? "mine" : "theirs") + (m.intervencaoId ? " intervencao" : "")}>
+              {m.intervencaoId && <div className="cm-who" style={{ color: "rgb(var(--danger-rgb))" }}>🚨 Intervenção{mine ? "" : " — " + who.nome}</div>}
+              {!mine && !m.intervencaoId && <div className="cm-who">{who.nome}</div>}
               <div style={{ whiteSpace: "pre-wrap" }}>{m.text}</div>
               <div className="cm-time">{w}</div>
             </div>
@@ -436,6 +528,10 @@ export function TaskModal() {
   const [checklistAberto, setChecklistAberto] = useState(false);
   const [pastaDriveId, setPastaDriveId] = useState("");
   const [comentarioConclusao, setComentarioConclusao] = useState("");
+  // Destinatários marcados pelas regras automáticas (Configurações →
+  // Comunicação Interna) — guardados pra desmarcar quando o tipo muda.
+  const destAutoRef = useRef([]);
+  const [destAuto, setDestAuto] = useState([]);
 
   // Autopreenche Oficina/Seguradora/Grupo do Produtor a partir do processo
   // vinculado (a pedido do usuário) — sempre que a Comunicação aponta pra
@@ -456,6 +552,7 @@ export function TaskModal() {
 
   useEffect(() => {
     if (!open) return;
+    destAutoRef.current = []; setDestAuto([]);
     if (editing) {
       setTipo(editing.tipo); setUrgencia(editing.urgencia); setStatus(editing.status);
       setTitulo(editing.titulo || ""); setDescricao(editing.descricao || "");
@@ -510,6 +607,26 @@ export function TaskModal() {
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, tipo, currentUser]);
+
+  // Destinatários automáticos por tipo de CI (só na criação — a CI já
+  // aberta mantém os destinatários que tem). Trocar o tipo/subtipo tira os
+  // que a regra anterior marcou e aplica a nova; o usuário continua livre
+  // pra desmarcar/marcar à mão antes de criar.
+  useEffect(() => {
+    if (!open || editing) return;
+    const ids = destinatariosAutomaticos(regrasDestAuto(config), users, tipo, tipo === "Mesa de Atendimento" ? tipoAtendimento : "");
+    const anteriores = destAutoRef.current;
+    destAutoRef.current = ids;
+    setDestAuto(ids);
+    if (!ids.length && !anteriores.length) return;
+    setDestSel((s) => {
+      const next = { ...s };
+      anteriores.forEach((id) => { if (!ids.includes(id)) delete next[id]; });
+      ids.forEach((id) => { next[id] = true; });
+      return next;
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, taskId, tipo, tipoAtendimento, config.corp_ci_dest_auto]);
 
   // Vínculo checklist ↔ formulário de Solicitação (Sinistro): assim que um
   // campo vinculado é preenchido pela primeira vez, o item correspondente é
@@ -607,16 +724,29 @@ export function TaskModal() {
     >
       <div style={{ width: 640, maxWidth: "100%", background: "var(--card-solid)", border: "1px solid var(--border)", borderRadius: 16, padding: 22, boxShadow: "var(--shadow-lg)" }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14 }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
             <h3 style={{ margin: 0 }}>{editing ? "Tarefa" : "Nova tarefa"}</h3>
             {editing?.ci && <span className="badge gray mono" title="Número de protocolo">{editing.ci}</span>}
+            {editing?.createdAt && (
+              <span className="badge blue" title="Data de criação da CI">
+                📅 Criada em {fmtCriacaoCI(editing.createdAt)}{tempoDesde(editing.createdAt)}
+              </span>
+            )}
           </div>
           <button className="btn sec xs" onClick={closeTaskModal}>✕ Fechar</button>
         </div>
 
         <div className="grid c2">
           <div className="field"><label>Tipo</label>
-            <select value={tipo} onChange={(e) => setTipo(e.target.value)}>{taskTypes.map((tp) => <option key={tp} value={tp}>{tp}</option>)}</select>
+            <select value={tipo} onChange={(e) => {
+              // A pedido do usuário: a finalidade da CI é definida na abertura
+              // e não muda depois — outra finalidade pede uma nova CI.
+              if (editing) {
+                alert(`A finalidade da ${editing.ci || "CI"} (${editing.tipo}) não pode ser alterada depois de aberta.\n\nPara tratar o assunto como "${e.target.value}", abra uma nova CI.`);
+                return;
+              }
+              setTipo(e.target.value);
+            }}>{taskTypes.map((tp) => <option key={tp} value={tp}>{tp}</option>)}</select>
           </div>
           <div className="field"><label>Grau de urgência</label>
             <span className={"badge chip-live " + urgenciaCor(urgencia)}>
@@ -726,6 +856,11 @@ export function TaskModal() {
               >{u.nome}</label>
             ))}
           </div>
+          {!editing && destAuto.length > 0 && (
+            <div className="muted" style={{ fontSize: 11.5, marginTop: 6 }}>
+              ⚙️ Marcado(s) automaticamente para este tipo de CI: {destAuto.map((id) => (users.find((u) => u.id === id) || {}).nome).filter(Boolean).join(", ")}.
+            </div>
+          )}
         </div>
 
         <div className="field">

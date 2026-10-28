@@ -259,6 +259,7 @@ export function createFirebaseAdapter() {
       let pendingFlush = false;
       const iniciar = () => onSnapshot(collection(db, spec.col), (qs) => {
         tentativas[key] = 0;
+        recordsCarregados.add(key);
         qs.docChanges().forEach((ch) => {
           if (ch.type === "removed") {
             delete remoteJsonCache[key][ch.doc.id];
@@ -300,6 +301,11 @@ export function createFirebaseAdapter() {
     });
   }
 
+  // Coleções que já receberam o 1º retrato do servidor — antes disso o
+  // cache está vazio, e quem decide algo pela AUSÊNCIA de dados (ex.:
+  // generalização de CI por ausência) precisa esperar.
+  const recordsCarregados = new Set();
+
   startListeners();
 
   return {
@@ -307,6 +313,7 @@ export function createFirebaseAdapter() {
     getAllRecords,
     getAllConfig,
     getSyncStatus() { return { ...syncStatus }; },
+    recordCarregado(key) { return recordsCarregados.has(key); },
     subscribeStatus(onChange) { statusListeners.add(onChange); return () => statusListeners.delete(onChange); },
     saveRecord,
     saveConfig,

@@ -13,6 +13,10 @@ import { isGeminiConfigured } from "../ai/geminiApi";
 import { gerarFeedbackEmTextoCorrido } from "../ai/gerarFeedbackTexto";
 import { metricasAgenda, temAgendaPropria, agendaCfg, fmtPct } from "../logic/agenda";
 import { IndicadoresAgendaGrid } from "../components/agenda/IndicadoresPanel.jsx";
+import { ehOperacional, metricasConduta, comConduta } from "../logic/conduta";
+import { CondutaPerfilCard, NovoRegistroModal } from "../components/desempenho/CondutaPanel.jsx";
+import { todasCIsNormalizadas, metricasCIUsuario, comCI } from "../logic/desempenhoCI";
+import { CIDesempenhoCard } from "../components/desempenho/CIDesempenhoCard.jsx";
 
 function todayISO() { return new Date().toISOString().slice(0, 10); }
 function diasAtras(n) { const d = new Date(); d.setDate(d.getDate() - n); return d.toISOString().slice(0, 10); }
@@ -44,7 +48,7 @@ function Section({ title, desc, children }) {
 // lista de sinistros já filtrada. Reaproveita o mesmo upload de anexos pro
 // Drive (logic/driveUpload.js), numa pasta-contexto própria (uma subpasta
 // por usuário, pelo nome).
-function PerfilUsuario({ m, u, config, saveRecord, currentUser, isAdminUser, navigate, periodoLabel, analise, agenda }) {
+function PerfilUsuario({ m, u, users, config, saveRecord, currentUser, isAdminUser, navigate, periodoLabel, analise, agenda, conduta, ci, onNovoRegistro }) {
   const [enviandoFoto, setEnviandoFoto] = useState(false);
   const [erroFoto, setErroFoto] = useState(null);
   const uploadOk = isDriveUploadConfigured(config);
@@ -101,7 +105,7 @@ function PerfilUsuario({ m, u, config, saveRecord, currentUser, isAdminUser, nav
             </div>
             <div className="muted" style={{ fontSize: 12, marginTop: 2 }}>{u.email}</div>
           </div>
-          <button className="btn ghost xs" onClick={() => navigate("desempenho")}>← Voltar</button>
+          {isAdminUser && <button className="btn ghost xs" onClick={() => navigate("desempenho")}>← Voltar</button>}
         </div>
 
         {podeEditarFoto && (
@@ -222,10 +226,9 @@ function PerfilUsuario({ m, u, config, saveRecord, currentUser, isAdminUser, nav
         <Stat label="Sem indenização" value={fmtNum(m.semIndenizacaoNoPeriodo)} />
       </Section>
 
-      <Section title={`Tarefas e assistências no período (${periodoLabel})`} desc="Tarefas de Comunicação interna com este usuário na origem ou como destinatário.">
-        <Stat label="Tarefas" value={fmtNum(m.tarefasNoPeriodo)} />
-        <Stat label="Assistências (Mesa de Atendimento)" value={fmtNum(m.assistenciasNoPeriodo)} />
-      </Section>
+      <CIDesempenhoCard m={ci} periodoLabel={periodoLabel} onVerCIs={() => navigate("tarefas")} />
+
+      <CondutaPerfilCard mc={conduta} users={users} periodoLabel={periodoLabel} isAdminUser={isAdminUser} onNovo={onNovoRegistro} />
 
       {agenda && (
         <div className="card">
@@ -281,8 +284,13 @@ export function Desempenho() {
   const [periodoDe, setPeriodoDe] = useState(diasAtras(30));
   const [periodoAte, setPeriodoAte] = useState(todayISO());
   const [filtroUsuarioId, setFiltroUsuarioId] = useState("todos");
+  const [novoRegistroPara, setNovoRegistroPara] = useState(null); // null = fechado; [] = sem pré-seleção
 
-  const users = records.corp_users || [];
+  // Só a equipe operacional (Atendente/Analista) aparece no Desempenho — a
+  // pedido do usuário. Admin/VIP veem todos; os demais, só o próprio.
+  const usersRaw = records.corp_users;
+  const todosUsuarios = usersRaw || [];
+  const users = useMemo(() => (usersRaw || []).filter(ehOperacional), [usersRaw]);
   const claims = records.corp_claims || [];
   const overrides = records.corp_overrides || {};
   const historico = records.corp_responsabilidade_historico || [];
@@ -321,12 +329,38 @@ export function Desempenho() {
 
   const isAdminUser = isAdmin(currentUser);
 
+  const condutaRegistros = records.corp_conduta;
+  const condutaPorUsuario = useMemo(() => {
+    const out = {};
+    users.forEach((u) => { out[u.id] = metricasConduta({ registros: condutaRegistros || [], userId: u.id, deISO: periodoDe || null, ateISO: periodoAte || null }); });
+    return out;
+  }, [users, condutaRegistros, periodoDe, periodoAte]);
+
+  // Atuação na Comunicação Interna (CIs vivas + histórico das já apagadas).
+  const tasksRaw = records.corp_tasks;
+  const ciHistorico = records.corp_ci_historico;
+  const notifsRaw = records.corp_notifs;
+  const ciPorUsuario = useMemo(() => {
+    const cis = todasCIsNormalizadas(tasksRaw, ciHistorico);
+    const out = {};
+    users.forEach((u) => { out[u.id] = metricasCIUsuario({ cis, notifs: notifsRaw, userId: u.id, deISO: periodoDe || null, ateISO: periodoAte || null, config }); });
+    return out;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [users, tasksRaw, ciHistorico, notifsRaw, periodoDe, periodoAte, config.corp_ci_sem_interacao]);
+
+  const modalRegistro = isAdminUser && novoRegistroPara && (
+    <NovoRegistroModal operacionais={users} preSelecionados={novoRegistroPara} autor={currentUser} onClose={() => setNovoRegistroPara(null)} />
+  );
+
+  // Quem não é Admin/VIP só enxerga o próprio perfil, qualquer que seja a URL.
+  const perfilId = isAdminUser ? param : currentUser && currentUser.id;
+
   // Perfil individual — quando há um usuarioId na URL (#/desempenho/usr_x).
-  if (param) {
-    const u = users.find((x) => x.id === param);
-    const m = metricas.find((x) => x.usuarioId === param);
+  if (perfilId) {
+    const u = users.find((x) => x.id === perfilId);
+    const m = metricas.find((x) => x.usuarioId === perfilId);
     if (!u || !m) {
-      return <div className="page-enter"><EmptyState>Usuário não encontrado.</EmptyState></div>;
+      return <div className="page-enter"><EmptyState>{isAdminUser ? "Usuário não encontrado." : "O Desempenho mostra os indicadores da equipe operacional (Atendentes e Analistas)."}</EmptyState></div>;
     }
     return (
       <div className="page-enter">
@@ -348,11 +382,15 @@ export function Desempenho() {
         </div>
         <PerfilUsuario
           key={u.id}
-          m={m} u={u} config={config} saveRecord={saveRecord} currentUser={currentUser} isAdminUser={isAdminUser}
+          m={m} u={u} users={todosUsuarios} config={config} saveRecord={saveRecord} currentUser={currentUser} isAdminUser={isAdminUser}
           navigate={navigate} periodoLabel={periodoLabel}
-          analise={comAgenda(gerarFeedbackEPlanoDeAcao(m, metricas), agendaPorUsuario[u.id])}
+          analise={comCI(comConduta(comAgenda(gerarFeedbackEPlanoDeAcao(m, metricas), agendaPorUsuario[u.id]), condutaPorUsuario[u.id]), ciPorUsuario[u.id], fmtPct)}
           agenda={agendaPorUsuario[u.id]}
+          conduta={condutaPorUsuario[u.id]}
+          ci={ciPorUsuario[u.id]}
+          onNovoRegistro={() => setNovoRegistroPara([u.id])}
         />
+        {modalRegistro}
       </div>
     );
   }
@@ -367,6 +405,7 @@ export function Desempenho() {
           <h1>Desempenho</h1>
           <p>Métricas por usuário, baseadas no histórico de responsabilidade — respeita quem era responsável em cada período.</p>
         </div>
+        <button className="btn" onClick={() => setNovoRegistroPara([])}>+ Novo registro</button>
       </div>
 
       <div className="card">
@@ -410,6 +449,8 @@ export function Desempenho() {
                   <th className="right">Finalizados no período</th>
                   <th className="right">Tempo médio de responsabilidade</th>
                   <th className="right" title="Ações da agenda concluídas ÷ ações cujo horário já terminou, no período">Agenda (cumprimento)</th>
+                  <th className="right" title="CIs recebidas no período com a primeira interação dentro do prazo (10 min; 5 se Urgente)">CI 1ª interação no prazo</th>
+                  <th className="right" title="Registros negativos (advertência, falha, apontamento, ausência, reclamação, ocorrência) no período • registros ainda sem ciente">Conduta</th>
                   <th>Ações</th>
                 </tr>
               </thead>
@@ -427,6 +468,23 @@ export function Desempenho() {
                         ? <span className={agendaPorUsuario[m.usuarioId].taxaCumprimento != null && agendaPorUsuario[m.usuarioId].taxaCumprimento < 0.7 ? "badge red" : undefined}>{fmtPct(agendaPorUsuario[m.usuarioId].taxaCumprimento)}</span>
                         : "—"}
                     </td>
+                    <td className="mono right">
+                      {(() => {
+                        const c = ciPorUsuario[m.usuarioId];
+                        if (!c || !c.recebidas) return "—";
+                        return <span className={c.pctNoPrazo != null && c.pctNoPrazo < 0.7 ? "badge red" : undefined} title={`${c.recebidas} recebida(s) • ${c.foraPrazo} em atraso`}>{fmtPct(c.pctNoPrazo)}</span>;
+                      })()}
+                    </td>
+                    <td className="mono right">
+                      {(() => {
+                        const c = condutaPorUsuario[m.usuarioId];
+                        if (!c || !c.total) return "—";
+                        return <>
+                          <span className={c.negativos ? "badge red" : undefined} title="Registros negativos">{c.negativos}</span>
+                          {c.pendentesCiente > 0 && <span className="badge orange" style={{ marginLeft: 4 }} title="Sem ciente">{c.pendentesCiente} pend.</span>}
+                        </>;
+                      })()}
+                    </td>
                     <td>
                       <button className="btn sec xs" style={{ marginRight: 6 }} onClick={() => navigate("desempenho", m.usuarioId)}>Ver perfil</button>
                       <button className="btn ghost xs" onClick={() => verSinistrosDoUsuario(m.usuarioId)}>Ver sinistros</button>
@@ -441,6 +499,7 @@ export function Desempenho() {
           </p>
         </div>
       )}
+      {modalRegistro}
     </div>
   );
 }

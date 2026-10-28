@@ -4,7 +4,7 @@ import { useData } from "../data/DataProvider.jsx";
 import { useAuth } from "../hooks/useAuth";
 import { useHashRoute } from "../hooks/useHashRoute";
 import { useAgendaActions } from "../hooks/useAgendaActions";
-import { useAgendaAlarme, notificacaoSuportada } from "../hooks/useAgendaAlarme";
+import { useAgendaAlarme } from "../hooks/useAgendaAlarme";
 import { isAdmin } from "../data/auth";
 import { EmptyState } from "../components/EmptyState.jsx";
 import { FeedbackForm } from "../components/AgendaAlarmeModal.jsx";
@@ -60,7 +60,6 @@ export function Agenda() {
   const [modalBloco, setModalBloco] = useState(null); // { bloco, dataDia }
   const [modalModelo, setModalModelo] = useState(false);
   const [pedidoFeedback, setPedidoFeedback] = useState(null); // { oc, tipo }
-  const [permNotif, setPermNotif] = useState(() => (notificacaoSuportada() ? Notification.permission : "unsupported"));
 
   const idx = useMemo(() => indexarFeedbacks(records.corp_agenda_feedback || []), [records.corp_agenda_feedback]);
 
@@ -132,10 +131,6 @@ export function Agenda() {
     setModalModelo(false);
   }
 
-  function pedirPermissao() {
-    Notification.requestPermission().then((p) => setPermNotif(p)).catch(() => {});
-  }
-
   const contagem = {};
   ocorrencias.forEach((oc) => { const s = statusOcorrencia(oc, idx, agora); contagem[s] = (contagem[s] || 0) + 1; });
   const feedbacksDoDia = (key) => feedbacks.filter((f) => f.blocoId + "|" + f.data === key).sort((a, b) => String(a.at).localeCompare(String(b.at)));
@@ -147,12 +142,6 @@ export function Agenda() {
           <h1>Agenda</h1>
           <p>Planejamento do dia em blocos de tempo — com alarme pra iniciar e finalizar cada ação e feedback obrigatório.</p>
         </div>
-        {permNotif === "default" && (
-          <button className="btn sec sm" onClick={pedirPermissao}>🔔 Ativar notificações do Windows</button>
-        )}
-        {permNotif === "denied" && (
-          <span className="muted" style={{ fontSize: 12, maxWidth: 300 }}>🔕 Notificações do Windows bloqueadas — libere no cadeado ao lado do endereço do site. Os alertas em tela cheia continuam funcionando.</span>
-        )}
       </div>
 
       <div className="tabs">

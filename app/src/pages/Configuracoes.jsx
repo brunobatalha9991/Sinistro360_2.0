@@ -20,6 +20,7 @@ import { MensagemTemplatesEditor } from "../components/config/MensagemTemplatesE
 import { DicasAssistenteCard } from "../components/config/DicasAssistenteCard.jsx";
 import { TratativaLoteTemplateCard } from "../components/config/TratativaLoteTemplateCard.jsx";
 import { UsersCard } from "../components/config/UsersCard.jsx";
+import { CiAutomacaoCard } from "../components/config/CiAutomacaoCard.jsx";
 import { AtendimentoStepsEditor } from "../components/config/AtendimentoStepsEditor.jsx";
 import { AgentesCatalogoCard } from "../components/config/AgentesCatalogoCard.jsx";
 import { ImportarAgenteProdutorCard } from "../components/config/ImportarAgenteProdutorCard.jsx";
@@ -140,6 +141,10 @@ export function Configuracoes() {
             <AgentesCatalogoCard config={config} saveConfig={saveConfig} overrides={overrides} claims={claims} canEdit={admin} />
             <ImportarAgenteProdutorCard claims={claims} config={config} overrides={overrides} actions={actions} canEdit={admin} />
             <GruposDashboardCard config={config} saveConfig={saveConfig} overrides={overrides} claims={claims} canEdit={admin} />
+          </ConfigGroup>
+
+          <ConfigGroup title="Comunicação Interna (CI)" subtitle="Destinatários automáticos por tipo de CI e generalização das CIs de quem não acessou o sistema até o horário de corte.">
+            <CiAutomacaoCard config={config} saveConfig={saveConfig} users={records.corp_users || []} canEdit={admin} />
           </ConfigGroup>
 
           <ConfigGroup title="Mesa de Atendimento" subtitle="Checklist de abertura, formulários de solicitação e upload de anexos no Drive.">

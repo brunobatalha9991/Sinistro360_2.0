@@ -64,6 +64,12 @@ export const CONFIG_KEYS = [
   "corp_agenda_presets",
   "corp_agenda_modelos",
   "corp_agenda_cfg",
+  // Automações da Comunicação Interna (a pedido do usuário) — destinatários
+  // automáticos por tipo de CI e generalização por ausência. Ver
+  // logic/ciAutomacao.js e components/config/CiAutomacaoCard.jsx.
+  "corp_ci_dest_auto",
+  "corp_ci_ausencia",
+  "corp_ci_sem_interacao",
 ];
 
 // Registros grandes/multiusuário: 1 documento por registro.
@@ -141,6 +147,15 @@ export const RECORD_SPECS = {
   // ação é derivado dos feedbacks — ver src/logic/agenda.js.
   corp_agenda: { col: "s360_agenda", keyed: false },
   corp_agenda_feedback: { col: "s360_agenda_feedback", keyed: false },
+  // Primeiro acesso de cada usuário por dia ("userId_AAAA-MM-DD") — base da
+  // generalização de CIs por ausência (logic/ciAutomacao.js).
+  corp_acessos: { col: "s360_acessos", keyed: true },
+  // Registros de conduta do Desempenho (advertência, falha, comunicado...)
+  // com ciente/feedback do usuário — ver src/logic/conduta.js.
+  corp_conduta: { col: "s360_conduta", keyed: false },
+  // Resumo das CIs que o purgeOldTasks apaga (concluídas há 15+ dias) —
+  // mantém completos os indicadores de CI do Desempenho (logic/desempenhoCI.js).
+  corp_ci_historico: { col: "s360_ci_historico", keyed: false },
 };
 
 export const CONFIG_COLLECTION = "s360_config";

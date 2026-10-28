@@ -63,7 +63,10 @@ export function DataProvider({ children }) {
     setConfig(adapter.getAllConfig());
   }
 
-  const value = { mode: adapter.mode, records, config, saveRecord, saveConfig, syncStatus };
+  // Offline tem tudo na hora; no Firebase, só depois do 1º retrato da coleção.
+  const recordCarregado = (key) => (adapter.recordCarregado ? adapter.recordCarregado(key) : true);
+
+  const value = { mode: adapter.mode, records, config, saveRecord, saveConfig, syncStatus, recordCarregado };
   return <DataContext.Provider value={value}>{children}</DataContext.Provider>;
 }
 

@@ -5,6 +5,10 @@ import { NotifBell } from "./NotifBell.jsx";
 import { HorarioAlarmeModal } from "./HorarioAlarmeModal.jsx";
 import { TarefaAlarmeModal } from "./TarefaAlarmeModal.jsx";
 import { AgendaAlarmeModal } from "./AgendaAlarmeModal.jsx";
+import { NotificacaoObrigatoria } from "./NotificacaoObrigatoria.jsx";
+import { CondutaAlertaModal } from "./CondutaAlertaModal.jsx";
+import { IntervencaoAlertaModal } from "./IntervencaoAlertaModal.jsx";
+import { RoteiroWidget } from "./RoteiroWidget.jsx";
 import { ROLE_LABELS, userModulos, isAdmin } from "../data/auth";
 import { useData } from "../data/DataProvider.jsx";
 import { useAuth } from "../hooks/useAuth";
@@ -13,6 +17,7 @@ import { myUnreadCount, demandaUnreadCount } from "../logic/tasks";
 import { useHorarioAlarme } from "../hooks/useHorarioAlarme";
 import { useTarefaAlarme } from "../hooks/useTarefaAlarme";
 import { useAgendaAlarme } from "../hooks/useAgendaAlarme";
+import { useCiAusencia } from "../hooks/useCiAusencia";
 import { useDicasAssistente } from "../hooks/useDicasAssistente";
 
 const SIDEBAR_KEY = "corp_sidebar_collapsed";
@@ -87,6 +92,7 @@ export function Shell({ route, param, crumb, currentUser, currentRole, onNavigat
   const { alarmes: alarmesHora, dismiss: dismissAlarmeHora, dismissAll: dismissAllAlarmeHora } = useHorarioAlarme(currentUser);
   const { alarmes: alarmesTarefa, dismiss: dismissAlarmeTarefa, dismissAll: dismissAllAlarmeTarefa, markViewed: markViewedAlarmeTarefa } = useTarefaAlarme(currentUser);
   const { alarmes: alarmesAgenda, cfg: agendaCfg } = useAgendaAlarme(currentUser);
+  useCiAusencia(currentUser);
   useDicasAssistente(currentUser);
   const menu = visibleMenu(currentUser, currentRole);
   const nome = currentUser?.nome || "Usuário";
@@ -144,6 +150,7 @@ export function Shell({ route, param, crumb, currentUser, currentRole, onNavigat
             </div>
           </div>
           <div className="user">
+            <RoteiroWidget currentUser={currentUser} navigate={onNavigate} />
             <NotifBell />
             <button
               className="theme-toggle" type="button" aria-label="Alternar tema"
@@ -190,6 +197,9 @@ export function Shell({ route, param, crumb, currentUser, currentRole, onNavigat
       {alarmesAgenda.length > 0 && (
         <AgendaAlarmeModal alarmes={alarmesAgenda} cfg={agendaCfg} currentUser={currentUser} />
       )}
+      <CondutaAlertaModal currentUser={currentUser} />
+      <IntervencaoAlertaModal currentUser={currentUser} />
+      <NotificacaoObrigatoria currentUser={currentUser} />
     </div>
   );
 }

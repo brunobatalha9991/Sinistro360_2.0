@@ -927,3 +927,80 @@ tr:hover td{background:var(--surface-2)}
 .agenda-lembrete-icone{font-size:26px;line-height:1}
 .agenda-lembrete-titulo{font-weight:700;font-size:14px}
 .agenda-lembrete-sub{font-size:12.5px;color:var(--muted);margin-top:2px}
+
+/* Notificação do Windows obrigatória pra quem tem Agenda
+   (components/NotificacaoObrigatoria.jsx) — acima de tudo, inclusive dos
+   alarmes, porque sem ela os alarmes não chegam fora da aba. */
+.notif-obrig-fundo{position:fixed;inset:0;z-index:400;background:rgba(11,17,32,.82);backdrop-filter:blur(4px);display:flex;align-items:center;justify-content:center;padding:24px;overflow:auto}
+.notif-obrig-box{width:540px;max-width:100%;background:var(--card-solid);border:1px solid var(--border);border-top:5px solid var(--brand);border-radius:18px;padding:28px;text-align:center;box-shadow:0 20px 60px rgba(0,0,0,.5)}
+.notif-obrig-passos{text-align:left;border:1px solid rgba(var(--danger-rgb),.35);background:rgba(var(--danger-rgb),.06);border-radius:10px;padding:12px 16px}
+.notif-obrig-passos ol{margin:8px 0 12px;padding-left:20px;font-size:13.5px;display:flex;flex-direction:column;gap:6px}
+
+/* Registro de conduta (Desempenho) — tela cheia até o "Ciente". */
+.conduta-alerta-corpo{margin:6px auto 0;border:1px solid var(--border);border-left:6px solid rgb(var(--alarm-rgb));border-radius:10px;padding:12px 14px;text-align:left;background:var(--surface-2);max-height:40vh;overflow:auto}
+.conduta-alerta-titulo{font-size:18px;font-weight:700}
+.conduta-alerta-texto{font-size:14px;margin-top:6px;white-space:pre-wrap}
+.conduta-item{border:1px solid var(--border);border-radius:8px;padding:10px 12px;background:var(--surface-2)}
+.conduta-item + .conduta-item{margin-top:8px}
+.intervencao-texto{margin-top:10px;padding:10px 12px;border-radius:8px;background:rgba(var(--danger-rgb),.08);font-size:15px;font-weight:600;white-space:pre-wrap}
+.chat-msg.intervencao{border:2px solid rgb(var(--danger-rgb));background:rgba(var(--danger-rgb),.10);color:var(--ink)}
+.intervencao-form{border:2px solid rgb(var(--danger-rgb));border-radius:10px;padding:10px 12px;margin-bottom:10px;background:rgba(var(--danger-rgb),.05)}
+
+/* ---------- Roteiro do dia (barra superior) — ver RoteiroWidget.jsx ---------- */
+.roteiro{position:relative}
+.roteiro-chip{
+  --est-rgb:var(--muted-rgb, 120,130,150);
+  position:relative;display:flex;align-items:center;gap:8px;max-width:340px;overflow:hidden;
+  padding:6px 12px 6px 8px;border-radius:999px;cursor:pointer;font:inherit;color:var(--ink);
+  background:rgba(var(--est-rgb),.10);border:1px solid rgba(var(--est-rgb),.45);
+}
+.roteiro-chip:hover{background:rgba(var(--est-rgb),.16)}
+.roteiro-chip.est-run{--est-rgb:var(--brand-rgb)}
+.roteiro-chip.est-soon{--est-rgb:245,158,11}
+.roteiro-chip.est-warn{--est-rgb:245,158,11;animation:roteiroPulsa 1.6s ease-in-out infinite}
+.roteiro-chip.est-danger{--est-rgb:var(--danger-rgb);animation:roteiroPulsa 1s ease-in-out infinite}
+.roteiro-chip.est-ok{--est-rgb:var(--ok-rgb)}
+@keyframes roteiroPulsa{0%,100%{box-shadow:0 0 0 0 rgba(var(--est-rgb),.0)}50%{box-shadow:0 0 0 4px rgba(var(--est-rgb),.28)}}
+.roteiro-chip-icone{font-size:16px;line-height:1}
+.roteiro-chip-texto{display:flex;flex-direction:column;align-items:flex-start;min-width:0;line-height:1.15;text-align:left}
+.roteiro-chip-texto b{font-size:12.5px;max-width:250px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.roteiro-chip-texto span{font-size:11px;color:var(--muted);white-space:nowrap}
+.roteiro-chip-texto .mono{font-family:var(--font-mono);font-weight:700;color:rgb(var(--est-rgb));font-size:12px}
+.roteiro-chip .notif-count{position:static;margin-left:2px}
+.roteiro-chip-prog{position:absolute;left:0;bottom:0;height:3px;background:rgb(var(--est-rgb));opacity:.8;transition:width 1s linear}
+.roteiro-painel{position:absolute;top:46px;right:0;width:380px;max-width:92vw;max-height:78vh;overflow:auto;background:var(--card-solid, var(--card));border:1px solid var(--border);border-radius:var(--r-lg);box-shadow:var(--shadow-lg);z-index:50;padding:12px}
+.roteiro-painel-topo{display:flex;justify-content:space-between;align-items:center;margin-bottom:10px}
+.roteiro-agora{--est-rgb:var(--brand-rgb);border:1px solid rgba(var(--est-rgb),.4);border-left:5px solid rgb(var(--est-rgb));border-radius:10px;padding:10px 12px;background:rgba(var(--est-rgb),.05)}
+.roteiro-agora.est-warn,.roteiro-agora.est-soon{--est-rgb:245,158,11}
+.roteiro-agora.est-danger{--est-rgb:var(--danger-rgb)}
+.roteiro-agora.est-ok,.roteiro-agora.est-idle{--est-rgb:var(--ok-rgb)}
+.roteiro-agora-titulo{font-size:16px;font-weight:700;margin:2px 0}
+.roteiro-rotulo{font-size:10.5px;text-transform:uppercase;letter-spacing:.05em;color:var(--muted);font-weight:700}
+.roteiro-relogios{display:flex;gap:18px;margin:8px 0 6px}
+.roteiro-num{font-family:var(--font-mono);font-size:22px;font-weight:700}
+.roteiro-num.neg{color:rgb(var(--danger-rgb))}
+.roteiro-barra{height:6px;border-radius:99px;background:var(--surface-2);overflow:hidden}
+.roteiro-barra>div{height:100%;border-radius:99px;transition:width 1s linear}
+.roteiro-secao{margin-top:12px;padding-top:10px;border-top:1px solid var(--line, var(--border))}
+.roteiro-secao-titulo{font-size:12px;font-weight:700;margin-bottom:6px}
+.roteiro-linha{display:block;width:100%;text-align:left;font:inherit;font-size:12.5px;padding:6px 8px;border-radius:8px;margin-bottom:4px;border:1px solid var(--border);background:var(--surface-2);color:var(--ink)}
+.roteiro-linha.warn{border-color:rgba(245,158,11,.5);background:rgba(245,158,11,.08)}
+.roteiro-linha.danger{border-color:rgba(var(--danger-rgb),.5);background:rgba(var(--danger-rgb),.07)}
+.roteiro-linha.link{cursor:pointer}
+.roteiro-linha.link:hover{border-color:rgb(var(--brand-rgb))}
+.roteiro-prox{display:flex;align-items:center;gap:8px;font-size:12.5px;padding:4px 0}
+.roteiro-prox-cor{width:8px;height:8px;border-radius:50%;flex:none}
+.roteiro-kv{display:flex;justify-content:space-between;font-size:12.5px;margin-bottom:4px}
+.roteiro-grade{display:grid;grid-template-columns:1fr 1fr;gap:6px 12px;margin-top:10px;font-size:12px}
+.roteiro-grade div{display:flex;justify-content:space-between;gap:6px}
+.roteiro-grade span{color:var(--muted)}
+.roteiro-crono-livre{display:flex;justify-content:space-between;align-items:center;gap:10px}
+.roteiro-equipe{--est-rgb:var(--border-rgb, 150,160,175);border-left:4px solid rgb(var(--est-rgb));padding:6px 10px;margin-bottom:6px;border-radius:6px;background:var(--surface-2)}
+.roteiro-equipe.est-run{--est-rgb:var(--brand-rgb)}
+.roteiro-equipe.est-warn,.roteiro-equipe.est-soon{--est-rgb:245,158,11}
+.roteiro-equipe.est-danger{--est-rgb:var(--danger-rgb)}
+.roteiro-equipe.est-ok{--est-rgb:var(--ok-rgb)}
+@media (max-width:900px){
+  .roteiro-chip-texto{display:none}
+  .roteiro-chip{padding:6px 8px}
+}

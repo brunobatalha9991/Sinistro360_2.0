@@ -1,5 +1,6 @@
 import { useData } from "../data/DataProvider.jsx";
 import { useAuth } from "./useAuth";
+import { resumoHistoricoCI } from "../logic/desempenhoCI";
 import { taskParticipants, proximoCI, recorrenciaVencida, recorrenciaEncerrada, gerarOcorrenciaRecorrente } from "../logic/tasks";
 
 // Central de gravação em corp_tasks/corp_notifs/corp_demandas — porte 1:1
@@ -125,6 +126,13 @@ export function useTasksActions() {
       if (keep.length !== all.length) {
         const keepIds = {};
         keep.forEach((t) => { keepIds[t.id] = true; });
+        // Antes de apagar, guarda o resumo pros indicadores do Desempenho.
+        const apagadas = all.filter((t) => !keepIds[t.id]).map(resumoHistoricoCI);
+        saveRecord("corp_ci_historico", (cur) => {
+          const ja = new Set((cur || []).map((h) => h.id));
+          const novos = apagadas.filter((h) => !ja.has(h.id));
+          return novos.length ? [...(cur || []), ...novos] : cur;
+        });
         saveRecord("corp_notifs", (curNotifs) => (curNotifs || []).filter((n) => keepIds[n.taskId]));
         return keep;
       }
@@ -163,8 +171,43 @@ export function useTasksActions() {
     });
   }
 
+  // Intervenção (Admin/VIP) — ver intervencoesPendentes em logic/tasks.js.
+  // Vira também um comentário destacado no chat da CI e uma linha na
+  // auditoria; os destinatários recebem a notificação e a tela cheia de
+  // resposta obrigatória (IntervencaoAlertaModal.jsx).
+  function intervir(task, texto, autor) {
+    const at = new Date().toISOString();
+    const alvos = (task.destinatarios || []).filter((id) => id && id !== autor.id);
+    const iv = { id: "itv_" + Math.random().toString(36).slice(2, 9), autorId: autor.id, texto, at, alvos, respostas: {} };
+    saveRecord("corp_tasks", (current) => (current || []).map((t) => (t.id !== task.id ? t : {
+      ...t,
+      updatedAt: at,
+      intervencoes: [...(t.intervencoes || []), iv],
+      comments: [...(t.comments || []), { id: "cmt_" + Math.random().toString(36).slice(2, 9), userId: autor.id, text: texto, at, intervencaoId: iv.id }],
+      log: [...(t.log || []), { at, who: autor.id, acao: `Intervenção de ${autor.nome}: "${texto.slice(0, 200)}"` }],
+    })));
+    pushNotif(task.id, alvos, `🚨 Intervenção de ${autor.nome} na ${task.ci || "CI"} — resposta obrigatória: ${texto.slice(0, 60)}`, autor.id);
+  }
+
+  function responderIntervencao(task, iv, texto, usuario) {
+    const at = new Date().toISOString();
+    saveRecord("corp_tasks", (current) => (current || []).map((t) => {
+      if (t.id !== task.id) return t;
+      return {
+        ...t,
+        updatedAt: at,
+        intervencoes: (t.intervencoes || []).map((x) => (x.id !== iv.id ? x : { ...x, respostas: { ...(x.respostas || {}), [usuario.id]: { texto, at } } })),
+        comments: [...(t.comments || []), { id: "cmt_" + Math.random().toString(36).slice(2, 9), userId: usuario.id, text: texto, at, respostaIntervencaoId: iv.id }],
+        log: [...(t.log || []), { at, who: usuario.id, acao: `Resposta à intervenção: "${texto.slice(0, 200)}"` }],
+      };
+    }));
+    const avisar = [...new Set([iv.autorId, ...taskParticipants(task)])];
+    pushNotif(task.id, avisar, `${usuario.nome} respondeu à intervenção na ${task.ci || "CI"}: ${texto.slice(0, 60)}`, usuario.id);
+  }
+
   return {
     pushNotif, saveTask, createTask, taskInteract, arquivarManualmente, excluirTarefa, definirOrdemManual,
     markTaskCiente, markNotifRead, dismissAlarmeMesa, markAllNotifsRead, purgeOldTasks, gerarOcorrenciasRecorrentes,
+    intervir, responderIntervencao,
   };
 }
