@@ -29,6 +29,15 @@ export function EquipeView({ linhas, t, navigate, periodoLabel }) {
     if (l.conduta && l.conduta.pendentesCiente) alertas.push({ k: l.u.id + "cd", u: l.u, txt: `${l.conduta.pendentesCiente} registro(s) sem ciente`, nv: "atencao" });
   });
 
+  // Conquistas: os maiores ganhos de cada um hoje (o lado positivo dos alertas).
+  const conquistas = [];
+  linhas.forEach((l) => {
+    ((l.indice.ganhos && l.indice.ganhos.itens) || []).slice(0, 3).forEach((g) => {
+      conquistas.push({ k: l.u.id + g.key, u: l.u, icone: g.icone, pontos: g.pontos, txt: `${g.titulo} — ${g.detalhe}` });
+    });
+  });
+  conquistas.sort((a, b) => b.pontos - a.pontos);
+
   return (
     <div className="equipe-view">
       <div className={"equipe-hero nivel-" + nivelMedia.key}>
@@ -90,6 +99,22 @@ export function EquipeView({ linhas, t, navigate, periodoLabel }) {
       </div>
 
       <div className="card">
+        <div className="secao-topo"><h3>🌟 Conquistas de hoje</h3><span className="muted" style={{ fontSize: 12 }}>o que está somando pontos no índice</span></div>
+        {!conquistas.length ? <div className="fila-vazia">Ninguém somou pontos ainda hoje.</div> : (
+          <div className="fila-lista">
+            {conquistas.slice(0, 12).map((c) => (
+              <button key={c.k} type="button" className="fila-item tipo-hoje" onClick={() => navigate("desempenho", c.u.id)}>
+                <span className="fila-pos" />
+                <span className="fila-icone">{c.icone}</span>
+                <span className="fila-txt"><b>{c.u.nome} • +{c.pontos}</b><span>{c.txt}</span></span>
+                <span className="fila-ir">→</span>
+              </button>
+            ))}
+          </div>
+        )}
+      </div>
+
+      <div className="card">
         <div className="secao-topo"><h3>🌡 Mapa de calor por pilar</h3><span className="muted" style={{ fontSize: 12 }}>0–100 • 🏆 ≥85 • 👍 ≥70 • ⚠️ ≥50 • 🚨 abaixo</span></div>
         <div style={{ overflow: "auto" }}>
           <table className="heatmap">
@@ -97,6 +122,9 @@ export function EquipeView({ linhas, t, navigate, periodoLabel }) {
               <tr>
                 <th>Operador</th>
                 <th>Índice</th>
+                <th title="Índice dos pilares (30 dias)">Pilares</th>
+                <th title="Desconto das pendências agora">−</th>
+                <th title="Ganhos de hoje">+</th>
                 {PILARES.map((p) => <th key={p.key} title={p.desc}>{p.icone} {p.label}</th>)}
                 <th>Carteira</th>
                 <th>Vencidas</th>
@@ -109,6 +137,9 @@ export function EquipeView({ linhas, t, navigate, periodoLabel }) {
                 <tr key={l.u.id} onClick={() => navigate("desempenho", l.u.id)} style={{ cursor: "pointer" }}>
                   <td><b>{l.u.nome}</b></td>
                   <td className={"hm nivel-" + l.indice.nivel.key} title={l.indice.baseParcial ? "Base parcial: poucos pilares com dados no período" : undefined}>{l.indice.score ?? "—"}{l.indice.baseParcial ? " ⓘ" : ""}</td>
+                  <td className="mono">{l.indice.scoreBase ?? "—"}</td>
+                  <td className="mono neg-txt">{l.indice.impacto && l.indice.impacto.pontos ? `−${Math.round(l.indice.impacto.pontos * 10) / 10}` : "0"}</td>
+                  <td className="mono pos-txt">{l.indice.ganhos && l.indice.ganhos.pontos ? `+${Math.round(l.indice.ganhos.pontos * 10) / 10}` : "0"}</td>
                   {l.indice.pilares.map((p) => (
                     <td key={p.key} className={"hm nivel-" + nivelPct(p.valor)} title={p.componentes.map((c) => `${c.label}: ${c.valor == null ? "—" : fmtPct(c.valor)}`).join("\n")}>
                       {p.valor == null ? "—" : Math.round(p.valor * 100)}

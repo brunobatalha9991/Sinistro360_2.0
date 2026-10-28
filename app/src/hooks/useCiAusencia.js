@@ -1,8 +1,7 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import { useData } from "../data/DataProvider.jsx";
 import { dataLocalISO, addDias } from "../logic/agenda";
 import { ausenciaCfg, generalizarPorAusencia, idAcesso, semInteracaoCfg, verificarSemInteracao, verificarAlertasCriador } from "../logic/ciAutomacao";
-import { notificacaoSuportada } from "./useAgendaAlarme";
 import { isAdmin } from "../data/auth";
 import { useTasksActions } from "./useTasksActions";
 
@@ -119,24 +118,4 @@ export function useCiAusencia(currentUser) {
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [userId, prontos, agora, records.corp_tasks, config.corp_ci_sem_interacao]);
-
-  // Alerta do Windows pro usuário de escalonamento — uma vez por
-  // notificação nesta aba, só das recentes (abrir o sistema no dia
-  // seguinte não dispara tudo de novo).
-  const avisadosWindows = useRef(new Set());
-  const escalonamentos = (records.corp_notifs || []).filter((n) => n.userId === userId && n.tipo === "escalonamento_ci" && !n.read);
-  const chavesEsc = escalonamentos.map((n) => n.id).join(",");
-  useEffect(() => {
-    if (!notificacaoSuportada() || Notification.permission !== "granted") return;
-    escalonamentos.forEach((n) => {
-      if (avisadosWindows.current.has(n.id)) return;
-      avisadosWindows.current.add(n.id);
-      if (Date.now() - new Date(n.at).getTime() > 30 * 60 * 1000) return;
-      try {
-        const w = new Notification("🟣 Avaliar pedido de intervenção", { body: n.text, tag: "s360-escalonamento-" + n.id, requireInteraction: true });
-        w.onclick = () => { window.focus(); window.location.hash = "#/tarefas/open-" + n.taskId; w.close(); };
-      } catch { /* navegador sem suporte a notificação fora de service worker */ }
-    });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [chavesEsc]);
 }

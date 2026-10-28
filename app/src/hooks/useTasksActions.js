@@ -116,6 +116,26 @@ export function useTasksActions() {
     })));
   }
 
+  // Decisão sobre um pedido de intervenção (tela cheia roxa,
+  // EscalonamentoAlertaModal.jsx): marca as notificações dessa CI como
+  // avaliadas pra quem decidiu e, na dispensa, registra a justificativa na
+  // auditoria (intervir/considerar já registram por conta própria).
+  function avaliarEscalonamento(task, usuario, decisao, justificativa) {
+    if (!usuario) return;
+    const at = new Date().toISOString();
+    saveRecord("corp_notifs", (current) => (current || []).map((n) => (
+      n.taskId === task.id && n.userId === usuario.id && n.tipo === "escalonamento_ci" && !n.avaliadoEm
+        ? { ...n, read: true, avaliadoEm: at, avaliacao: decisao }
+        : n
+    )));
+    if (decisao === "dispensada") {
+      saveRecord("corp_tasks", (current) => (current || []).map((t) => (t.id !== task.id ? t : {
+        ...t,
+        log: [...(t.log || []), { at, who: usuario.id, acao: `${usuario.nome} avaliou o pedido de intervenção e dispensou: "${String(justificativa || "").slice(0, 200)}"` }],
+      })));
+    }
+  }
+
   // Arquivamento manual — substitui o antigo botão "Remover" (a pedido do
   // usuário): nunca apaga a tarefa nem seu histórico, só marca como
   // arquivada com motivo obrigatório, registrado na auditoria interna.
@@ -276,7 +296,7 @@ export function useTasksActions() {
   }
 
   return {
-    pushNotif, saveTask, createTask, taskInteract, alternarAcompanhamento, considerarInteracao, podeConsiderarInteracao, arquivarManualmente, excluirTarefa, definirOrdemManual,
+    pushNotif, saveTask, createTask, taskInteract, alternarAcompanhamento, considerarInteracao, podeConsiderarInteracao, avaliarEscalonamento, arquivarManualmente, excluirTarefa, definirOrdemManual,
     markTaskCiente, markNotifRead, dismissAlarmeMesa, markAllNotifsRead, purgeOldTasks, gerarOcorrenciasRecorrentes,
     intervir, responderIntervencao,
   };

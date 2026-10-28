@@ -173,8 +173,9 @@ function media(vals) { const v = vals.filter((x) => x != null); return v.length 
 // dado no período fica de fora — não pune nem premia.
 // `impacto` (opcional, ver impactoPendencias em logic/desempenhoRitmo.js):
 // pontos tirados por pendências/atrasos de AGORA, descontados do índice
-// dos pilares (scoreBase) — o índice final nunca fica abaixo de 0.
-export function calcularIndice({ m, ex, ci, agenda, conduta, assid, pesos, impacto }) {
+// dos pilares (scoreBase); `ganhos` (ganhosDoDia, mesmo arquivo) somam o
+// que foi entregue hoje. Índice final sempre entre 0 e 100.
+export function calcularIndice({ m, ex, ci, agenda, conduta, assid, pesos, impacto, ganhos }) {
   const est = m ? m.estoqueAtual : 0;
   const pilares = {
     processos: [
@@ -212,12 +213,13 @@ export function calcularIndice({ m, ex, ci, agenda, conduta, assid, pesos, impac
   });
   const scoreBase = somaPesos ? Math.round((soma / somaPesos) * 100) : null;
   const desconto = impacto ? impacto.pontos || 0 : 0;
-  const score = scoreBase == null ? null : Math.max(0, Math.round(scoreBase - desconto));
+  const bonus = ganhos ? ganhos.pontos || 0 : 0;
+  const score = scoreBase == null ? null : Math.min(100, Math.max(0, Math.round(scoreBase - desconto + bonus)));
   // Quanto do peso total tem dado de verdade — índice calculado com pouca
   // base (ex.: operador sem carteira, sem CIs e sem agenda) é sinalizado.
   const pesoTotal = PILARES.reduce((s, p) => s + (Number(pesos[p.key]) || 0), 0);
   const cobertura = pesoTotal ? somaPesos / pesoTotal : 0;
-  return { score, scoreBase, impacto: impacto || null, nivel: nivelDoScore(score), pilares: lista, cobertura, baseParcial: cobertura < 0.5 };
+  return { score, scoreBase, impacto: impacto || null, ganhos: ganhos || null, nivel: nivelDoScore(score), pilares: lista, cobertura, baseParcial: cobertura < 0.5 };
 }
 
 // ---------- fila do dia ----------

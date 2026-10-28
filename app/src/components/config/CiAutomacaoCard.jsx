@@ -149,7 +149,7 @@ export function CiAutomacaoCard({ config, saveConfig, users, canEdit }) {
 
       <h4 style={{ marginTop: 16, marginBottom: 4 }}>Alerta ao criador e escalonamento</h4>
       <p className="muted" style={{ marginTop: 0 }}>
-        O criador da CI recebe um alerta a cada intervalo sem interação dos destinatários (Administradores não contam como destinatário aqui). A cada N alertas da mesma CI, o usuário de escalonamento entra como destinatário, com comentário automático, e recebe alerta roxo no sino + notificação do Windows para avaliar um pedido de intervenção. O "Considerar" dele pausa os alertas até o horário escolhido.
+        O criador da CI recebe um alerta a cada intervalo sem interação dos destinatários (Administradores não contam como destinatário aqui). A cada N alertas da mesma CI, o usuário de escalonamento entra como destinatário, com comentário automático, e recebe alerta roxo no sino + tela cheia de pedido de intervenção (Intervir, Considerar ou dispensar com justificativa). O "Considerar" dele pausa os alertas até o horário escolhido.
       </p>
       <div style={{ display: "flex", gap: 10, flexWrap: "wrap", alignItems: "center" }}>
         <label style={{ display: "flex", alignItems: "center", gap: 6, margin: 0 }}>

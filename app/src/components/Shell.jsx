@@ -8,6 +8,7 @@ import { AgendaAlarmeModal } from "./AgendaAlarmeModal.jsx";
 import { NotificacaoObrigatoria } from "./NotificacaoObrigatoria.jsx";
 import { CondutaAlertaModal } from "./CondutaAlertaModal.jsx";
 import { IntervencaoAlertaModal } from "./IntervencaoAlertaModal.jsx";
+import { EscalonamentoAlertaModal } from "./EscalonamentoAlertaModal.jsx";
 import { RoteiroWidget } from "./RoteiroWidget.jsx";
 import { ROLE_LABELS, userModulos, isAdmin } from "../data/auth";
 import { useData } from "../data/DataProvider.jsx";
@@ -201,6 +202,7 @@ export function Shell({ route, param, crumb, currentUser, currentRole, onNavigat
       )}
       <CondutaAlertaModal currentUser={currentUser} />
       <IntervencaoAlertaModal currentUser={currentUser} />
+      <EscalonamentoAlertaModal currentUser={currentUser} />
       <NotificacaoObrigatoria currentUser={currentUser} />
     </div>
   );

@@ -22,8 +22,8 @@ import { intervencoesPendentes } from "../logic/tasks";
 import { metricasExtras, assiduidade, calcularIndice, filaDoDia, semanasRecentes, pesosDesempenho } from "../logic/desempenhoPainel";
 import { HeroOperador, HojeGrid, FilaDoDiaCard, PilaresCard, TendenciaCard } from "../components/desempenho/PainelVisual.jsx";
 import { EquipeView } from "../components/desempenho/EquipeView.jsx";
-import { ImpactoCard, RitmoOperadorCard, RitmoEquipe } from "../components/desempenho/RitmoDia.jsx";
-import { impactoPendencias } from "../logic/desempenhoRitmo";
+import { BalancoCard, RitmoOperadorCard, RitmoEquipe } from "../components/desempenho/RitmoDia.jsx";
+import { impactoPendencias, ganhosDoDia, contextoDesempenho } from "../logic/desempenhoRitmo";
 
 // Desempenho v3 (a pedido do usuário: "visualização de alto impacto",
 // refeito por inteiro). Duas telas:
@@ -345,6 +345,10 @@ export function Desempenho() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [users, acessos, periodoDe, periodoAte, config.corp_ci_sem_interacao, minuto]);
 
+  // Contexto pros ganhos do dia (mesmo usado pelo monitor de fotos).
+  const ctxGanhos = useMemo(() => contextoDesempenho(records, config),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [records.corp_claims, records.corp_overrides, records.corp_responsabilidade_historico, records.corp_tasks, records.corp_ci_historico, records.corp_notifs, records.corp_agenda, records.corp_agenda_feedback, records.corp_acessos, records.corp_desempenho_ritmo, config]);
   const linhas = useMemo(() => users.map((u) => {
     const m = metricas.find((x) => x.usuarioId === u.id);
     const ex = extrasPorUsuario[u.id];
@@ -354,11 +358,12 @@ export function Desempenho() {
     const as = assidPorUsuario[u.id];
     // Impacto das pendências de AGORA (independe do período escolhido).
     const impacto = impactoPendencias({ claims, overrides, tasks, blocos: blocosAgenda, feedbacks: feedbacksAgenda, user: u, atendTemplateCfg, templates, cfgCI: semInteracaoCfg(config), agora: new Date() });
-    const indice = calcularIndice({ m, ex, ci, agenda, conduta, assid: as, pesos, impacto });
+    const ganhos = ganhosDoDia({ ctx: ctxGanhos, user: u, impacto, agora: new Date() });
+    const indice = calcularIndice({ m, ex, ci, agenda, conduta, assid: as, pesos, impacto, ganhos });
     const roteiro = temAgendaPropria(u) ? resumoRoteiro({ blocos: blocosAgenda, feedbacks: feedbacksAgenda, userId: u.id, agora: new Date(), cfg: cfgAgenda }) : null;
     return { u, m, ex, ci, agenda, conduta, as, indice, roteiro };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }), [users, metricas, extrasPorUsuario, ciPorUsuario, agendaPorUsuario, condutaPorUsuario, assidPorUsuario, config.corp_desempenho_pesos, blocosAgenda, feedbacksAgenda, minuto, claims, overrides, tasks, config.corp_ci_sem_interacao]);
+  }), [users, metricas, extrasPorUsuario, ciPorUsuario, agendaPorUsuario, condutaPorUsuario, assidPorUsuario, config.corp_desempenho_pesos, blocosAgenda, feedbacksAgenda, minuto, claims, overrides, tasks, config.corp_ci_sem_interacao, ctxGanhos]);
   const comScore = linhas.filter((l) => l.indice.score != null);
   const mediaEquipe = comScore.length ? Math.round(comScore.reduce((s, l) => s + l.indice.score, 0) / comScore.length) : null;
 
@@ -430,7 +435,7 @@ export function Desempenho() {
           <FilaDoDiaCard itens={fila} navigate={navigate} />
           <FeedbackCard key={periodoLabel} analise={analise} u={u} periodoLabel={periodoLabel} verSinistros={(f) => verSinistros(u.id, f)} />
         </div>
-        <ImpactoCard indice={indice} navigate={navigate} />
+        <BalancoCard indice={indice} navigate={navigate} />
         <PilaresCard indice={indice} pesos={pesos} />
         <RitmoOperadorCard ritmo={records.corp_desempenho_ritmo} u={u} />
         {series && <TendenciaCard series={series} />}

@@ -14,12 +14,22 @@
 //    anterior pra notificar o gestor só do que é relevante e montar o
 //    relatório "Ritmo do dia" (abertura → fechamento, eventos, atrasos
 //    criados/resolvidos).
-import { getResponsavel, isFinalizado, getNextAction, visibleClaims } from "./claims";
+//
+// 3) Ganhos do dia (o outro lado da balança — a pedido do usuário, o
+//    índice também precisa SUBIR por mérito, não só cair por falha): o
+//    que o operador entrega HOJE soma pontos — produção nos processos,
+//    CIs respondidas no prazo, intervenções respondidas, agenda cumprida,
+//    atrasos resolvidos (devolvem o desconto + bônus de recuperação),
+//    carteira zerada, chegada no horário e sequência de dias fechando sem
+//    atraso. Cada regra tem teto próprio e o total também (BONUS_MAX), e
+//    tudo zera à meia-noite: o índice reflete o ritmo, não um saldo
+//    acumulado. Índice final = pilares − impacto + ganhos (0–100).
+import { getResponsavel, isFinalizado, getNextAction, visibleClaims, loadComms } from "./claims";
 import {
   dataLocalISO, addDias, hhmmToMin, ocorrenciasDoDia, indexarFeedbacks, statusOcorrencia, instante,
   temAgendaPropria, metricasAgenda, agendaCfg,
 } from "./agenda";
-import { calcularMetricasTodosUsuarios } from "./desempenho";
+import { calcularMetricasTodosUsuarios, calcularMetricasUsuario } from "./desempenho";
 import { todasCIsNormalizadas, metricasCIUsuario } from "./desempenhoCI";
 import { metricasConduta } from "./conduta";
 import { metricasExtras, assiduidade, calcularIndice, pesosDesempenho, nivelDoScore, PILARES } from "./desempenhoPainel";
@@ -126,6 +136,142 @@ export function impactoPendencias({ claims, overrides, tasks, blocos, feedbacks,
   };
 }
 
+// ---------- ganhos do dia ----------
+export const BONUS_MAX = 20;
+// Cada regra: pontos por ocorrência e teto. `alvo` é só pra dica de
+// "como ganhar mais" (quantas faltam pro teto).
+export const REGRAS_GANHO = [
+  { key: "historico", icone: "📝", label: "Histórico registrado no processo", pts: 0.5, max: 4 },
+  { key: "contato_cliente", icone: "📞", label: "Contato com o cliente (histórico canal Cliente)", pts: 0.5, max: 2 },
+  { key: "etapa", icone: "🧭", label: "Etapa da jornada concluída", pts: 0.5, max: 3 },
+  { key: "finalizado", icone: "🏁", label: "Processo finalizado", pts: 1.5, max: 4.5 },
+  { key: "satisfacao", icone: "⭐", label: "Pesquisa de satisfação com nota 4 ou 5", pts: 1, max: 2 },
+  { key: "ci_prazo", icone: "📨", label: "CI com 1ª interação no prazo", pts: 0.5, max: 3 },
+  { key: "ci_concluida", icone: "✔️", label: "CI concluída por você", pts: 0.5, max: 2 },
+  { key: "intervencao", icone: "🚨", label: "Intervenção respondida", pts: 1, max: 3 },
+  { key: "agenda", icone: "🗓", label: "Ação da agenda concluída", pts: 0.25, max: 2 },
+  { key: "agenda_total", icone: "🎯", label: "Agenda do dia 100% cumprida (3+ ações)", pts: 2, max: 2 },
+  { key: "recuperacao", icone: "🔧", label: "Atraso resolvido (bônus de 50% do peso dele)", pts: null, max: 4 },
+  { key: "carteira_zerada", icone: "🧹", label: "Carteira sem nenhum atraso", pts: 3, max: 3 },
+  { key: "pontualidade", icone: "⏰", label: "Chegada no horário hoje", pts: 1, max: 1 },
+  { key: "sequencia", icone: "🔥", label: "Dias seguidos fechando sem atraso", pts: 1, max: 5 },
+];
+const REGRA = {};
+REGRAS_GANHO.forEach((r) => { REGRA[r.key] = r; });
+
+function arred(n) { return Math.round(n * 100) / 100; }
+
+// Dias úteis anteriores seguidos em que o fechamento registrou o operador
+// sem nenhum atraso em aberto (ver fechamento em useDesempenhoMonitor).
+export function sequenciaSemAtraso(ritmo, userId, hoje) {
+  let n = 0;
+  for (let i = 1; i <= 20 && n < 10; i++) {
+    const d = addDias(hoje, -i);
+    const w = new Date(d + "T12:00:00").getDay();
+    if (w === 0 || w === 6) continue;
+    const f = (ritmo || {})[idFechamento(d)];
+    const l = f && (f.linhas || []).find((x) => x.userId === userId);
+    if (!l || l.atrasosAgora > 0) break;
+    n++;
+  }
+  return n;
+}
+
+// `ctx` = contextoDesempenho(...). `impacto` = impactoPendencias do mesmo
+// operador (carteira zerada depende dele).
+export function ganhosDoDia({ ctx, user, impacto, agora = new Date() }) {
+  const userId = user && user.id;
+  const hoje = dataLocalISO(agora);
+  const itens = [];
+  if (!userId) return { itens, pontos: 0, pontosBrutos: 0, oportunidades: [] };
+  const deISO = hoje + "T00:00:00.000Z";
+  const ateISO = hoje + "T23:59:59.999Z";
+  const m = calcularMetricasUsuario({ claims: ctx.claims, overrides: ctx.overrides, historico: ctx.historico, usuarioId: userId, periodoInicioISO: deISO, periodoFimISO: ateISO, atendTemplateCfg: ctx.atendTemplateCfg, templates: ctx.templates, tasks: ctx.tasks });
+  const ex = metricasExtras({ claims: ctx.claims, overrides: ctx.overrides, historico: ctx.historico, userId, deISO: hoje, ateISO: hoje, atendTemplateCfg: ctx.atendTemplateCfg, templates: ctx.templates, ocorrencias: ctx.ocorrencias });
+  const ci = metricasCIUsuario({ cis: ctx.cis, notifs: ctx.notifs, userId, deISO: hoje, ateISO: hoje, config: ctx.config, agora });
+  const ag = temAgendaPropria(user) ? metricasAgenda({ blocos: ctx.blocos || [], feedbacks: ctx.feedbacks || [], userId, deISO: hoje, ateISO: hoje, agora, cfg: ctx.cfgAgenda }) : null;
+  const as = assiduidade({ acessos: ctx.acessos, userId, deISO: hoje, ateISO: hoje, inicioExpediente: ctx.cfgCI.horarioInicio || "08:30", agora });
+
+  const add = (key, qtd, detalhe, ptsFixos) => {
+    const r = REGRA[key];
+    if (!(qtd > 0)) return;
+    const bruto = ptsFixos != null ? ptsFixos : qtd * r.pts;
+    itens.push({ key, icone: r.icone, titulo: r.label, qtd, detalhe, pontos: arred(Math.min(r.max, bruto)), teto: r.max });
+  };
+  add("historico", m.historicosRegistrados || 0, `${m.historicosRegistrados} hoje`);
+  add("contato_cliente", ex.historicosCliente || 0, `${ex.historicosCliente} com o cliente`);
+  add("etapa", ex.etapasConcluidas || 0, `${ex.etapasConcluidas} etapa(s)`);
+  add("finalizado", m.finalizadosNoPeriodo || 0, `${m.finalizadosNoPeriodo} finalizado(s)`);
+  if (ex.pesquisasCorretora && ex.notaCorretoraMedia >= 4) add("satisfacao", ex.pesquisasCorretora, `média ${ex.notaCorretoraMedia.toFixed(1)}`);
+  add("ci_prazo", ci.noPrazo || 0, `${ci.noPrazo} no prazo`);
+  add("ci_concluida", ci.concluidasPorEle || 0, `${ci.concluidasPorEle} concluída(s)`);
+  add("intervencao", ci.intervRespondidas || 0, `${ci.intervRespondidas} respondida(s)`);
+  if (ag) {
+    add("agenda", ag.concluidas || 0, `${ag.concluidas}/${ag.vencidas} ações`);
+    if (ag.vencidas >= 3 && ag.concluidas === ag.vencidas) add("agenda_total", 1, "tudo o que venceu até agora foi feito");
+  }
+  // Recuperação: atrasos que saíram da lista hoje (eventos do Ritmo do dia).
+  const reg = (ctx.ritmo || {})[idRitmo(userId, hoje)];
+  // Anti-burla: próxima ação que só foi empurrada pra frente devolve o
+  // desconto, mas o BÔNUS só vem com histórico registrado no processo hoje.
+  const resolvidos = ((reg && reg.eventos) || []).filter((e) => e.tipo === "atraso_resolvido").filter((e) => {
+    const k = String(e.k || "");
+    if (!k.startsWith("pa:")) return true;
+    const claimId = k.split(":")[1];
+    return loadComms(ctx.overrides, claimId).some((c) => c.at && dataLocalISO(new Date(c.at)) === hoje);
+  });
+  if (resolvidos.length) add("recuperacao", resolvidos.length, `${resolvidos.length} resolvido(s) hoje`, resolvidos.reduce((s, e) => s + (e.p || 1) * 0.5, 0));
+  if (m.estoqueAtual > 0 && impacto && impacto.atrasadas === 0) add("carteira_zerada", 1, `${m.estoqueAtual} processo(s) em dia`);
+  if (as && as.diasNoHorario > 0) add("pontualidade", 1, "acesso dentro da tolerância");
+  const seq = sequenciaSemAtraso(ctx.ritmo, userId, hoje);
+  if (seq) add("sequencia", seq, `${seq} dia(s) útil(eis) seguido(s)`);
+
+  itens.sort((a, b) => b.pontos - a.pontos);
+  const pontosBrutos = arred(itens.reduce((s, i) => s + i.pontos, 0));
+
+  // Como ganhar mais agora: resolver o que está tirando pontos (devolve o
+  // desconto + 50% de bônus) e as regras que ainda não bateram o teto.
+  const oportunidades = [];
+  ((impacto && impacto.itens) || []).filter((i) => i.status === "atrasada").slice(0, 4).forEach((i) => {
+    oportunidades.push({ key: "op:" + i.key, icone: i.icone, texto: `Resolver: ${i.titulo}`, ganho: arred(i.pontos * 1.5), rota: i.rota });
+  });
+  const feitos = {};
+  itens.forEach((i) => { feitos[i.key] = i.pontos; });
+  ["historico", "contato_cliente", "ci_prazo", "etapa", "finalizado", "agenda"].forEach((k) => {
+    const r = REGRA[k];
+    if (k === "agenda" && !ag) return;
+    const falta = arred(r.max - (feitos[k] || 0));
+    if (falta > 0) oportunidades.push({ key: "op:" + k, icone: r.icone, texto: `${r.label}: +${r.pts} cada`, ganho: falta });
+  });
+  if (m.estoqueAtual > 0 && !feitos.carteira_zerada && impacto && impacto.atrasadas > 0) {
+    oportunidades.push({ key: "op:carteira", icone: REGRA.carteira_zerada.icone, texto: `Zerar os ${impacto.atrasadas} atraso(s) da carteira`, ganho: REGRA.carteira_zerada.pts });
+  }
+  return { itens, pontos: Math.min(BONUS_MAX, pontosBrutos), pontosBrutos, oportunidades };
+}
+
+// Tudo que impacto/ganhos/índice precisam, montado uma vez a partir dos
+// records/config (página Desempenho e monitor usam o mesmo).
+export function contextoDesempenho(records, config) {
+  return {
+    claims: records.corp_claims || [],
+    overrides: records.corp_overrides || {},
+    historico: records.corp_responsabilidade_historico || [],
+    tasks: records.corp_tasks || [],
+    cis: todasCIsNormalizadas(records.corp_tasks, records.corp_ci_historico),
+    notifs: records.corp_notifs,
+    blocos: records.corp_agenda || [],
+    feedbacks: records.corp_agenda_feedback || [],
+    acessos: records.corp_acessos,
+    ritmo: records.corp_desempenho_ritmo || {},
+    ocorrencias: [...(records.corp_oficina_ocorrencias || []), ...(records.corp_seguradora_ocorrencias || []), ...(records.corp_cliente_ocorrencias || [])],
+    templates: config.corp_journey_templates,
+    atendTemplateCfg: config.corp_atendimento_template,
+    config,
+    cfgAgenda: agendaCfg(config),
+    cfgCI: semInteracaoCfg(config),
+  };
+}
+
 // ---------- índice de todos os operadores (mesma janela do Desempenho) ----------
 export const JANELA_DIAS = 30;
 
@@ -146,6 +292,7 @@ export function indicesOperadores({ records, config, operadores, agora = new Dat
   const metricas = calcularMetricasTodosUsuarios({ users, claims, overrides, historico, periodoInicioISO: de + "T00:00:00.000Z", periodoFimISO: hoje + "T23:59:59.999Z", atendTemplateCfg, templates, tasks });
   const cis = todasCIsNormalizadas(tasks, records.corp_ci_historico);
   const ocorrencias = [...(records.corp_oficina_ocorrencias || []), ...(records.corp_seguradora_ocorrencias || []), ...(records.corp_cliente_ocorrencias || [])];
+  const ctx = contextoDesempenho(records, config);
   const out = {};
   users.forEach((u) => {
     const m = metricas.find((x) => x.usuarioId === u.id);
@@ -155,7 +302,8 @@ export function indicesOperadores({ records, config, operadores, agora = new Dat
     const conduta = metricasConduta({ registros: records.corp_conduta || [], userId: u.id, deISO: de, ateISO: hoje });
     const assid = assiduidade({ acessos: records.corp_acessos, userId: u.id, deISO: de, ateISO: hoje, inicioExpediente: cfgCI.horarioInicio || cfgAgenda.inicio || "08:30", agora });
     const impacto = impactoPendencias({ claims, overrides, tasks, blocos: records.corp_agenda, feedbacks: records.corp_agenda_feedback, user: u, atendTemplateCfg, templates, cfgCI, agora });
-    out[u.id] = { u, impacto, indice: calcularIndice({ m, ex, ci, agenda, conduta, assid, pesos, impacto }) };
+    const ganhos = ganhosDoDia({ ctx, user: u, impacto, agora });
+    out[u.id] = { u, impacto, ganhos, indice: calcularIndice({ m, ex, ci, agenda, conduta, assid, pesos, impacto, ganhos }) };
   });
   return out;
 }
@@ -173,7 +321,7 @@ export function idFechamento(data) {
   return `__fechamento_${data}`;
 }
 
-export function montarFoto(indice, impacto, agora = new Date()) {
+export function montarFoto(indice, impacto, agora = new Date(), ganhos = null) {
   const pilares = {};
   (indice.pilares || []).forEach((p) => { pilares[p.key] = p.valor == null ? null : Math.round(p.valor * 100); });
   return {
@@ -183,6 +331,8 @@ export function montarFoto(indice, impacto, agora = new Date()) {
     nivel: (indice.nivel || nivelDoScore(indice.score)).key,
     pilares,
     impacto: Math.round(impacto.pontos * 10) / 10,
+    bonus: ganhos ? Math.round(ganhos.pontos * 10) / 10 : 0,
+    ganhos: ganhos ? ganhos.itens.map((g) => ({ k: g.key, t: g.titulo, q: g.qtd, p: g.pontos })) : [],
     atrasos: impacto.itens.filter((i) => i.status === "atrasada").map((i) => ({ k: i.key, t: i.titulo, d: i.dias, p: i.pontos })),
     pendentes: impacto.pendentes,
   };
@@ -230,8 +380,14 @@ export function compararFotos(anterior, atual) {
     mudancas.push(`${novos.length} novo(s) atraso(s): ${novos.slice(0, 3).map((x) => `${x.t} (−${x.p})`).join("; ")}${novos.length > 3 ? "…" : ""}`);
   }
   if (resolvidos.length) mudancas.push(`${resolvidos.length} atraso(s) resolvido(s)`);
-  novos.forEach((x) => eventos.push({ at, tipo: "atraso_novo", texto: `Novo atraso: ${x.t} (−${x.p} pts)` }));
-  resolvidos.forEach((x) => eventos.push({ at, tipo: "atraso_resolvido", texto: `Atraso resolvido: ${x.t}` }));
+  novos.forEach((x) => eventos.push({ at, tipo: "atraso_novo", texto: `Novo atraso: ${x.t} (−${x.p} pts)`, k: x.k, p: x.p }));
+  resolvidos.forEach((x) => eventos.push({ at, tipo: "atraso_resolvido", texto: `Atraso resolvido: ${x.t} (+${x.p} de volta)`, k: x.k, p: x.p }));
+  // Ganhos que aumentaram desde a foto anterior.
+  const ganhosAntes = {};
+  (anterior.ganhos || []).forEach((g) => { ganhosAntes[g.k] = g.p; });
+  const ganhosNovos = (atual.ganhos || []).filter((g) => g.p > (ganhosAntes[g.k] || 0));
+  ganhosNovos.forEach((g) => eventos.push({ at, tipo: "ganho", texto: `${g.t}: +${Math.round((g.p - (ganhosAntes[g.k] || 0)) * 100) / 100} pts` }));
+  if (ganhosNovos.length) mudancas.push(`ganhou pontos em: ${ganhosNovos.slice(0, 3).map((g) => g.t).join("; ")}${ganhosNovos.length > 3 ? "…" : ""}`);
   return { mudancas, eventos, relevante };
 }
 
@@ -242,7 +398,7 @@ export function registrarFoto(registro, { userId, data, foto, forcar }) {
   const ultimo = atual.ultimo;
   if (ultimo && !forcar && new Date(foto.at).getTime() - new Date(ultimo.at).getTime() < (INTERVALO_FOTO_MIN - 1) * 60000) return null;
   const cmp = compararFotos(ultimo, foto);
-  const ponto = { at: foto.at, score: foto.score, nivel: foto.nivel, impacto: foto.impacto, atrasos: foto.atrasos.length, pendentes: foto.pendentes };
+  const ponto = { at: foto.at, score: foto.score, nivel: foto.nivel, impacto: foto.impacto, bonus: foto.bonus || 0, atrasos: foto.atrasos.length, pendentes: foto.pendentes };
   const next = {
     ...atual,
     abertura: atual.abertura || { at: foto.at, score: foto.score, nivel: foto.nivel, atrasos: foto.atrasos.length },
@@ -273,6 +429,8 @@ export function resumoRitmo(registro) {
     atrasosAgora: (ult.atrasos || []).length,
     pendentesAgora: ult.pendentes || 0,
     impactoAgora: ult.impacto || 0,
+    bonusAgora: ult.bonus || 0,
+    ganhosNoDia: ev.filter((e) => e.tipo === "ganho").length,
     fotos: pts.length,
   };
 }

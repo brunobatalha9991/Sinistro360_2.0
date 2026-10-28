@@ -193,6 +193,7 @@ h1,h2,h3,h4{font-family:var(--font-display);letter-spacing:-.01em;color:var(--in
 .notif-item.acompanhamento .nt-dot{background:var(--orange);box-shadow:0 0 8px rgba(var(--orange-rgb),.8)}
 .notif-item.acompanhamento.read .nt-dot{background:rgba(var(--orange-rgb),.4);box-shadow:none}
 /* Escalonamento de CI sem interação (avaliar pedido de intervenção) — roxo. */
+.escalonamento-acoes{display:flex;gap:8px;justify-content:center;flex-wrap:wrap;margin-top:14px}
 .notif-item.escalonamento{background:rgba(var(--purple-rgb),.07);border-color:rgba(var(--purple-rgb),.25)}
 .notif-item.escalonamento.unread{background:rgba(var(--purple-rgb),.15);border-color:rgba(var(--purple-rgb),.5)}
 .notif-item.escalonamento:hover{background:rgba(var(--purple-rgb),.2);border-color:rgba(var(--purple-rgb),.55)}
@@ -1128,6 +1129,24 @@ tr:hover td{background:var(--surface-2)}
 .impacto-txt b{font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .impacto-txt small{font-size:11.5px;color:var(--muted)}
 .impacto-pts{font-family:var(--font-mono);font-weight:800;color:var(--danger);text-align:right}
+.impacto-pts.ganho{color:var(--ok)}
+.impacto-item:disabled{cursor:default;opacity:1}
+.balanco-conta{display:flex;align-items:stretch;gap:8px;flex-wrap:wrap;margin-bottom:12px}
+.balanco-conta>div{flex:1;min-width:110px;background:var(--surface-2);border:1px solid var(--border);border-radius:10px;padding:8px 12px;display:flex;flex-direction:column;gap:2px}
+.balanco-conta small{font-size:11px;color:var(--muted)}
+.balanco-conta b{font-size:22px;font-family:var(--font-mono)}
+.balanco-conta .neg b{color:var(--danger)}
+.balanco-conta .pos b{color:var(--ok)}
+.balanco-conta .final{border-color:rgba(var(--navy-rgb),.5);background:rgba(var(--navy-rgb),.08)}
+.balanco-conta .final b{color:var(--navy)}
+.balanco-op{align-self:center;font-size:20px;font-weight:800;color:var(--muted)}
+.balanco-regras{margin-top:12px;font-size:12.5px}
+.balanco-regras summary{cursor:pointer;color:var(--muted);font-weight:600}
+.balanco-regras-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:12px;margin-top:8px}
+.balanco-regras ul{margin:4px 0 0;padding-left:18px}
+.neg-txt{color:var(--danger)}
+.pos-txt{color:var(--ok)}
+.ritmo-evento.ganho{background:rgba(var(--ok-rgb),.05)}
 .ritmo-stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(110px,1fr));gap:8px;margin-bottom:12px}
 .ritmo-stats>div{background:var(--surface-2);border:1px solid var(--border);border-radius:8px;padding:8px 10px;display:flex;flex-direction:column;gap:2px}
 .ritmo-stats small{font-size:11px;color:var(--muted)}

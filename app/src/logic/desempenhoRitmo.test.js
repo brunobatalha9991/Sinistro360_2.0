@@ -1,8 +1,9 @@
 import { describe, it, expect } from "vitest";
 import {
   pontosPorAtraso, impactoPendencias, compararFotos, registrarFoto, resumoRitmo, montarFoto, textoFechamento,
-  IMPACTO_MAX, PONTOS_PENDENTE, dentroDoExpediente,
+  IMPACTO_MAX, PONTOS_PENDENTE, dentroDoExpediente, ganhosDoDia, sequenciaSemAtraso,
 } from "./desempenhoRitmo";
+import { todasCIsNormalizadas } from "./desempenhoCI";
 import { calcularIndice, PESOS_DEFAULT } from "./desempenhoPainel";
 
 const luiz = { id: "luiz", nome: "Luiz", role: "atendente" };
@@ -85,5 +86,59 @@ describe("fotos e ritmo do dia", () => {
       { pontos: 5, pendentes: 1, itens: [{ key: "a", titulo: "A", dias: 3, pontos: 2, status: "atrasada" }, { key: "b", titulo: "B", dias: 0, pontos: 0.5, status: "pendente" }] });
     expect(f.atrasos).toEqual([{ k: "a", t: "A", d: 3, p: 2 }]);
     expect(f.pilares.ci).toBe(50);
+  });
+});
+
+describe("ganhos do dia", () => {
+  const cfgCI = { horarioInicio: "08:30", horarioFim: "18:00", soDiasUteis: true, minutos: 10, minutosUrgente: 5 };
+  const agora = new Date(2026, 9, 28, 15, 0);
+  const ctxBase = (extra = {}) => ({
+    claims: [], overrides: {}, historico: [], tasks: [], cis: [], notifs: [], blocos: [], feedbacks: [], acessos: {}, ritmo: {}, ocorrencias: [],
+    templates: {}, atendTemplateCfg: null, config: {}, cfgAgenda: {}, cfgCI, ...extra,
+  });
+
+  it("CI respondida no prazo, intervenção respondida e chegada no horário somam", () => {
+    const criada = new Date(2026, 9, 28, 9, 0).toISOString();
+    const cis = [{ id: "t1", origem: "ana", destinatarios: ["luiz"], status: "Pendente", urgencia: "Leve", createdAt: criada, comments: [{ userId: "luiz", at: new Date(2026, 9, 28, 9, 3).toISOString() }], log: [], ciente: {}, intervencoes: [] }];
+    const acessos = { "luiz_2026-10-28": { userId: "luiz", data: "2026-10-28", primeiroAcesso: new Date(2026, 9, 28, 8, 35).toISOString() } };
+    const ctx = ctxBase({ cis: todasCIsNormalizadas(cis, []), tasks: cis, acessos });
+    const g = ganhosDoDia({ ctx, user: luiz, impacto: { atrasadas: 0, itens: [] }, agora });
+    const chaves = g.itens.map((i) => i.key);
+    expect(chaves).toContain("ci_prazo");
+    expect(chaves).toContain("pontualidade");
+    expect(g.pontos).toBeGreaterThan(0);
+  });
+
+  it("atraso resolvido só dá bônus de recuperação com histórico registrado hoje", () => {
+    const ev = [{ at: agora.toISOString(), tipo: "atraso_resolvido", k: "pa:c1:2026-10-20", p: 3 }, { at: agora.toISOString(), tipo: "atraso_resolvido", k: "ci:t9", p: 1 }];
+    const ritmo = { "luiz_2026-10-28": { eventos: ev } };
+    let g = ganhosDoDia({ ctx: ctxBase({ ritmo }), user: luiz, impacto: { atrasadas: 0, itens: [] }, agora });
+    expect(g.itens.find((i) => i.key === "recuperacao").pontos).toBe(0.5); // só a CI
+    const overrides = { c1: { comms: [{ at: new Date(2026, 9, 28, 14, 0).toISOString(), text: "liguei" }] } };
+    g = ganhosDoDia({ ctx: ctxBase({ ritmo, overrides }), user: luiz, impacto: { atrasadas: 0, itens: [] }, agora });
+    expect(g.itens.find((i) => i.key === "recuperacao").pontos).toBe(2); // 3×0,5 + 1×0,5
+  });
+
+  it("sequência de dias fechando sem atraso", () => {
+    const fech = (d, n) => ({ ["__fechamento_" + d]: { linhas: [{ userId: "luiz", atrasosAgora: n }] } });
+    const ritmo = { ...fech("2026-10-27", 0), ...fech("2026-10-26", 0), ...fech("2026-10-23", 2) };
+    expect(sequenciaSemAtraso(ritmo, "luiz", "2026-10-28")).toBe(2);
+  });
+
+  it("índice final = pilares − impacto + ganhos, limitado a 0–100", () => {
+    const m = { estoqueAtual: 10, atrasadosAtual: 0, semAtualizacaoAtual: 0 };
+    const ex = { pctComProximaAcao: 0.8, semProximaAcao: 2, etapasForaPrazo: 0, reclamacoes: 0 };
+    const r = calcularIndice({ m, ex, ci: null, agenda: null, conduta: null, assid: null, pesos: PESOS_DEFAULT, impacto: { pontos: 2, itens: [] }, ganhos: { pontos: 6, itens: [] } });
+    expect(r.score).toBe(r.scoreBase - 2 + 6);
+    const teto = calcularIndice({ m, ex, ci: null, agenda: null, conduta: null, assid: null, pesos: PESOS_DEFAULT, ganhos: { pontos: 20, itens: [] } });
+    expect(teto.score).toBe(100);
+  });
+
+  it("ganho novo entre fotos vira evento do ritmo", () => {
+    const a = { at: "t0", score: 70, nivel: "bom", pilares: {}, atrasos: [], ganhos: [{ k: "historico", t: "Histórico", p: 0.5 }] };
+    const b = { ...a, at: "t1", ganhos: [{ k: "historico", t: "Histórico", p: 1.5 }] };
+    const c = compararFotos(a, b);
+    expect(c.eventos.find((e) => e.tipo === "ganho").texto).toBe("Histórico: +1 pts");
+    expect(c.relevante).toBe(false);
   });
 });

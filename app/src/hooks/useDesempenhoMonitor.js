@@ -65,7 +65,7 @@ export function useDesempenhoMonitor(currentUser) {
             const x = indices[u.id];
             if (!x) return;
             const id = idRitmo(u.id, hoje);
-            const r = registrarFoto(base[id], { userId: u.id, data: hoje, foto: montarFoto(x.indice, x.impacto, agora) });
+            const r = registrarFoto(base[id], { userId: u.id, data: hoje, foto: montarFoto(x.indice, x.impacto, agora, x.ganhos) });
             if (!r) return;
             next[id] = r.registro;
             mudou = true;
