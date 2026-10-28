@@ -3,6 +3,7 @@ import { useAuth } from "./useAuth";
 import { isAdmin } from "../data/auth";
 import { resumoHistoricoCI } from "../logic/desempenhoCI";
 import { semInteracaoCfg, usuarioEscalonamentoId } from "../logic/ciAutomacao";
+import { aplicarAlertaCI, resolverAlertasCI } from "../logic/notificacoes";
 import { taskParticipants, acompanhantesSemParticipacao, acompanhaTarefa, proximoCI, recorrenciaVencida, recorrenciaEncerrada, gerarOcorrenciaRecorrente } from "../logic/tasks";
 
 export function rotuloDuracao(minutos) {
@@ -53,6 +54,19 @@ export function useTasksActions() {
     const users = records.corp_users || [];
     const alvos = acompanhantesSemParticipacao(task).filter((id) => isAdmin(users.find((u) => u.id === id)));
     if (alvos.length) pushNotif(task.id, alvos, texto, exceptUserId, emergencia, false, true);
+  }
+
+  // Alerta automático de CI parada — passa pelas regras da família (um por
+  // CI por pessoa, prioridade, sem repetição); ver aplicarAlertaCI.
+  function pushAlertaCI(task, userIds, tipo, texto, extra) {
+    const at = new Date().toISOString();
+    saveRecord("corp_notifs", (current) => aplicarAlertaCI(current || [], {
+      taskId: task.id, userIds, tipo, texto, at, extra, novoId: () => "ntf_" + Math.random().toString(36).slice(2, 9),
+    }).notifs);
+  }
+  function resolverAlertasDaCI(taskId, motivo, antesDe) {
+    const at = new Date().toISOString();
+    saveRecord("corp_notifs", (current) => resolverAlertasCI(current || [], taskId, at, motivo, antesDe));
   }
 
   function saveTask(task) {
@@ -114,6 +128,8 @@ export function useTasksActions() {
       escalonamentoCI: { ...(t.escalonamentoCI || {}), contador: 0 },
       log: [...(t.log || []), { at: agora.toISOString(), who: usuario.id, acao: `${usuario.nome} marcou "Interação considerada" por ${rotuloDuracao(minutos)} (até ${fmtDataHora(ate)})` }],
     })));
+    // O Considerar prevalece: os alertas já abertos desta CI ficam resolvidos pra todos.
+    resolverAlertasDaCI(task.id, `interação considerada por ${usuario.nome} até ${fmtDataHora(ate)}`);
   }
 
   // Decisão sobre um pedido de intervenção (tela cheia roxa,
@@ -129,6 +145,7 @@ export function useTasksActions() {
         : n
     )));
     if (decisao === "dispensada") {
+      resolverAlertasDaCI(task.id, `pedido de intervenção avaliado por ${usuario.nome} (sem necessidade de intervir)`);
       saveRecord("corp_tasks", (current) => (current || []).map((t) => (t.id !== task.id ? t : {
         ...t,
         log: [...(t.log || []), { at, who: usuario.id, acao: `${usuario.nome} avaliou o pedido de intervenção e dispensou: "${String(justificativa || "").slice(0, 200)}"` }],
@@ -300,6 +317,7 @@ export function useTasksActions() {
       log: [...(t.log || []), { at, who: autor.id, acao: `Intervenção de ${autor.nome}: "${texto.slice(0, 200)}"` }],
     })));
     pushNotif(task.id, alvos, `🚨 Intervenção de ${autor.nome} na ${task.ci || "CI"} — resposta obrigatória: ${texto.slice(0, 60)}`, autor.id);
+    resolverAlertasDaCI(task.id, `intervenção de ${autor.nome}`);
     notificarAcompanhantes(task, `🚨 Intervenção de ${autor.nome} na ${task.ci || "CI"}: ${texto.slice(0, 60)}`, autor.id);
   }
 
@@ -321,7 +339,7 @@ export function useTasksActions() {
   }
 
   return {
-    pushNotif, saveTask, createTask, taskInteract, alternarAcompanhamento, considerarInteracao, podeConsiderarInteracao, avaliarEscalonamento, cienteRedirecionamento, arquivarManualmente, excluirTarefa, definirOrdemManual,
+    pushNotif, saveTask, createTask, taskInteract, alternarAcompanhamento, considerarInteracao, pushAlertaCI, resolverAlertasDaCI, podeConsiderarInteracao, avaliarEscalonamento, cienteRedirecionamento, arquivarManualmente, excluirTarefa, definirOrdemManual,
     markTaskCiente, markNotifRead, marcarNotifTratada, dismissAlarmeMesa, markAllNotifsRead, purgeOldTasks, gerarOcorrenciasRecorrentes,
     intervir, responderIntervencao,
   };

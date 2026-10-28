@@ -5,6 +5,7 @@ import { ausenciaCfg, generalizarPorAusencia, blindarAusenciaAdministrador, idAc
 import { isAdmin } from "../data/auth";
 import { useTasksActions } from "./useTasksActions";
 import { processarPausasCI } from "../logic/ciPausa";
+import { resolverAlertasSuperados } from "../logic/notificacoes";
 
 // Registra o acesso do dia de quem está logado e, a partir do horário de
 // corte, generaliza as CIs de quem ainda não acessou; também avisa
@@ -27,11 +28,10 @@ function semAlertaRecente(notifs, taskId, tipos, userIds) {
     .map((n) => n.userId));
   return (userIds || []).filter((id) => !recentes.has(id));
 }
-const ehAlertaGestor = (n) => n.tipo === "sem_interacao" || (!n.tipo && String(n.text || "").startsWith("⏱"));
 
 export function useCiAusencia(currentUser) {
   const { records, config, saveRecord, recordCarregado } = useData();
-  const { pushNotif } = useTasksActions();
+  const { pushNotif, pushAlertaCI } = useTasksActions();
   const users = records.corp_users;
   const [agora, setAgora] = useState(() => new Date());
 
@@ -104,11 +104,18 @@ export function useCiAusencia(currentUser) {
       const texto = aposConsiderada
         ? `⏱ ${task.ci || "CI"} continua sem interação após o período de interação considerada${task.urgencia === "Urgente" ? " (URGENTE)" : ""} — sem interação: ${nomes}: ${task.titulo || ""}`
         : `⏱ ${task.ci || "CI"} sem interação dos destinatários há mais de ${minutos} min${task.urgencia === "Urgente" ? " (URGENTE)" : ""} — sem interação: ${nomes}: ${task.titulo || ""}`;
-      const alvos = semAlertaRecente(records.corp_notifs, task.id, ehAlertaGestor, gestores);
-      if (alvos.length) pushNotif(task.id, alvos, texto, undefined, false, false, false, { tipo: "sem_interacao", ausentes });
+      pushAlertaCI(task, gestores, "sem_interacao", texto, { ausentes });
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [userId, prontos, agora, records.corp_tasks, config.corp_ci_sem_interacao]);
+
+  // Alertas de CI parada que perderam o sentido (interação, conclusão) se
+  // resolvem sozinhos — ver resolverAlertasSuperados.
+  useEffect(() => {
+    if (!userId || !prontos || !recordCarregado("corp_notifs")) return;
+    saveRecord("corp_notifs", (cur) => resolverAlertasSuperados(cur || [], records.corp_tasks || [], new Date().toISOString()));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [userId, prontos, records.corp_tasks]);
 
   // CI emergencial (Assistência 24h / Carro Reserva) × pausa da agenda
   // (almoço/café): redireciona a todos os operadores e devolve no fim da
@@ -151,11 +158,10 @@ export function useCiAusencia(currentUser) {
     alertas.forEach(({ task, minutos, ausentes, escalar, escalonadoPara }) => {
       const nomes = ausentes.map(nomeDe).join(", ");
       const urg = task.urgencia === "Urgente" ? " (URGENTE)" : "";
-      if (semAlertaRecente(records.corp_notifs, task.id, (n) => n.tipo === "sem_interacao_criador", [task.origem]).length) pushNotif(task.id, [task.origem], `⏱ ${task.ci || "CI"} sem interação dos destinatários há ${minutos} min${urg} — sem interação: ${nomes}: ${task.titulo || ""}`,
-        undefined, false, false, false, { tipo: "sem_interacao_criador", ausentes });
-      if (escalar && escalonadoPara && semAlertaRecente(records.corp_notifs, task.id, (n) => n.tipo === "escalonamento_ci", [escalonadoPara]).length) {
-        pushNotif(task.id, [escalonadoPara], `🟣 ${task.ci || "CI"} com alertas seguidos sem interação${urg} — avalie um pedido de intervenção. Criada por ${nomeDe(task.origem)}; sem interação: ${nomes}: ${task.titulo || ""}`,
-          undefined, false, false, false, { tipo: "escalonamento_ci", ausentes });
+      pushAlertaCI(task, [task.origem], "sem_interacao_criador", `⏱ ${task.ci || "CI"} sem interação dos destinatários há ${minutos} min${urg} — sem interação: ${nomes}: ${task.titulo || ""}`,
+        { ausentes });
+      if (escalar && escalonadoPara) {
+        pushAlertaCI(task, [escalonadoPara], "escalonamento_ci", `🟣 ${task.ci || "CI"} com alertas seguidos sem interação${urg} — avalie um pedido de intervenção. Criada por ${nomeDe(task.origem)}; sem interação: ${nomes}: ${task.titulo || ""}`, { ausentes });
       }
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps

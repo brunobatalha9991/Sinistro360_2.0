@@ -155,7 +155,7 @@ export function NotifLista({ list, onAbrir }) {
           <div className="nt-sub">{n.text} • {w}</div>
           {isSemInteracao && (
             <SemInteracaoAcoes n={n} task={t} users={records.corp_users || []} currentUser={currentUser} actions={actions}
-              podeConsiderar={actions.podeConsiderarInteracao(currentUser)} rotuloBotao={isEscalonamento ? "Considerar" : null} />
+              podeConsiderar={!n.tratadaEm && actions.podeConsiderarInteracao(currentUser)} rotuloBotao={isEscalonamento ? "Considerar" : null} />
           )}
           {fb && !comentando && (
             <button type="button" className="btn sec xs" style={{ marginTop: 6 }}
@@ -169,7 +169,7 @@ export function NotifLista({ list, onAbrir }) {
           )}
           {/* "Ok" em toda notificação (a pedido do usuário): confirma a leitura e deixa o card opaco. */}
           {n.tratadaEm
-            ? <div className="nt-tratada">✓ Lida e confirmada em {fmtTratada(n.tratadaEm)}</div>
+            ? <div className="nt-tratada">{n.resolvidaMotivo ? `✓ Resolvida em ${fmtTratada(n.tratadaEm)}: ${n.resolvidaMotivo}` : `✓ Lida e confirmada em ${fmtTratada(n.tratadaEm)}`}</div>
             : <button type="button" className="btn sec xs nt-ok" onClick={(e) => { e.stopPropagation(); actions.marcarNotifTratada(n.id); }}>✓ Ok</button>}
         </div>
       </div>
