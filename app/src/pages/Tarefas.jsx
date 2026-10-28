@@ -80,6 +80,9 @@ function TaskCard({ t, claims, records, users, config, currentUser, navigate, ac
             {(t.flags || []).map((f) => <span key={f} className="badge amber">{f}</span>)}
             {stale && <span className="badge red">⚠ +2h sem interação</span>}
             {isAdmin(currentUser) && acompanhando && <span className="badge orange">👁 Acompanhando</span>}
+            {t.redirecionamentoPausa && t.redirecionamentoPausa.ativo && (
+              <span className="badge red" title="Redirecionada a todos os operadores pela pausa (almoço/café) de um destinatário — volta sozinha no fim da pausa">🚑 Redirecionada (pausa)</span>
+            )}
           </div>
           <div style={{ fontSize: 15, fontWeight: 600 }}>{t.titulo}</div>
           <div className="muted" style={{ fontSize: 12, marginTop: 2 }}>De {origem.nome} → {dests}</div>

@@ -9,6 +9,7 @@ import { NotificacaoObrigatoria } from "./NotificacaoObrigatoria.jsx";
 import { CondutaAlertaModal } from "./CondutaAlertaModal.jsx";
 import { IntervencaoAlertaModal } from "./IntervencaoAlertaModal.jsx";
 import { EscalonamentoAlertaModal } from "./EscalonamentoAlertaModal.jsx";
+import { PausaRedirecionamentoModal } from "./PausaRedirecionamentoModal.jsx";
 import { RoteiroWidget } from "./RoteiroWidget.jsx";
 import { ROLE_LABELS, userModulos, isAdmin } from "../data/auth";
 import { useData } from "../data/DataProvider.jsx";
@@ -30,6 +31,7 @@ export const MENU = [
   ["abertura", "Abertura", "abertura"],
   ["demandas", "Nova Demanda", "demandas"],
   ["tarefas", "Comunicação", "comunicacao"],
+  ["notificacoes", "Notificações", "notificacoes"],
   ["clientes", "Clientes", "clientes"],
   ["seguradoras", "Seguradoras", "seguradoras"],
   ["oficinas", "Oficinas", "oficinas"],
@@ -47,12 +49,14 @@ function visibleMenu(currentUser, currentRole) {
   // VIP passa direto pelas duas travas abaixo, mesmo com currentRole ainda
   // mostrando a função original (ex.: "Consulta") — ver isAdmin() em
   // data/auth.js.
+  // Notificações vale pra todo perfil (não depende de permissão de módulo,
+  // mesmo critério de resolveAllowedRoute).
   if (currentRole === "consulta" && !isAdmin(currentUser)) {
-    menu = menu.filter((m) => m[0] === "sinistros" || m[0] === "tarefas");
+    menu = menu.filter((m) => m[0] === "sinistros" || m[0] === "tarefas" || m[0] === "notificacoes");
   }
   if (currentUser && !isAdmin(currentUser)) {
     const perm = userModulos(currentUser);
-    menu = menu.filter((m) => perm.indexOf(m[0]) >= 0);
+    menu = menu.filter((m) => m[0] === "notificacoes" || perm.indexOf(m[0]) >= 0);
   }
   return menu;
 }
@@ -124,6 +128,9 @@ export function Shell({ route, param, crumb, currentUser, currentRole, onNavigat
               <a key={m[0]} className={cls} title={m[1]} onClick={() => handleNavigate(m[0])}>
                 <Icon name={m[2]} />
                 <span className="nav-label">{m[1]}</span>
+                {m[0] === "notificacoes" && notifUnread > 0 && (
+                  <span className="nav-count" title={`${notifUnread} não lida(s)`}>{notifUnread > 99 ? "99+" : notifUnread}</span>
+                )}
                 {m[0] === "sinistros" && atrasadosGlobal > 0 && currentRole !== "consulta" && (
                   <span className="nav-dot" title={`${atrasadosGlobal} processo(s) atrasado(s)`} />
                 )}
@@ -203,6 +210,7 @@ export function Shell({ route, param, crumb, currentUser, currentRole, onNavigat
       <CondutaAlertaModal currentUser={currentUser} />
       <IntervencaoAlertaModal currentUser={currentUser} />
       <EscalonamentoAlertaModal currentUser={currentUser} />
+      <PausaRedirecionamentoModal currentUser={currentUser} />
       <NotificacaoObrigatoria currentUser={currentUser} />
     </div>
   );

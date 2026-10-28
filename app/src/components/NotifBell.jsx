@@ -167,11 +167,10 @@ export function NotifLista({ list, onAbrir }) {
               <ComentariosFeedback feedback={fb} porId={porId} currentUser={currentUser} onComentar={agendaActions.comentarFeedback} autoFocus />
             </div>
           )}
-          {(isSemInteracao || fb) && (
-            n.tratadaEm
-              ? <div className="nt-tratada">✓ Tratada em {fmtTratada(n.tratadaEm)}</div>
-              : <button type="button" className="btn sec xs nt-ok" onClick={(e) => { e.stopPropagation(); actions.marcarNotifTratada(n.id); }}>✓ Ok</button>
-          )}
+          {/* "Ok" em toda notificação (a pedido do usuário): confirma a leitura e deixa o card opaco. */}
+          {n.tratadaEm
+            ? <div className="nt-tratada">✓ Lida e confirmada em {fmtTratada(n.tratadaEm)}</div>
+            : <button type="button" className="btn sec xs nt-ok" onClick={(e) => { e.stopPropagation(); actions.marcarNotifTratada(n.id); }}>✓ Ok</button>}
         </div>
       </div>
     );

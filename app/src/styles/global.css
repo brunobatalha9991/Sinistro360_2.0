@@ -328,6 +328,8 @@ h1,h2,h3,h4{font-family:var(--font-display);letter-spacing:-.01em;color:var(--in
 .sidebar nav a .icon svg{width:17px;height:17px;flex-shrink:0}
 .sidebar nav a:hover{background:rgba(255,255,255,.06);color:#fff;transform:translateX(2px)}
 .sidebar nav a.active{background:linear-gradient(135deg,rgba(var(--brand-rgb),.9),rgba(var(--brand2-rgb),.85));color:#fff;box-shadow:0 4px 14px rgba(var(--brand-rgb),.35)}
+.sidebar .nav-count{margin-left:auto;min-width:20px;height:18px;padding:0 6px;border-radius:99px;background:var(--danger);color:#fff;font-size:10.5px;font-weight:800;display:inline-flex;align-items:center;justify-content:center;flex-shrink:0}
+.sidebar.collapsed .nav-count{position:absolute;top:2px;right:2px;margin-left:0;min-width:16px;height:15px;font-size:9px;padding:0 4px}
 .sidebar .nav-dot{width:7px;height:7px;border-radius:50%;background:var(--danger);margin-left:auto;box-shadow:0 0 8px rgba(var(--danger-rgb),.85);animation:navDotPulse 1.8s ease-in-out infinite;flex-shrink:0}
 .sidebar .ver{padding:12px 20px 16px;font-size:10.5px;color:var(--muted-soft);border-top:1px solid var(--sidebar-border)}
 

@@ -136,6 +136,25 @@ export function useTasksActions() {
     }
   }
 
+  // "Ciente" da tela cheia de CI redirecionada pela pausa (logic/ciPausa.js)
+  // — também conta como o ciente normal da CI (interação do destinatário).
+  function cienteRedirecionamento(task, usuario) {
+    if (!usuario) return;
+    const at = new Date().toISOString();
+    saveRecord("corp_tasks", (current) => (current || []).map((t) => {
+      if (t.id !== task.id || !t.redirecionamentoPausa) return t;
+      return {
+        ...t,
+        ciente: { ...(t.ciente || {}), [usuario.id]: at },
+        redirecionamentoPausa: { ...t.redirecionamentoPausa, cientes: { ...(t.redirecionamentoPausa.cientes || {}), [usuario.id]: at } },
+        log: [...(t.log || []), { at, who: usuario.id, acao: `${usuario.nome} deu ciente no redirecionamento por pausa` }],
+      };
+    }));
+    saveRecord("corp_notifs", (current) => (current || []).map((n) => (
+      n.taskId === task.id && n.userId === usuario.id && n.tipo === "pausa_redirecionada" ? { ...n, read: true } : n
+    )));
+  }
+
   // Arquivamento manual — substitui o antigo botão "Remover" (a pedido do
   // usuário): nunca apaga a tarefa nem seu histórico, só marca como
   // arquivada com motivo obrigatório, registrado na auditoria interna.
@@ -302,7 +321,7 @@ export function useTasksActions() {
   }
 
   return {
-    pushNotif, saveTask, createTask, taskInteract, alternarAcompanhamento, considerarInteracao, podeConsiderarInteracao, avaliarEscalonamento, arquivarManualmente, excluirTarefa, definirOrdemManual,
+    pushNotif, saveTask, createTask, taskInteract, alternarAcompanhamento, considerarInteracao, podeConsiderarInteracao, avaliarEscalonamento, cienteRedirecionamento, arquivarManualmente, excluirTarefa, definirOrdemManual,
     markTaskCiente, markNotifRead, marcarNotifTratada, dismissAlarmeMesa, markAllNotifsRead, purgeOldTasks, gerarOcorrenciasRecorrentes,
     intervir, responderIntervencao,
   };

@@ -4,6 +4,7 @@ import { dataLocalISO, addDias } from "../logic/agenda";
 import { ausenciaCfg, generalizarPorAusencia, blindarAusenciaAdministrador, idAcesso, semInteracaoCfg, verificarSemInteracao, verificarAlertasCriador, arquivarConsideracoesVencidas } from "../logic/ciAutomacao";
 import { isAdmin } from "../data/auth";
 import { useTasksActions } from "./useTasksActions";
+import { processarPausasCI } from "../logic/ciPausa";
 
 // Registra o acesso do dia de quem está logado e, a partir do horário de
 // corte, generaliza as CIs de quem ainda não acessou; também avisa
@@ -108,6 +109,30 @@ export function useCiAusencia(currentUser) {
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [userId, prontos, agora, records.corp_tasks, config.corp_ci_sem_interacao]);
+
+  // CI emergencial (Assistência 24h / Carro Reserva) × pausa da agenda
+  // (almoço/café): redireciona a todos os operadores e devolve no fim da
+  // pausa (ver logic/ciPausa.js).
+  const agendaPronta = recordCarregado("corp_agenda") && recordCarregado("corp_agenda_feedback");
+  useEffect(() => {
+    if (!userId || !prontos || !agendaPronta) return;
+    let eventos = [];
+    saveRecord("corp_tasks", (cur) => {
+      const r = processarPausasCI(cur || [], records.corp_users || [], records.corp_agenda || [], records.corp_agenda_feedback || [], new Date());
+      eventos = r.eventos;
+      return r.tasks;
+    });
+    eventos.forEach((ev) => {
+      const tipo = ev.tipo === "redirecionada" ? "pausa_redirecionada" : "pausa_devolvida";
+      const alvos = semAlertaRecente(records.corp_notifs, ev.task.id, (n) => n.tipo === tipo, ev.alvos);
+      if (!alvos.length) return;
+      const texto = ev.tipo === "redirecionada"
+        ? `🚑 ${ev.task.ci || "CI"} redirecionada a todos (${ev.motivoTxt}) — atendimento emergencial: ${ev.task.titulo || ""}`
+        : `↩️ ${ev.task.ci || "CI"} devolvida aos destinatários originais (fim do ${ev.motivoTxt}): ${ev.task.titulo || ""}`;
+      pushNotif(ev.task.id, alvos, texto, undefined, ev.tipo === "redirecionada", false, false, { tipo });
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [userId, prontos, agendaPronta, agora, records.corp_tasks, records.corp_agenda, records.corp_agenda_feedback]);
 
   // Alerta repetido ao criador da CI + escalonamento (ver
   // verificarAlertasCriador em logic/ciAutomacao.js).
