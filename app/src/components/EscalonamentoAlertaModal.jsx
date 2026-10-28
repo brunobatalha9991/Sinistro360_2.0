@@ -25,7 +25,8 @@ function escalonamentosPendentes(notifs, tasks, userId) {
     if (n.userId !== userId || n.tipo !== "escalonamento_ci" || n.avaliadoEm) return;
     const t = (tasks || []).find((x) => x.id === n.taskId);
     if (!t || t.status === "Concluído" || t.arquivadoManualmente) return;
-    if (t.interacaoConsiderada && String(t.interacaoConsiderada.at) >= String(n.at)) return;
+    const consid = t.interacaoConsiderada || t.ultimaConsiderada;
+    if (consid && String(consid.at) >= String(n.at)) return;
     if ((t.intervencoes || []).some((iv) => iv.autorId === userId && String(iv.at) >= String(n.at))) return;
     if (!porTask[t.id] || String(n.at) > String(porTask[t.id].n.at)) porTask[t.id] = { n, task: t };
   });

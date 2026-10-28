@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { destinatariosAutomaticos, generalizarPorAusencia, usuariosAusentes, idAcesso, AUSENCIA_CFG_DEFAULT, AUTOR_SISTEMA, verificarSemInteracao, referenciaInteracao, SEM_INTERACAO_CFG_DEFAULT, minutosUteisEntre, interacaoConsideradaAtiva, verificarAlertasCriador, usuarioEscalonamentoId } from "./ciAutomacao";
+import { destinatariosAutomaticos, generalizarPorAusencia, usuariosAusentes, idAcesso, AUSENCIA_CFG_DEFAULT, AUTOR_SISTEMA, verificarSemInteracao, referenciaInteracao, SEM_INTERACAO_CFG_DEFAULT, minutosUteisEntre, interacaoConsideradaAtiva, verificarAlertasCriador, usuarioEscalonamentoId, arquivarConsideracoesVencidas } from "./ciAutomacao";
 
 const users = [
   { id: "adm", nome: "Admin", role: "admin" },
@@ -176,5 +176,44 @@ describe("convivência com a versão anterior (sem loop de alertas)", () => {
     expect(r.alertas).toHaveLength(1);
     expect(versaoAntiga(r.tasks[0])).toBeNull();
     expect(verificarSemInteracao(r.tasks, em(42), cfg).alertas).toHaveLength(0);
+  });
+});
+
+describe("três versões abertas ao mesmo tempo não entram em loop", () => {
+  const cfg = SEM_INTERACAO_CFG_DEFAULT;
+  const t0 = { id: "t", origem: "adm", destinatarios: ["luiz"], status: "Pendente", urgencia: "Leve", createdAt: "2026-10-28T12:00:00.000Z", comments: [], log: [], ciente: {}, interacaoConsiderada: { ate: "2026-10-28T12:30:00.000Z", at: "2026-10-28T12:20:00.000Z" } };
+  const em = (min) => new Date(Date.parse("2026-10-28T12:00:00.000Z") + min * 60000);
+  // Versão anterior à "interação considerada": só compara ref.
+  const antiga = (task) => {
+    const ref = referenciaInteracao(task);
+    return task.alertaSemInteracao && task.alertaSemInteracao.ref === ref ? null : { ...task, alertaSemInteracao: { ref } };
+  };
+  // Versão com o bug (fd80bcd–58eb229): chave "ref|fim" lida de interacaoConsiderada.
+  const comBug = (task) => {
+    const ref = referenciaInteracao(task);
+    const c = task.interacaoConsiderada && String(task.interacaoConsiderada.ate) > ref ? String(task.interacaoConsiderada.ate) : "";
+    const chave = c ? ref + "|" + c : ref;
+    return task.alertaSemInteracao && task.alertaSemInteracao.ref === chave ? null : { ...task, alertaSemInteracao: { ref: chave } };
+  };
+  const atual = (task, agora) => {
+    const r = verificarSemInteracao(arquivarConsideracoesVencidas([task], agora), agora, cfg);
+    return r.alertas.length ? r.tasks[0] : null;
+  };
+  it("depois do prazo considerado, no máximo um alerta por versão e depois silêncio", () => {
+    let task = arquivarConsideracoesVencidas([t0], em(40))[0];
+    expect(task.interacaoConsiderada).toBeUndefined();
+    expect(task.ultimaConsiderada.ate).toBe("2026-10-28T12:30:00.000Z");
+    let alertas = 0;
+    for (let rodada = 0; rodada < 20; rodada++) {
+      for (const versao of [antiga, comBug, (x) => atual(x, em(40 + rodada))]) {
+        const r = versao(task);
+        if (r) { alertas++; task = r; }
+      }
+    }
+    expect(alertas).toBeLessThanOrEqual(2);
+  });
+  it("arquivarConsideracoesVencidas não mexe em período ativo e devolve a mesma lista sem mudança", () => {
+    const lista = [t0];
+    expect(arquivarConsideracoesVencidas(lista, em(10))).toBe(lista);
   });
 });

@@ -73,7 +73,12 @@ export function useDesempenhoMonitor(currentUser) {
           });
           return mudou ? next : base;
         });
+        const limiteAviso = Date.now() - 10 * 60 * 1000;
+        const avisadosRecentes = new Set((rec.corp_notifs || [])
+          .filter((nt) => nt.tipo === "desempenho_mudanca" && new Date(nt.at).getTime() > limiteAviso)
+          .map((nt) => nt.alvoId));
         avisos.forEach(({ u, mudancas }) => {
+          if (avisadosRecentes.has(u.id)) return;
           pushNotif("__desempenho__", gestores.filter((g) => g !== u.id), `📊 ${u.nome}: ${mudancas.join(" • ")}`,
             undefined, false, false, false, { tipo: "desempenho_mudanca", alvoId: u.id });
         });
@@ -113,7 +118,8 @@ export function useDesempenhoMonitor(currentUser) {
       };
       return next;
     });
-    if (enviar && texto) {
+    const jaAvisado = (rec.corp_notifs || []).some((nt) => nt.tipo === "desempenho_fechamento" && nt.data === pendente);
+    if (enviar && texto && !jaAvisado) {
       pushNotif("__desempenho__", gestores, `📋 ${texto}`, undefined, false, false, false, { tipo: "desempenho_fechamento", data: pendente });
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps

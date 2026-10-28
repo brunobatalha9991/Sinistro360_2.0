@@ -298,6 +298,23 @@ export function verificarAlertasCriador(tasks, users, agora, cfg) {
   return { tasks: alertas.length ? next : tasks, alertas };
 }
 
+// Período de "interação considerada" vencido sai de `interacaoConsiderada`
+// e vai pra `ultimaConsiderada`. Motivo (correção do loop de 28/10): abas
+// abertas em versões anteriores ainda leem `interacaoConsiderada` com uma
+// regra de "já avisei" diferente da atual — com o campo vazio depois do
+// prazo, todas as versões calculam a mesma coisa e ninguém desmente
+// ninguém. Devolve a mesma lista quando não há nada vencido.
+export function arquivarConsideracoesVencidas(tasks, agora) {
+  let mudou = false;
+  const next = (tasks || []).map((t) => {
+    if (!t || !t.interacaoConsiderada || interacaoConsideradaAtiva(t, agora)) return t;
+    mudou = true;
+    const { interacaoConsiderada, ...resto } = t;
+    return { ...resto, ultimaConsiderada: interacaoConsiderada };
+  });
+  return mudou ? next : tasks;
+}
+
 export function limiteSemInteracaoMin(t, cfg) {
   return t.urgencia === "Urgente" ? Number(cfg.minutosUrgente) || 5 : Number(cfg.minutos) || 10;
 }
@@ -316,7 +333,8 @@ export function verificarSemInteracao(tasks, agora, cfg) {
     const refMs = new Date(ref).getTime();
     // Um período de "interação considerada" já vencido sem nova interação
     // conta como um novo silêncio: alerta de novo.
-    const consid = t.interacaoConsiderada && String(t.interacaoConsiderada.ate) > ref ? String(t.interacaoConsiderada.ate) : "";
+    const fimConsid = (t.interacaoConsiderada || t.ultimaConsiderada || {}).ate;
+    const consid = fimConsid && String(fimConsid) > ref ? String(fimConsid) : "";
     // Compatibilidade com a versão anterior (abas sem F5): `ref` continua
     // sendo só o instante da última interação — a versão antiga compara
     // exatamente esse campo; o período considerado vai em `consid`. Antes,

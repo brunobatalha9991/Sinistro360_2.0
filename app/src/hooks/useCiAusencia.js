@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { useData } from "../data/DataProvider.jsx";
 import { dataLocalISO, addDias } from "../logic/agenda";
-import { ausenciaCfg, generalizarPorAusencia, idAcesso, semInteracaoCfg, verificarSemInteracao, verificarAlertasCriador } from "../logic/ciAutomacao";
+import { ausenciaCfg, generalizarPorAusencia, idAcesso, semInteracaoCfg, verificarSemInteracao, verificarAlertasCriador, arquivarConsideracoesVencidas } from "../logic/ciAutomacao";
 import { isAdmin } from "../data/auth";
 import { useTasksActions } from "./useTasksActions";
 
@@ -90,9 +90,10 @@ export function useCiAusencia(currentUser) {
     if (!cfg.ativo) return;
     let alertas = [];
     saveRecord("corp_tasks", (cur) => {
-      const r = verificarSemInteracao(cur || [], new Date(), cfg);
+      const agoraD = new Date();
+      const r = verificarSemInteracao(arquivarConsideracoesVencidas(cur || [], agoraD), agoraD, cfg);
       alertas = r.alertas;
-      return r.tasks;
+      return r.alertas.length ? r.tasks : arquivarConsideracoesVencidas(cur || [], agoraD);
     });
     if (!alertas.length) return;
     const gestores = (users || []).filter(isAdmin).map((u) => u.id);
