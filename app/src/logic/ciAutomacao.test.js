@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { destinatariosAutomaticos, generalizarPorAusencia, usuariosAusentes, idAcesso, AUSENCIA_CFG_DEFAULT, AUTOR_SISTEMA, verificarSemInteracao, referenciaInteracao, SEM_INTERACAO_CFG_DEFAULT, minutosUteisEntre, interacaoConsideradaAtiva, verificarAlertasCriador, usuarioEscalonamentoId, arquivarConsideracoesVencidas } from "./ciAutomacao";
+import { destinatariosAutomaticos, generalizarPorAusencia, blindarAusenciaAdministrador, usuariosAusentes, idAcesso, AUSENCIA_CFG_DEFAULT, AUTOR_SISTEMA, verificarSemInteracao, referenciaInteracao, SEM_INTERACAO_CFG_DEFAULT, minutosUteisEntre, interacaoConsideradaAtiva, verificarAlertasCriador, usuarioEscalonamentoId, arquivarConsideracoesVencidas } from "./ciAutomacao";
 
 const users = [
   { id: "adm", nome: "Admin", role: "admin" },
@@ -39,6 +39,20 @@ describe("generalização por ausência", () => {
   });
   it("consulta nunca conta como ausente", () => {
     expect(usuariosAusentes(users, acessos, qua0931, cfg).map((u) => u.id)).toEqual(["luiz"]);
+  });
+  it("usuário chamado Administrador conta como administrador, seja qual for o perfil", () => {
+    const us = [...users, { id: "adm2", nome: "Administrador", role: "analista", vip: true }];
+    expect(usuariosAusentes(us, { [idAcesso("ana", "2026-10-28")]: {} }, qua0931, cfg).map((u) => u.id)).toEqual(["luiz"]);
+  });
+  it("vacina contra versão antiga: marca o administrador destinatário como já tratado", () => {
+    const t = tarefa({ destinatarios: ["adm", "luiz"] });
+    const r = blindarAusenciaAdministrador([t], users, qua0931);
+    expect(r[0].generalizadaAusencia.adm).toBe("ignorado-admin");
+    expect(r[0].destinatarios).toEqual(["adm", "luiz"]);
+    expect(blindarAusenciaAdministrador(r, users, qua0931)).toBe(r);
+    // Regra da versão antiga: só generaliza por quem NÃO está em generalizadaAusencia.
+    const motivosAntiga = ["adm"].filter((id) => r[0].destinatarios.includes(id) && !(r[0].generalizadaAusencia || {})[id]);
+    expect(motivosAntiga).toEqual([]);
   });
   it("administrador não conta como ausente nem entra na generalização", () => {
     const soAna = { [idAcesso("ana", "2026-10-28")]: {} };

@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { useData } from "../data/DataProvider.jsx";
 import { dataLocalISO, addDias } from "../logic/agenda";
-import { ausenciaCfg, generalizarPorAusencia, idAcesso, semInteracaoCfg, verificarSemInteracao, verificarAlertasCriador, arquivarConsideracoesVencidas } from "../logic/ciAutomacao";
+import { ausenciaCfg, generalizarPorAusencia, blindarAusenciaAdministrador, idAcesso, semInteracaoCfg, verificarSemInteracao, verificarAlertasCriador, arquivarConsideracoesVencidas } from "../logic/ciAutomacao";
 import { isAdmin } from "../data/auth";
 import { useTasksActions } from "./useTasksActions";
 
@@ -70,9 +70,10 @@ export function useCiAusencia(currentUser) {
     const acessosEfetivos = { ...acessos, [idAcesso(userId, hoje)]: acessos[idAcesso(userId, hoje)] || { userId, data: hoje } };
     let mudancas = [];
     saveRecord("corp_tasks", (cur) => {
-      const r = generalizarPorAusencia(cur || [], records.corp_users || [], acessosEfetivos, new Date(), cfg);
+      const blindadas = blindarAusenciaAdministrador(cur || [], records.corp_users || [], new Date());
+      const r = generalizarPorAusencia(blindadas, records.corp_users || [], acessosEfetivos, new Date(), cfg);
       mudancas = r.mudancas;
-      return r.mudancas.length ? r.tasks : cur;
+      return r.mudancas.length ? r.tasks : blindadas === (cur || []) ? cur : blindadas;
     });
     mudancas.forEach(({ task, ausentes }) => {
       const nomes = ausentes.map((u) => u.nome).join(", ");

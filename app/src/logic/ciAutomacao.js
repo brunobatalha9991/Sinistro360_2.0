@@ -76,8 +76,39 @@ function criadaNoDia(t, data) {
 // (a pedido do usuário, o Administrador não conta como ausente nem é
 // incluído quando a CI é generalizada). VIP segue contando — continua com
 // a função de Atendente/Analista.
+function nomeNormalizado(u) {
+  return String((u && u.nome) || "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().trim();
+}
+// Administrador = perfil "admin" OU usuário chamado "Administrador" (conta
+// genérica do sistema), seja qual for o perfil cadastrado.
+export function ehUsuarioAdministrador(u) {
+  return !!u && (u.role === "admin" || nomeNormalizado(u) === "administrador");
+}
 function ehOperador(u) {
-  return !!u && u.role !== "consulta" && u.role !== "admin";
+  return !!u && u.role !== "consulta" && !ehUsuarioAdministrador(u);
+}
+
+// "Vacina" contra versões antigas abertas (abas sem F5): elas ainda contam
+// o Administrador como ausente, mas pulam quem já está marcado em
+// `generalizadaAusencia`. Marca os Administradores destinatários das CIs
+// abertas de hoje — sem comentário e sem mexer nos destinatários. Devolve
+// a mesma lista quando não há nada a marcar.
+export function blindarAusenciaAdministrador(tasks, users, agora) {
+  const admins = (users || []).filter(ehUsuarioAdministrador).map((u) => u.id);
+  if (!admins.length) return tasks;
+  const hoje = dataLocalISO(agora);
+  let mudou = false;
+  const next = (tasks || []).map((t) => {
+    if (!t || t.status === "Concluído" || t.arquivadoManualmente || !criadaNoDia(t, hoje)) return t;
+    const ja = t.generalizadaAusencia || {};
+    const faltam = admins.filter((id) => (t.destinatarios || []).includes(id) && !ja[id]);
+    if (!faltam.length) return t;
+    mudou = true;
+    const gen = { ...ja };
+    faltam.forEach((id) => { gen[id] = "ignorado-admin"; });
+    return { ...t, generalizadaAusencia: gen };
+  });
+  return mudou ? next : tasks;
 }
 
 // Operadores sem acesso registrado hoje, se já passou do horário de corte.
@@ -224,7 +255,7 @@ export function interacaoConsideradaAtiva(t, agora) {
 //    "Considerar" dele (interacaoConsiderada) segura os alertas até o
 //    horário escolhido; a contagem volta a correr a partir dali.
 export function destinatariosOperadoresCI(t, users) {
-  const admins = new Set((users || []).filter((u) => u && u.role === "admin").map((u) => u.id));
+  const admins = new Set((users || []).filter(ehUsuarioAdministrador).map((u) => u.id));
   return (t.destinatarios || []).filter((id) => id && id !== t.origem && !admins.has(id));
 }
 

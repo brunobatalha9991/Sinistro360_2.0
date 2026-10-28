@@ -2,7 +2,7 @@ import { useState } from "react";
 import { createPortal } from "react-dom";
 import { useData } from "../data/DataProvider.jsx";
 import { useTasksActions } from "../hooks/useTasksActions";
-import { ultimaInteracaoPorDestinatario, AUTOR_SISTEMA } from "../logic/ciAutomacao";
+import { ultimaInteracaoPorDestinatario, AUTOR_SISTEMA, ehUsuarioAdministrador } from "../logic/ciAutomacao";
 
 // Pedido de intervenção (escalonamento da CI sem interação — ver
 // verificarAlertasCriador em logic/ciAutomacao.js). A pedido do usuário:
@@ -82,7 +82,7 @@ function TelaEscalonamento({ task, n, users, claims, restantes, onIntervir, onCo
   const nomeDe = (id) => (users.find((u) => u.id === id) || { nome: "?" }).nome;
   const ausentes = ultimaInteracaoPorDestinatario(task).filter((d) => {
     const u = users.find((x) => x.id === d.userId);
-    return !u || u.role !== "admin";
+    return !u || !ehUsuarioAdministrador(u);
   });
   const textoOk = texto.trim().length >= MIN_CHARS;
   const minutos = Math.round(Number(String(qtd).replace(",", ".")) * ((UNIDADES.find((u) => u[0] === unidade) || UNIDADES[0])[2]));
