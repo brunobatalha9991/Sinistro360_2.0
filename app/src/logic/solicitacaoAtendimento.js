@@ -18,6 +18,7 @@ export const TIPOS_ATENDIMENTO = [
   ["sinistro", "Sinistro"],
   ["assistencia_24h", "Assistência 24h"],
   ["assistencia_vidros", "Assistência de Vidros e Pequenos Reparos"],
+  ["carro_reserva", "Carro Reserva"],
 ];
 
 export const TIPOS_CAMPO = [
@@ -149,6 +150,44 @@ export const FORMULARIOS_SOLICITACAO = {
       { id: "observacoes_assistencia", secao: "Detalhamento do Sinistro / Reparo", label: "Observações (Assistência)", tipo: "textarea", obrigatorio: false },
     ],
   },
+
+  // Carro Reserva (a pedido do usuário) — o que a seguradora/locadora pede
+  // para liberar o veículo: motivo, cobertura da apólice, retirada e o
+  // condutor (CNH e cartão de crédito para caução são exigidos pelas
+  // locadoras). Editável em Configurações como os demais formulários.
+  carro_reserva: {
+    titulo: "Atendimento — Carro Reserva (Interno)",
+    campos: [
+      // Seção 1: Dados do Solicitante e Motivo
+      { id: "comercial_solicitante", secao: "Dados do Solicitante e Motivo", label: "Nome do Comercial Solicitante", tipo: "texto", obrigatorio: true },
+      { id: "nome_segurado", secao: "Dados do Solicitante e Motivo", label: "Nome do Segurado", tipo: "texto", obrigatorio: true },
+      { id: "contato_segurado", secao: "Dados do Solicitante e Motivo", label: "Contato do Segurado / Representante", tipo: "texto", obrigatorio: true },
+      { id: "motivo_carro_reserva", secao: "Dados do Solicitante e Motivo", label: "Motivo da Solicitação", tipo: "select", obrigatorio: true, opcoes: ["Sinistro — Veículo em Reparo", "Roubo / Furto", "Perda Total / Indenização Integral", "Pane / Assistência", "Outro"] },
+      { id: "numero_sinistro", secao: "Dados do Solicitante e Motivo", label: "Número do Sinistro / Aviso na Seguradora", tipo: "texto", obrigatorio: false },
+      { id: "seguradora", secao: "Dados do Solicitante e Motivo", label: "Seguradora", tipo: "texto", obrigatorio: false },
+      { id: "apolice_frota", secao: "Dados do Solicitante e Motivo", label: 'Se a apólice do segurado for modalidade "Frota", descreva o número da apólice, placa e nº do item', tipo: "texto", obrigatorio: false },
+      { id: "placa_veiculo_segurado", secao: "Dados do Solicitante e Motivo", label: "Placa do Veículo Segurado", tipo: "texto", obrigatorio: false },
+      { id: "oficina_veiculo", secao: "Dados do Solicitante e Motivo", label: "Oficina onde o Veículo Segurado está", tipo: "texto", obrigatorio: false },
+      // Seção 2: Cobertura e Retirada
+      { id: "diarias_contratadas", secao: "Cobertura e Retirada", label: "Diárias Contratadas na Apólice", tipo: "select", obrigatorio: false, opcoes: ["7 diárias", "15 diárias", "30 diárias", "Ilimitado (até o reparo)", "Não sei / conferir na apólice", "Outro"] },
+      { id: "categoria_veiculo", secao: "Cobertura e Retirada", label: "Categoria do Carro Reserva", tipo: "select", obrigatorio: false, opcoes: ["Básico", "Intermediário", "Executivo / Similar ao segurado", "Utilitário", "Conforme apólice", "Outro"] },
+      { id: "cambio", secao: "Cobertura e Retirada", label: "Câmbio", tipo: "select", obrigatorio: false, opcoes: ["Manual", "Automático", "Indiferente"] },
+      { id: "locadora_preferencia", secao: "Cobertura e Retirada", label: "Locadora de Preferência (se houver)", tipo: "texto", obrigatorio: false },
+      { id: "cidade_estado_retirada", secao: "Cobertura e Retirada", label: "Cidade e Estado da Retirada", tipo: "texto", obrigatorio: true },
+      { id: "endereco_retirada", secao: "Cobertura e Retirada", label: "Loja / Endereço de Retirada Desejado", tipo: "texto", obrigatorio: false, ajuda: "Bairro ou ponto de referência ajudam a escolher a loja mais próxima." },
+      { id: "data_hora_retirada", secao: "Cobertura e Retirada", label: "Data e Hora Desejada para Retirada", tipo: "datahora", obrigatorio: false },
+      { id: "previsao_devolucao", secao: "Cobertura e Retirada", label: "Previsão de Devolução", tipo: "datahora", obrigatorio: false, ajuda: "Normalmente a previsão de entrega do veículo pela oficina." },
+      // Seção 3: Condutor
+      { id: "nome_condutor", secao: "Condutor", label: "Nome do Condutor Principal", tipo: "texto", obrigatorio: true },
+      { id: "cpf_condutor", secao: "Condutor", label: "CPF do Condutor", tipo: "texto", obrigatorio: false },
+      { id: "condutor_e_segurado", secao: "Condutor", label: "O condutor é o próprio segurado?", tipo: "select", obrigatorio: false, opcoes: OP_SIM_NAO },
+      { id: "cnh_valida", secao: "Condutor", label: "CNH válida há mais de 2 anos?", tipo: "select", obrigatorio: false, opcoes: OP_SIM_NAO_OUTRO, ajuda: "A maioria das locadoras exige CNH definitiva com pelo menos 2 anos." },
+      { id: "cartao_credito_caucao", secao: "Condutor", label: "Possui cartão de crédito em nome do condutor para a caução?", tipo: "select", obrigatorio: false, opcoes: OP_SIM_NAO_OUTRO },
+      { id: "upload_cnh", secao: "Condutor", label: "CNH do Condutor", tipo: "arquivo", obrigatorio: false, maxArquivos: 2, maxTamanhoMb: 10 },
+      { id: "outros_anexos_carro_reserva", secao: "Condutor", label: "Outros Anexos", tipo: "arquivo", obrigatorio: false, maxArquivos: 10, maxTamanhoMb: 100, ajuda: "Aviso de sinistro, autorização da seguradora, comprovantes." },
+      { id: "observacoes_carro_reserva", secao: "Condutor", label: "Observações (Carro Reserva)", tipo: "textarea", obrigatorio: false },
+    ],
+  },
 };
 
 // Resolve o formulário que vale de verdade: personalização do admin
@@ -185,6 +224,7 @@ const LABEL_TIPO_ATENDIMENTO = {
   sinistro: "Sinistro",
   assistencia_24h: "Assistencia 24h",
   assistencia_vidros: "Assistencia Vidros e Pequenos Reparos",
+  carro_reserva: "Carro Reserva",
 };
 
 // Caminho de pasta organizado dentro do Drive: Tipo de Atendimento / Data +

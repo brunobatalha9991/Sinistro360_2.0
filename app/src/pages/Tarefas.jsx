@@ -31,6 +31,7 @@ const URG_CHIPS = [["todas", "Toda urgência"], ["Urgente", "Urgente"], ["Modera
 const ATENDIMENTO_CHIPS = [
   ["todas", "Atendimento: todos"], ["sinistro", "Sinistro"],
   ["assistencia_24h", "Assistência 24h"], ["assistencia_vidros", "Vidros/pequenos reparos"],
+  ["carro_reserva", "Carro Reserva"],
 ];
 const PAPEL_CHIPS = [["ambos", "Origem/Destinatário"], ["origem", "Só origem"], ["destinatario", "Só destinatário"]];
 const DEFAULT_TASK_TYPES = ["Comunicação", "Lembrete", "Tarefa", "Mesa de Atendimento"];
@@ -66,6 +67,7 @@ function TaskCard({ t, claims, records, users, config, currentUser, navigate, ac
             {t.tipoAtendimento === "sinistro" && <span className="badge blue">Sinistro</span>}
             {t.tipoAtendimento === "assistencia_24h" && <span className="badge purple">Assistência 24h</span>}
             {t.tipoAtendimento === "assistencia_vidros" && <span className="badge purple">Vidros/pequenos reparos</span>}
+            {t.tipoAtendimento === "carro_reserva" && <span className="badge purple">🚗 Carro Reserva</span>}
             {t.tipo === "Mesa de Atendimento" && (() => {
               const p = checklistProgresso(t.checklistMesa, config);
               return <span className={"badge " + (p.total && p.feitos === p.total ? "green" : "amber")}>Checklist {p.feitos}/{p.total}</span>;

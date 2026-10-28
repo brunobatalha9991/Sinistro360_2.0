@@ -5,7 +5,7 @@
 // métricas. CIs concluídas são apagadas de vez depois de 15 dias
 // (purgeOldTasks); antes disso o resumo vai para corp_ci_historico, então
 // os indicadores de períodos longos continuam completos.
-import { AUTOR_SISTEMA, semInteracaoCfg, limiteSemInteracaoMin } from "./ciAutomacao";
+import { AUTOR_SISTEMA, semInteracaoCfg, limiteSemInteracaoMin, minutosUteisEntre } from "./ciAutomacao";
 import { DIAS_PARA_ARQUIVAR } from "./tasks";
 
 function minISO(a, b) { return !a ? b : !b ? a : (String(a) < String(b) ? a : b); }
@@ -108,16 +108,17 @@ export function metricasCIUsuario({ cis, notifs, userId, deISO, ateISO, config, 
     if (eu && eu.ciente) cientes++;
     const limite = limiteSemInteracaoMin(c, cfg);
     const primeira = eu && eu.primeira;
+    // Tempo até a 1ª interação e prazo contam só o horário comercial
+    // (mesma regra do alerta de CI sem interação).
     if (primeira) {
-      const m = diffMin(c.createdAt, primeira);
+      const m = String(primeira) >= String(c.createdAt) ? minutosUteisEntre(c.createdAt, primeira, cfg) : null;
       if (m != null && m >= 0) {
         temposPrimeira.push(m);
         if (m <= limite) noPrazo++; else foraPrazo++;
       }
     } else {
       semInteracao++;
-      const decorrido = diffMin(c.createdAt, agora.toISOString());
-      if (decorrido != null && decorrido > limite) foraPrazo++;
+      if (minutosUteisEntre(c.createdAt, agora, cfg) > limite) foraPrazo++;
     }
   });
 

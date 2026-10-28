@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { destinatariosAutomaticos, generalizarPorAusencia, usuariosAusentes, idAcesso, AUSENCIA_CFG_DEFAULT, AUTOR_SISTEMA, verificarSemInteracao, referenciaInteracao, SEM_INTERACAO_CFG_DEFAULT } from "./ciAutomacao";
+import { destinatariosAutomaticos, generalizarPorAusencia, usuariosAusentes, idAcesso, AUSENCIA_CFG_DEFAULT, AUTOR_SISTEMA, verificarSemInteracao, referenciaInteracao, SEM_INTERACAO_CFG_DEFAULT, minutosUteisEntre } from "./ciAutomacao";
 
 const users = [
   { id: "adm", nome: "Admin", role: "admin" },
@@ -89,6 +89,23 @@ describe("CI sem interação dos destinatários", () => {
   it("ignora concluída, sem destinatário além da origem e silêncio de mais de 24h", () => {
     expect(verificarSemInteracao([t({ status: "Concluído" })], em(60), cfg).alertas).toHaveLength(0);
     expect(verificarSemInteracao([t({ destinatarios: ["adm"] })], em(60), cfg).alertas).toHaveLength(0);
-    expect(verificarSemInteracao([t()], em(25 * 60), cfg).alertas).toHaveLength(0);
+    expect(verificarSemInteracao([t()], em(5 * 24 * 60), cfg).alertas).toHaveLength(0);
+  });
+  it("só conta o horário comercial (08:30–18:00, seg–sex)", () => {
+    const local = (d, h, m) => new Date(2026, 9, d, h, m);
+    // criada quarta 28/10 às 04:00: às 04:09 e 08:35 ainda não estourou; às 08:41 sim
+    const madrugada = t({ createdAt: local(28, 4, 0).toISOString() });
+    expect(verificarSemInteracao([madrugada], local(28, 4, 9), cfg).alertas).toHaveLength(0);
+    expect(verificarSemInteracao([madrugada], local(28, 8, 35), cfg).alertas).toHaveLength(0);
+    expect(verificarSemInteracao([madrugada], local(28, 8, 41), cfg).alertas).toHaveLength(1);
+    // sexta 30/10 às 17:55 -> estoura segunda 02/11 às 08:35, não no fim de semana
+    const sexta = t({ createdAt: local(30, 17, 55).toISOString() });
+    expect(verificarSemInteracao([sexta], new Date(2026, 9, 31, 12, 0), cfg).alertas).toHaveLength(0);
+    expect(verificarSemInteracao([sexta], new Date(2026, 10, 2, 8, 34), cfg).alertas).toHaveLength(0);
+    expect(verificarSemInteracao([sexta], new Date(2026, 10, 2, 8, 36), cfg).alertas).toHaveLength(1);
+  });
+  it("minutosUteisEntre", () => {
+    expect(minutosUteisEntre(new Date(2026, 9, 28, 17, 0), new Date(2026, 9, 29, 9, 0), cfg)).toBe(60 + 30);
+    expect(minutosUteisEntre(new Date(2026, 9, 31, 9, 0), new Date(2026, 10, 1, 17, 0), cfg)).toBe(0);
   });
 });

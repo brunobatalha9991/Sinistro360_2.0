@@ -30,7 +30,7 @@ export function CIDesempenhoCard({ m, periodoLabel, onVerCIs }) {
         {onVerCIs && <button className="btn ghost xs" onClick={onVerCIs}>Abrir Comunicação</button>}
       </div>
       <p className="muted" style={{ marginTop: 4, marginBottom: 0, fontSize: 12 }}>
-        CIs criadas no período em que este usuário é destinatário (as que ele mesmo criou ficam em "Como origem"). "Situação agora" independe do período. Prazo de primeira interação: o mesmo do alerta de CI sem interação (Configurações).
+        CIs criadas no período em que este usuário é destinatário (as que ele mesmo criou ficam em "Como origem"). "Situação agora" independe do período. Prazo e tempo até a 1ª interação contam só o horário comercial, como o alerta de CI sem interação (Configurações).
       </p>
 
       <Grupo titulo="Volume">

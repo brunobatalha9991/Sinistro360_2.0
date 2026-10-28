@@ -130,8 +130,38 @@ export function generalizarPorAusencia(tasks, users, acessos, agora, cfg) {
 //    interage e depois volta a ficar parado, alerta de novo. Só olha
 //    silêncios iniciados nas últimas 24h, pra não disparar de uma vez por
 //    CIs antigas esquecidas.
-export const SEM_INTERACAO_CFG_DEFAULT = { ativo: true, minutos: 10, minutosUrgente: 5 };
-const JANELA_SEM_INTERACAO_MS = 24 * 60 * 60 * 1000;
+// O prazo só corre no horário comercial (a pedido do usuário: fora dele "é
+// óbvio que não vai ter interação") — CI aberta às 17:55 de sexta estoura
+// os 10 min às 08:35 de segunda. Ver minutosUteisEntre.
+export const SEM_INTERACAO_CFG_DEFAULT = { ativo: true, minutos: 10, minutosUrgente: 5, horarioInicio: "08:30", horarioFim: "18:00", soDiasUteis: true };
+// Silêncios mais antigos que isso não alertam (evita disparar de uma vez por
+// CIs antigas esquecidas). Em dias corridos, pra cobrir fim de semana.
+const JANELA_SEM_INTERACAO_MS = 4 * 24 * 60 * 60 * 1000;
+
+// Minutos de horário comercial entre dois instantes (hora local).
+export function minutosUteisEntre(inicio, fim, cfg) {
+  const a = new Date(inicio).getTime();
+  const b = new Date(fim).getTime();
+  if (isNaN(a) || isNaN(b) || b <= a) return 0;
+  const ini = hhmmToMin((cfg && cfg.horarioInicio) || "08:30");
+  const fimDia = hhmmToMin((cfg && cfg.horarioFim) || "18:00");
+  const soUteis = !cfg || cfg.soDiasUteis !== false;
+  let total = 0;
+  const dia = new Date(a);
+  dia.setHours(0, 0, 0, 0);
+  for (let n = 0; dia.getTime() <= b && n < 400; n++) {
+    const w = dia.getDay();
+    if (!soUteis || (w !== 0 && w !== 6)) {
+      const jIni = new Date(dia); jIni.setHours(0, ini, 0, 0);
+      const jFim = new Date(dia); jFim.setHours(0, fimDia, 0, 0);
+      const de = Math.max(a, jIni.getTime());
+      const ate = Math.min(b, jFim.getTime());
+      if (ate > de) total += (ate - de) / 60000;
+    }
+    dia.setDate(dia.getDate() + 1);
+  }
+  return total;
+}
 
 export function semInteracaoCfg(config) {
   return { ...SEM_INTERACAO_CFG_DEFAULT, ...((config && config.corp_ci_sem_interacao) || {}) };
@@ -166,7 +196,7 @@ export function verificarSemInteracao(tasks, agora, cfg) {
     const refMs = new Date(ref).getTime();
     if (isNaN(refMs) || t0 - refMs > JANELA_SEM_INTERACAO_MS) return t;
     const minutos = limiteSemInteracaoMin(t, cfg);
-    if (t0 - refMs < minutos * 60000) return t;
+    if (minutosUteisEntre(refMs, t0, cfg) < minutos) return t;
     if (t.alertaSemInteracao && t.alertaSemInteracao.ref === ref) return t;
     const atualizada = { ...t, alertaSemInteracao: { ref, at: agora.toISOString(), minutos } };
     alertas.push({ task: atualizada, minutos });

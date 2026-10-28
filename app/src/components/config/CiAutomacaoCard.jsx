@@ -43,6 +43,7 @@ export function CiAutomacaoCard({ config, saveConfig, users, canEdit }) {
     if (vazia) { alert(`A regra de "${vazia.tipo}" está sem nenhum usuário marcado. Marque ao menos um ou remova a regra.`); return; }
     if (!/^\d{2}:\d{2}$/.test(aus.horario || "")) { alert("Informe o horário de corte no formato HH:MM."); return; }
     if (!(Number(semInt.minutos) >= 1) || !(Number(semInt.minutosUrgente) >= 1)) { alert("Informe os minutos do alerta de CI sem interação (1 ou mais)."); return; }
+    if (!semInt.horarioInicio || !semInt.horarioFim || semInt.horarioInicio >= semInt.horarioFim) { alert("O início do horário comercial precisa ser antes do fim."); return; }
     saveConfig("corp_ci_dest_auto", regras.map((r) => ({
       ...r,
       tipoAtendimento: r.tipo === "Mesa de Atendimento" ? (r.tipoAtendimento || "") : "",
@@ -117,7 +118,7 @@ export function CiAutomacaoCard({ config, saveConfig, users, canEdit }) {
 
       <h3 style={{ marginTop: 22 }}>Alerta de CI sem interação</h3>
       <p className="muted">
-        CI aberta em que nenhum destinatário interagiu (ciente, comentário ou alteração) dentro do prazo gera notificação para Administradores e VIPs — uma vez por período parado; se alguém interagir e a CI voltar a ficar parada, avisa de novo.
+        CI aberta em que nenhum destinatário interagiu (ciente, comentário ou alteração) dentro do prazo gera notificação para Administradores e VIPs — uma vez por período parado; se alguém interagir e a CI voltar a ficar parada, avisa de novo. O prazo só corre dentro do horário comercial: uma CI aberta à noite começa a contar na abertura do expediente seguinte.
       </p>
       <div style={{ display: "flex", gap: 10, flexWrap: "wrap", alignItems: "center" }}>
         <div className={"chip-btn" + (semInt.ativo ? " active" : "")} onClick={() => { setSemInt((a) => ({ ...a, ativo: !a.ativo })); setStatus(null); }}>
@@ -131,6 +132,15 @@ export function CiAutomacaoCard({ config, saveConfig, users, canEdit }) {
           Se Urgente (min)
           <input type="number" min={1} style={{ width: 80 }} value={semInt.minutosUrgente} onChange={(e) => { setSemInt((a) => ({ ...a, minutosUrgente: e.target.value })); setStatus(null); }} />
         </label>
+        <label style={{ display: "flex", alignItems: "center", gap: 6, margin: 0 }}>
+          Horário comercial
+          <input type="time" style={{ width: 110 }} value={semInt.horarioInicio} onChange={(e) => { setSemInt((a) => ({ ...a, horarioInicio: e.target.value })); setStatus(null); }} />
+          às
+          <input type="time" style={{ width: 110 }} value={semInt.horarioFim} onChange={(e) => { setSemInt((a) => ({ ...a, horarioFim: e.target.value })); setStatus(null); }} />
+        </label>
+        <div className={"chip-btn" + (semInt.soDiasUteis ? " active" : "")} onClick={() => { setSemInt((a) => ({ ...a, soDiasUteis: !a.soDiasUteis })); setStatus(null); }}>
+          {semInt.soDiasUteis ? "✓ Só de segunda a sexta" : "Todos os dias"}
+        </div>
       </div>
 
       <div style={{ display: "flex", gap: 8, marginTop: 14 }}>

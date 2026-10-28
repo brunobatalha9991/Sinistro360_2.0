@@ -15,6 +15,7 @@ export const TIPO_ATENDIMENTO_LABEL = {
   sinistro: "Sinistro",
   assistencia_24h: "Assistência 24h",
   assistencia_vidros: "Vidros/pequenos reparos",
+  carro_reserva: "Carro Reserva",
 };
 
 

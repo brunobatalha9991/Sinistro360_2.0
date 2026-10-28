@@ -5,6 +5,7 @@ const TIPO_LABEL = {
   sinistro: "Sinistro",
   assistencia_24h: "Assistência 24h",
   assistencia_vidros: "Assistência de vidros e pequenos reparos",
+  carro_reserva: "Carro Reserva",
 };
 
 // Alarme em tela cheia (a pedido do usuário) pra nova tarefa de Mesa de

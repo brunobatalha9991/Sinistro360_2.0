@@ -23,6 +23,7 @@ const ATENDIMENTO_OPCOES = [
   ["sinistro", "Sinistro"],
   ["assistencia_24h", "Assistência 24h"],
   ["assistencia_vidros", "Assistência de vidros e pequenos reparos"],
+  ["carro_reserva", "Carro Reserva"],
 ];
 
 // Cor do chip-live de Grau de urgência/Status (mesmo padrão de chip
