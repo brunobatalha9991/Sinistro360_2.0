@@ -70,6 +70,8 @@ export const CONFIG_KEYS = [
   "corp_ci_dest_auto",
   "corp_ci_ausencia",
   "corp_ci_sem_interacao",
+  // Pesos do Índice de Desempenho (logic/desempenhoPainel.js).
+  "corp_desempenho_pesos",
 ];
 
 // Registros grandes/multiusuário: 1 documento por registro.

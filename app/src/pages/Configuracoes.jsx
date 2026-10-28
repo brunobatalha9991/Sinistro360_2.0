@@ -21,6 +21,7 @@ import { DicasAssistenteCard } from "../components/config/DicasAssistenteCard.js
 import { TratativaLoteTemplateCard } from "../components/config/TratativaLoteTemplateCard.jsx";
 import { UsersCard } from "../components/config/UsersCard.jsx";
 import { CiAutomacaoCard } from "../components/config/CiAutomacaoCard.jsx";
+import { DesempenhoPesosCard } from "../components/config/DesempenhoPesosCard.jsx";
 import { AtendimentoStepsEditor } from "../components/config/AtendimentoStepsEditor.jsx";
 import { AgentesCatalogoCard } from "../components/config/AgentesCatalogoCard.jsx";
 import { ImportarAgenteProdutorCard } from "../components/config/ImportarAgenteProdutorCard.jsx";
@@ -145,6 +146,10 @@ export function Configuracoes() {
 
           <ConfigGroup title="Comunicação Interna (CI)" subtitle="Destinatários automáticos por tipo de CI e generalização das CIs de quem não acessou o sistema até o horário de corte.">
             <CiAutomacaoCard config={config} saveConfig={saveConfig} users={records.corp_users || []} canEdit={admin} />
+          </ConfigGroup>
+
+          <ConfigGroup title="Desempenho" subtitle="Pesos dos pilares do Índice de Desempenho dos operadores.">
+            <DesempenhoPesosCard config={config} saveConfig={saveConfig} canEdit={admin} />
           </ConfigGroup>
 
           <ConfigGroup title="Mesa de Atendimento" subtitle="Checklist de abertura, formulários de solicitação e upload de anexos no Drive.">
