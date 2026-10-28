@@ -12,8 +12,8 @@ import { listaOficinas, oficinaIdFromNome } from "../logic/oficinas";
 import { listaSeguradoras, seguradoraIdFromNome } from "../logic/seguradoras";
 import { txt, todayISO } from "../logic/format";
 import { isAdmin, canEdit } from "../data/auth";
-import { regrasDestAuto, destinatariosAutomaticos, AUTOR_SISTEMA } from "../logic/ciAutomacao";
-import { descreverAlteracoesTarefa, TASK_FLAGS_DEFAULT, proximoCI, RECORRENCIA_UNIDADES, resumoRecorrencia } from "../logic/tasks";
+import { regrasDestAuto, destinatariosAutomaticos, AUTOR_SISTEMA, interacaoConsideradaAtiva } from "../logic/ciAutomacao";
+import { descreverAlteracoesTarefa, TASK_FLAGS_DEFAULT, proximoCI, RECORRENCIA_UNIDADES, resumoRecorrencia, taskCienteByMe, acompanhaTarefa } from "../logic/tasks";
 import { getChecklistEfetivo, checklistProgresso, checklistVazio, sincronizarComFormulario } from "../logic/checklistMesaAtendimento";
 import { getFormularioEfetivo, formularioDisponivel, caminhoPastaSolicitacao, secaoRepetivel } from "../logic/solicitacaoAtendimento";
 import { isDriveUploadConfigured, uploadArquivoDrive, CONTEXTO_MESA_ATENDIMENTO } from "../logic/driveUpload";
@@ -382,6 +382,61 @@ function fmtDataHoraCurta(iso) {
   return `${String(d.getDate()).padStart(2, "0")}/${String(d.getMonth() + 1).padStart(2, "0")} ${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
 }
 
+// Ações rápidas da CI aberta (a pedido do usuário, à esquerda da
+// Intervenção): Acompanhar (Admin/VIP — ver alternarAcompanhamento), Ciente
+// (quem ainda não marcou, CI em aberto) e Considerar (Admin/VIP e usuário de
+// escalonamento — segura os alertas de "sem interação" por um prazo).
+const UNIDADES_CONSIDERAR = [["min", "minuto(s)", 1], ["h", "hora(s)", 60], ["d", "dia(s)", 1440]];
+
+function AcoesRapidasCI({ task, currentUser, actions }) {
+  const [considerando, setConsiderando] = useState(false);
+  const [qtd, setQtd] = useState("1");
+  const [unidade, setUnidade] = useState("h");
+  const aberta = task.status !== "Concluído";
+  const acompanhando = acompanhaTarefa(task, currentUser.id);
+  const ciente = taskCienteByMe(task, currentUser);
+  const podeConsiderar = aberta && actions.podeConsiderarInteracao(currentUser);
+  const consid = interacaoConsideradaAtiva(task) ? task.interacaoConsiderada : null;
+  const fmt = (iso) => { const d = new Date(iso); const p = (x) => String(x).padStart(2, "0"); return `${p(d.getDate())}/${p(d.getMonth() + 1)} ${p(d.getHours())}:${p(d.getMinutes())}`; };
+
+  function confirmar() {
+    const minutos = Math.round(Number(String(qtd).replace(",", ".")) * ((UNIDADES_CONSIDERAR.find((u) => u[0] === unidade) || UNIDADES_CONSIDERAR[0])[2]));
+    if (!(minutos > 0)) { alert("Informe por quanto tempo a interação deve ser considerada."); return; }
+    actions.considerarInteracao(task, minutos, currentUser);
+    setConsiderando(false);
+  }
+
+  return (
+    <>
+      {isAdmin(currentUser) && (
+        <button type="button" className={"btn xs btn-acompanhar" + (acompanhando ? " ativo" : " sec")}
+          title={acompanhando ? "Deixar de acompanhar esta CI" : "Acompanhar esta CI (notificações e filtro Acompanhamento)"}
+          onClick={() => actions.alternarAcompanhamento(task, currentUser)}
+        >{acompanhando ? "👁 Acompanhando" : "👁 Acompanhar"}</button>
+      )}
+      {aberta && (ciente
+        ? <span className="badge green" title="Você já marcou ciente nesta CI">✓ Ciente</span>
+        : <button type="button" className="btn ok xs" title="Marcar que você viu esta CI (para o alerta parar)" onClick={() => actions.markTaskCiente(task.id)}>✓ Ciente</button>)}
+      {podeConsiderar && !considerando && (
+        <button type="button" className="btn sec xs" title={consid ? `Interação considerada até ${fmt(consid.ate)} — clique para alterar` : "Considerar a última interação por um prazo (pausa os alertas de sem interação)"}
+          onClick={() => setConsiderando(true)}
+        >⏸ Considerar{consid ? ` (até ${fmt(consid.ate)})` : ""}</button>
+      )}
+      {podeConsiderar && considerando && (
+        <span style={{ display: "inline-flex", gap: 4, alignItems: "center" }}>
+          <input type="number" min="1" className="inline" style={{ width: 56 }} value={qtd} autoFocus
+            onChange={(e) => setQtd(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") confirmar(); }} />
+          <select className="inline" style={{ width: "auto" }} value={unidade} onChange={(e) => setUnidade(e.target.value)}>
+            {UNIDADES_CONSIDERAR.map(([k, label]) => <option key={k} value={k}>{label}</option>)}
+          </select>
+          <button type="button" className="btn ok xs" onClick={confirmar}>Confirmar</button>
+          <button type="button" className="btn sec xs" onClick={() => setConsiderando(false)}>✕</button>
+        </span>
+      )}
+    </>
+  );
+}
+
 function Chat({ task, currentUser, actions, users }) {
   const [text, setText] = useState("");
   const [intervindo, setIntervindo] = useState(false);
@@ -412,9 +467,12 @@ function Chat({ task, currentUser, actions, users }) {
     <div style={{ marginTop: 14, borderTop: "1px solid var(--line)", paddingTop: 14 }}>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8, marginBottom: 8, flexWrap: "wrap" }}>
         <label style={{ margin: 0 }}>Comentários / histórico da conversa</label>
-        {podeIntervir && !intervindo && (
-          <button type="button" className="btn danger xs" onClick={() => setIntervindo(true)}>🚨 Intervenção</button>
-        )}
+        <div style={{ display: "flex", gap: 6, alignItems: "center", flexWrap: "wrap" }}>
+          <AcoesRapidasCI task={task} currentUser={currentUser} actions={actions} />
+          {podeIntervir && !intervindo && (
+            <button type="button" className="btn danger xs" onClick={() => setIntervindo(true)}>🚨 Intervenção</button>
+          )}
+        </div>
       </div>
       {intervindo && <IntervencaoForm task={task} currentUser={currentUser} actions={actions} onFechar={() => setIntervindo(false)} />}
       <IntervencoesStatus task={task} users={users} />

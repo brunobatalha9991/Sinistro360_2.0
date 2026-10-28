@@ -178,6 +178,11 @@ h1,h2,h3,h4{font-family:var(--font-display);letter-spacing:-.01em;color:var(--in
 .notif-item .nt-dot{width:9px;height:9px;border-radius:50%;background:var(--danger);flex-shrink:0;margin-top:5px;box-shadow:0 0 8px rgba(var(--danger-rgb),.8)}
 .notif-item.read .nt-dot{background:var(--muted-soft);box-shadow:none}
 .notif-item .nt-body{flex:1;min-width:0}
+/* "Ok" — notificação tratada: opaca, por cima da cor do tipo. */
+.notif-item.tratada{opacity:.5;filter:saturate(.5)}
+.notif-item.tratada:hover{opacity:.8}
+.notif-item .nt-ok{margin-top:6px;margin-left:6px}
+.notif-item .nt-tratada{margin-top:6px;font-size:11px;color:var(--muted);font-weight:600}
 .notif-rodape{display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap;padding:10px 8px 4px;border-top:1px solid var(--border);margin-top:6px}
 .notif-pagina{display:flex;flex-direction:column;gap:4px}
 /* Notificações da agenda (feedback/comentário) — cards sempre azuis. */
@@ -194,6 +199,14 @@ h1,h2,h3,h4{font-family:var(--font-display);letter-spacing:-.01em;color:var(--in
 .notif-item.acompanhamento.read .nt-dot{background:rgba(var(--orange-rgb),.4);box-shadow:none}
 /* Escalonamento de CI sem interação (avaliar pedido de intervenção) — roxo. */
 .escalonamento-acoes{display:flex;gap:8px;justify-content:center;flex-wrap:wrap;margin-top:14px}
+.escalonamento-detalhe{text-align:left;margin-top:12px;max-height:46vh;overflow:auto;border:1px solid var(--border);border-radius:10px;padding:12px;background:var(--surface-2);font-size:13px}
+.escalonamento-detalhe-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:8px 14px}
+.escalonamento-detalhe small{display:block;font-size:11px;color:var(--muted);font-weight:700;text-transform:uppercase;letter-spacing:.03em}
+.escalonamento-detalhe-bloco{margin-top:10px}
+.escalonamento-chat{display:flex;flex-direction:column;gap:6px;margin-top:4px}
+.escalonamento-msg{background:var(--card-solid);border:1px solid var(--border);border-radius:8px;padding:6px 9px}
+.escalonamento-msg.sistema{border-style:dashed}
+.escalonamento-msg.intervencao{border-color:rgba(var(--danger-rgb),.5)}
 .notif-item.escalonamento{background:rgba(var(--purple-rgb),.07);border-color:rgba(var(--purple-rgb),.25)}
 .notif-item.escalonamento.unread{background:rgba(var(--purple-rgb),.15);border-color:rgba(var(--purple-rgb),.5)}
 .notif-item.escalonamento:hover{background:rgba(var(--purple-rgb),.2);border-color:rgba(var(--purple-rgb),.55)}

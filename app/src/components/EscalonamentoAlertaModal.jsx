@@ -2,7 +2,7 @@ import { useState } from "react";
 import { createPortal } from "react-dom";
 import { useData } from "../data/DataProvider.jsx";
 import { useTasksActions } from "../hooks/useTasksActions";
-import { ultimaInteracaoPorDestinatario } from "../logic/ciAutomacao";
+import { ultimaInteracaoPorDestinatario, AUTOR_SISTEMA } from "../logic/ciAutomacao";
 
 // Pedido de intervenção (escalonamento da CI sem interação — ver
 // verificarAlertasCriador em logic/ciAutomacao.js). A pedido do usuário:
@@ -32,8 +32,49 @@ function escalonamentosPendentes(notifs, tasks, userId) {
   return Object.values(porTask).sort((a, b) => String(a.n.at).localeCompare(String(b.n.at)));
 }
 
-function TelaEscalonamento({ task, n, users, restantes, onIntervir, onConsiderar, onDispensar }) {
+// Visualização da CI dentro da própria tela cheia (a pedido do usuário) —
+// dá pra avaliar a tarefa inteira sem sair da tela, que continua travada
+// até a decisão.
+function DetalheTarefa({ task, users, claims }) {
+  const nomeDe = (id) => (id === AUTOR_SISTEMA ? "Sistema" : (users.find((u) => u.id === id) || { nome: "?" }).nome);
+  const proc = task.processo ? (claims || []).find((c) => c.id === task.processo) : null;
+  const msgs = task.comments || [];
+  const linhas = [
+    ["Status", task.status], ["Urgência", task.urgencia], ["Tipo", task.tipo + (task.tipoAtendimento ? ` • ${task.tipoAtendimento}` : "")],
+    ["Criada em", task.createdAt ? fmtDataHora(task.createdAt) : "—"], ["Última ação", task.updatedAt ? fmtDataHora(task.updatedAt) : "—"],
+    ["Próxima ação", task.proximaAcaoData ? task.proximaAcaoData.split("-").reverse().join("/") : "—"],
+    ["Origem", nomeDe(task.origem)], ["Destinatários", (task.destinatarios || []).map(nomeDe).join(", ") || "—"],
+    ["Processo", proc ? `${proc.numsin || "#" + proc.nosnum} — ${proc.segurado || ""}` : "—"],
+    ["Sinalizadores", (task.flags || []).join(", ") || "—"],
+  ];
+  return (
+    <div className="escalonamento-detalhe">
+      <div className="escalonamento-detalhe-grid">
+        {linhas.map(([k, v]) => <div key={k}><small>{k}</small><span>{v}</span></div>)}
+      </div>
+      {task.descricao && <div className="escalonamento-detalhe-bloco"><small>Descrição</small><div style={{ whiteSpace: "pre-wrap" }}>{task.descricao}</div></div>}
+      {task.obs && <div className="escalonamento-detalhe-bloco"><small>Observação</small><div>{task.obs}</div></div>}
+      {task.anexo && <div className="escalonamento-detalhe-bloco"><small>Anexo</small><div>{/^https?:\/\//.test(task.anexo) ? <a href={task.anexo} target="_blank" rel="noreferrer">{task.anexo}</a> : task.anexo}</div></div>}
+      <div className="escalonamento-detalhe-bloco">
+        <small>Histórico da conversa ({msgs.length})</small>
+        {!msgs.length ? <div className="muted">Nenhum comentário.</div> : (
+          <div className="escalonamento-chat">
+            {msgs.map((m) => (
+              <div key={m.id || m.at} className={"escalonamento-msg" + (m.userId === AUTOR_SISTEMA ? " sistema" : "") + (m.intervencaoId ? " intervencao" : "")}>
+                <b>{m.intervencaoId ? "🚨 " : ""}{nomeDe(m.userId)}</b> <span className="muted">• {fmtDataHora(m.at)}</span>
+                <div style={{ whiteSpace: "pre-wrap" }}>{m.text}</div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function TelaEscalonamento({ task, n, users, claims, restantes, onIntervir, onConsiderar, onDispensar }) {
   const [modo, setModo] = useState(null); // intervir | considerar | dispensar
+  const [verTarefa, setVerTarefa] = useState(false);
   const [texto, setTexto] = useState("");
   const [qtd, setQtd] = useState("1");
   const [unidade, setUnidade] = useState("h");
@@ -64,6 +105,13 @@ function TelaEscalonamento({ task, n, users, restantes, onIntervir, onConsiderar
             )) : "—"}
           </div>
         </div>
+
+        <div style={{ marginTop: 10 }}>
+          <button type="button" className="btn sec sm" onClick={() => setVerTarefa((v) => !v)}>
+            {verTarefa ? "▲ Ocultar tarefa" : "👁 Visualizar tarefa"}
+          </button>
+        </div>
+        {verTarefa && <DetalheTarefa task={task} users={users} claims={claims} />}
 
         {!modo && (
           <div className="escalonamento-acoes">
@@ -127,7 +175,7 @@ export function EscalonamentoAlertaModal({ currentUser }) {
   const { task, n } = pendentes[0];
   return createPortal(
     <TelaEscalonamento
-      key={n.id} task={task} n={n} users={records.corp_users || []} restantes={pendentes.length - 1}
+      key={n.id} task={task} n={n} users={records.corp_users || []} claims={records.corp_claims || []} restantes={pendentes.length - 1}
       onIntervir={(texto) => { actions.intervir(task, texto, currentUser); actions.avaliarEscalonamento(task, currentUser, "intervencao"); }}
       onConsiderar={(min) => { actions.considerarInteracao(task, min, currentUser); actions.avaliarEscalonamento(task, currentUser, "considerada"); }}
       onDispensar={(texto) => actions.avaliarEscalonamento(task, currentUser, "dispensada", texto)}

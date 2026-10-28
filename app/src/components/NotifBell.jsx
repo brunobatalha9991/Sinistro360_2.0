@@ -86,6 +86,12 @@ function feedbackDaNotif(n, feedbacks) {
   return n.tipo === "agenda_feedback" ? feedbacks.find((f) => f.at === n.at) || null : null;
 }
 
+function fmtTratada(iso) {
+  const d = new Date(iso);
+  const p = (x) => String(x).padStart(2, "0");
+  return `${p(d.getDate())}/${p(d.getMonth() + 1)} ${p(d.getHours())}:${p(d.getMinutes())}`;
+}
+
 // Lista de notificações (cards) — a mesma no painel do sino e no módulo
 // Notificações (pages/Notificacoes.jsx). `onAbrir` roda depois de abrir um
 // item (o sino usa pra se fechar).
@@ -134,7 +140,7 @@ export function NotifLista({ list, onAbrir }) {
     return (
       <div
         key={n.id}
-        className={"notif-item " + (n.read ? "read" : "unread") + (isAgenda ? " agenda" : "") + (n.acompanhamento ? " acompanhamento" : "") + (n.tipo === "escalonamento_ci" ? " escalonamento" : "") + (isDesempenho ? " desempenho" : "") + (n.emergencia ? " neon-alert" : "")}
+        className={"notif-item " + (n.read ? "read" : "unread") + (isAgenda ? " agenda" : "") + (n.acompanhamento ? " acompanhamento" : "") + (n.tipo === "escalonamento_ci" ? " escalonamento" : "") + (isDesempenho ? " desempenho" : "") + (n.tratadaEm ? " tratada" : "") + (n.emergencia ? " neon-alert" : "")}
         style={n.emergencia ? { "--neon-rgb": "var(--danger-rgb)" } : undefined}
         onClick={() => openItem(n)}
       >
@@ -160,6 +166,11 @@ export function NotifLista({ list, onAbrir }) {
             <div onClick={(e) => e.stopPropagation()} style={{ marginTop: 6, cursor: "default" }}>
               <ComentariosFeedback feedback={fb} porId={porId} currentUser={currentUser} onComentar={agendaActions.comentarFeedback} autoFocus />
             </div>
+          )}
+          {(isSemInteracao || fb) && (
+            n.tratadaEm
+              ? <div className="nt-tratada">✓ Tratada em {fmtTratada(n.tratadaEm)}</div>
+              : <button type="button" className="btn sec xs nt-ok" onClick={(e) => { e.stopPropagation(); actions.marcarNotifTratada(n.id); }}>✓ Ok</button>
           )}
         </div>
       </div>

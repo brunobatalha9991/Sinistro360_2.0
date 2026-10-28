@@ -179,6 +179,12 @@ export function useTasksActions() {
     )));
   }
 
+  // "Ok" nas notificações com botão (a pedido do usuário): lida + tratada
+  // (o card fica opaco no sino/módulo Notificações).
+  function marcarNotifTratada(id) {
+    const at = new Date().toISOString();
+    saveRecord("corp_notifs", (current) => (current || []).map((n) => (n.id === id ? { ...n, read: true, tratadaEm: at } : n)));
+  }
   function markNotifRead(id) {
     saveRecord("corp_notifs", (current) => (current || []).map((n) => (n.id === id ? { ...n, read: true } : n)));
   }
@@ -297,7 +303,7 @@ export function useTasksActions() {
 
   return {
     pushNotif, saveTask, createTask, taskInteract, alternarAcompanhamento, considerarInteracao, podeConsiderarInteracao, avaliarEscalonamento, arquivarManualmente, excluirTarefa, definirOrdemManual,
-    markTaskCiente, markNotifRead, dismissAlarmeMesa, markAllNotifsRead, purgeOldTasks, gerarOcorrenciasRecorrentes,
+    markTaskCiente, markNotifRead, marcarNotifTratada, dismissAlarmeMesa, markAllNotifsRead, purgeOldTasks, gerarOcorrenciasRecorrentes,
     intervir, responderIntervencao,
   };
 }
