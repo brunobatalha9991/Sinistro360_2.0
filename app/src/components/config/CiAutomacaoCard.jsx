@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { uid } from "../../logic/format";
 import { TIPOS_ATENDIMENTO } from "../../logic/solicitacaoAtendimento";
-import { regrasDestAuto, ausenciaCfg, semInteracaoCfg, DEST_AUTO_MODOS } from "../../logic/ciAutomacao";
+import { regrasDestAuto, ausenciaCfg, semInteracaoCfg, usuarioEscalonamentoId, DEST_AUTO_MODOS } from "../../logic/ciAutomacao";
 
 const TIPOS_PADRAO = ["Comunicação", "Lembrete", "Tarefa", "Mesa de Atendimento"];
 
@@ -44,13 +44,17 @@ export function CiAutomacaoCard({ config, saveConfig, users, canEdit }) {
     if (!/^\d{2}:\d{2}$/.test(aus.horario || "")) { alert("Informe o horário de corte no formato HH:MM."); return; }
     if (!(Number(semInt.minutos) >= 1) || !(Number(semInt.minutosUrgente) >= 1)) { alert("Informe os minutos do alerta de CI sem interação (1 ou mais)."); return; }
     if (!semInt.horarioInicio || !semInt.horarioFim || semInt.horarioInicio >= semInt.horarioFim) { alert("O início do horário comercial precisa ser antes do fim."); return; }
+    if (!(Number(semInt.minutosCriador) >= 1) || !(Number(semInt.alertasParaEscalonar) >= 1)) { alert("Informe o intervalo do alerta ao criador e a quantidade de alertas para escalonar (1 ou mais)."); return; }
     saveConfig("corp_ci_dest_auto", regras.map((r) => ({
       ...r,
       tipoAtendimento: r.tipo === "Mesa de Atendimento" ? (r.tipoAtendimento || "") : "",
       userIds: r.modo === "usuarios" ? r.userIds : [],
     })));
     saveConfig("corp_ci_ausencia", { ...aus });
-    saveConfig("corp_ci_sem_interacao", { ...semInt, minutos: Number(semInt.minutos), minutosUrgente: Number(semInt.minutosUrgente) });
+    saveConfig("corp_ci_sem_interacao", {
+      ...semInt, minutos: Number(semInt.minutos), minutosUrgente: Number(semInt.minutosUrgente),
+      minutosCriador: Number(semInt.minutosCriador), alertasParaEscalonar: Number(semInt.alertasParaEscalonar),
+    });
     setStatus("Salvo.");
   }
 
@@ -141,6 +145,28 @@ export function CiAutomacaoCard({ config, saveConfig, users, canEdit }) {
         <div className={"chip-btn" + (semInt.soDiasUteis ? " active" : "")} onClick={() => { setSemInt((a) => ({ ...a, soDiasUteis: !a.soDiasUteis })); setStatus(null); }}>
           {semInt.soDiasUteis ? "✓ Só de segunda a sexta" : "Todos os dias"}
         </div>
+      </div>
+
+      <h4 style={{ marginTop: 16, marginBottom: 4 }}>Alerta ao criador e escalonamento</h4>
+      <p className="muted" style={{ marginTop: 0 }}>
+        O criador da CI recebe um alerta a cada intervalo sem interação dos destinatários (Administradores não contam como destinatário aqui). A cada N alertas da mesma CI, o usuário de escalonamento entra como destinatário, com comentário automático, e recebe alerta roxo no sino + notificação do Windows para avaliar um pedido de intervenção. O "Considerar" dele pausa os alertas até o horário escolhido.
+      </p>
+      <div style={{ display: "flex", gap: 10, flexWrap: "wrap", alignItems: "center" }}>
+        <label style={{ display: "flex", alignItems: "center", gap: 6, margin: 0 }}>
+          Alertar o criador a cada (min)
+          <input type="number" min={1} style={{ width: 80 }} value={semInt.minutosCriador} onChange={(e) => { setSemInt((a) => ({ ...a, minutosCriador: e.target.value })); setStatus(null); }} />
+        </label>
+        <label style={{ display: "flex", alignItems: "center", gap: 6, margin: 0 }}>
+          Escalonar após (alertas)
+          <input type="number" min={1} style={{ width: 80 }} value={semInt.alertasParaEscalonar} onChange={(e) => { setSemInt((a) => ({ ...a, alertasParaEscalonar: e.target.value })); setStatus(null); }} />
+        </label>
+        <label style={{ display: "flex", alignItems: "center", gap: 6, margin: 0 }}>
+          Escalonar para
+          <select style={{ width: "auto" }} value={semInt.escalonarPara || ""} onChange={(e) => { setSemInt((a) => ({ ...a, escalonarPara: e.target.value })); setStatus(null); }}>
+            <option value="">Automático (usuário "Bruno"{(() => { const id = usuarioEscalonamentoId({}, users); const u = id && (users || []).find((x) => x.id === id); return u ? `: ${u.nome}` : " — não encontrado"; })()})</option>
+            {operadores.map((u) => <option key={u.id} value={u.id}>{u.nome}</option>)}
+          </select>
+        </label>
       </div>
 
       <div style={{ display: "flex", gap: 8, marginTop: 14 }}>

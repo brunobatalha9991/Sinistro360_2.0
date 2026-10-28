@@ -36,6 +36,8 @@
   --danger-rgb:225,29,72;
   --info-rgb:14,165,233;
   --purple-rgb:147,51,234;
+  --navy:#1e3a8a;
+  --navy-rgb:30,58,138;
   --orange-rgb:234,88,12;
 
   --sidebar-bg:#0b1120;
@@ -90,6 +92,8 @@
   --danger-rgb:255,61,104;
   --info-rgb:34,211,238;
   --purple-rgb:179,136,255;
+  --navy:#7b9cff;
+  --navy-rgb:59,91,219;
   --orange-rgb:255,138,61;
 
   --sidebar-bg:rgba(9,11,17,.78);
@@ -174,6 +178,34 @@ h1,h2,h3,h4{font-family:var(--font-display);letter-spacing:-.01em;color:var(--in
 .notif-item .nt-dot{width:9px;height:9px;border-radius:50%;background:var(--danger);flex-shrink:0;margin-top:5px;box-shadow:0 0 8px rgba(var(--danger-rgb),.8)}
 .notif-item.read .nt-dot{background:var(--muted-soft);box-shadow:none}
 .notif-item .nt-body{flex:1;min-width:0}
+.notif-rodape{display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap;padding:10px 8px 4px;border-top:1px solid var(--border);margin-top:6px}
+.notif-pagina{display:flex;flex-direction:column;gap:4px}
+/* Notificações da agenda (feedback/comentário) — cards sempre azuis. */
+.notif-item.agenda{background:rgba(var(--brand-rgb),.06);border-color:rgba(var(--brand-rgb),.22)}
+.notif-item.agenda.unread{background:rgba(var(--brand-rgb),.13);border-color:rgba(var(--brand-rgb),.45)}
+.notif-item.agenda:hover{background:rgba(var(--brand-rgb),.18);border-color:rgba(var(--brand-rgb),.5)}
+.notif-item.agenda .nt-dot{background:var(--brand);box-shadow:0 0 8px rgba(var(--brand-rgb),.8)}
+.notif-item.agenda.read .nt-dot{background:rgba(var(--brand-rgb),.4);box-shadow:none}
+/* Notificações de CI acompanhada (Admin/VIP, botão "Acompanhar") — laranja. */
+.notif-item.acompanhamento{background:rgba(var(--orange-rgb),.06);border-color:rgba(var(--orange-rgb),.22)}
+.notif-item.acompanhamento.unread{background:rgba(var(--orange-rgb),.13);border-color:rgba(var(--orange-rgb),.45)}
+.notif-item.acompanhamento:hover{background:rgba(var(--orange-rgb),.18);border-color:rgba(var(--orange-rgb),.5)}
+.notif-item.acompanhamento .nt-dot{background:var(--orange);box-shadow:0 0 8px rgba(var(--orange-rgb),.8)}
+.notif-item.acompanhamento.read .nt-dot{background:rgba(var(--orange-rgb),.4);box-shadow:none}
+/* Escalonamento de CI sem interação (avaliar pedido de intervenção) — roxo. */
+.notif-item.escalonamento{background:rgba(var(--purple-rgb),.07);border-color:rgba(var(--purple-rgb),.25)}
+.notif-item.escalonamento.unread{background:rgba(var(--purple-rgb),.15);border-color:rgba(var(--purple-rgb),.5)}
+.notif-item.escalonamento:hover{background:rgba(var(--purple-rgb),.2);border-color:rgba(var(--purple-rgb),.55)}
+.notif-item.escalonamento .nt-dot{background:var(--purple);box-shadow:0 0 8px rgba(var(--purple-rgb),.8)}
+.notif-item.escalonamento.read .nt-dot{background:rgba(var(--purple-rgb),.4);box-shadow:none}
+/* Desempenho (mudança relevante / fechamento do dia) — azul-escuro. */
+.notif-item.desempenho{background:rgba(var(--navy-rgb),.08);border-color:rgba(var(--navy-rgb),.3);border-left:3px solid rgb(var(--navy-rgb))}
+.notif-item.desempenho.unread{background:rgba(var(--navy-rgb),.17);border-color:rgba(var(--navy-rgb),.55);border-left-color:rgb(var(--navy-rgb))}
+.notif-item.desempenho:hover{background:rgba(var(--navy-rgb),.22)}
+.notif-item.desempenho .nt-title{color:var(--navy)}
+.notif-item.desempenho .nt-dot{background:rgb(var(--navy-rgb));box-shadow:0 0 8px rgba(var(--navy-rgb),.8)}
+.notif-item.desempenho.read .nt-dot{background:rgba(var(--navy-rgb),.4);box-shadow:none}
+.btn.btn-acompanhar.ativo{background:var(--orange);border-color:var(--orange);color:#fff}
 .notif-item .nt-title{font-size:13px;font-weight:600;color:var(--ink)}
 .notif-item .nt-sub{font-size:11.5px;color:var(--muted);margin-top:2px}
 .urg-badge.leve{background:rgba(var(--ok-rgb),.14);color:var(--ok)}
@@ -907,6 +939,8 @@ tr:hover td{background:var(--surface-2)}
 .agenda-cor-ponto{display:inline-block;width:9px;height:9px;border-radius:50%;margin-right:6px;vertical-align:middle}
 
 .agenda-feedbacks{display:flex;flex-direction:column;gap:8px}
+.agenda-comentarios{display:flex;flex-direction:column;gap:6px;margin-top:8px}
+.agenda-comentario{font-size:12.5px;background:rgba(var(--brand-rgb),.07);border-left:3px solid var(--brand);border-radius:6px;padding:6px 9px}
 .agenda-feedback{display:flex;gap:10px;align-items:flex-start;border:1px solid var(--border);border-radius:10px;padding:10px 12px}
 
 /* Alarme em tela cheia: acima de tudo, inclusive dos outros alarmes. */
@@ -1085,6 +1119,36 @@ tr:hover td{background:var(--surface-2)}
 .hoje-tile-barra>div{height:100%;border-radius:99px;background:rgb(var(--tl-rgb))}
 .hoje-tile-barra>span{position:absolute;right:0;top:8px;font-size:10.5px;color:var(--muted)}
 
+.impacto-lista{display:flex;flex-direction:column;gap:6px}
+.impacto-item{display:grid;grid-template-columns:24px minmax(0,1fr) auto 52px;gap:10px;align-items:center;text-align:left;font:inherit;color:var(--ink);background:var(--surface-2);border:1px solid var(--border);border-left:3px solid var(--warn);border-radius:8px;padding:8px 10px;cursor:pointer}
+.impacto-item.atrasada{border-left-color:var(--danger)}
+.impacto-item:hover{border-color:rgba(var(--navy-rgb),.5)}
+.impacto-ico{font-size:16px;text-align:center}
+.impacto-txt{display:flex;flex-direction:column;min-width:0}
+.impacto-txt b{font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.impacto-txt small{font-size:11.5px;color:var(--muted)}
+.impacto-pts{font-family:var(--font-mono);font-weight:800;color:var(--danger);text-align:right}
+.ritmo-stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(110px,1fr));gap:8px;margin-bottom:12px}
+.ritmo-stats>div{background:var(--surface-2);border:1px solid var(--border);border-radius:8px;padding:8px 10px;display:flex;flex-direction:column;gap:2px}
+.ritmo-stats small{font-size:11px;color:var(--muted)}
+.ritmo-stats b{font-size:18px;font-family:var(--font-mono)}
+.ritmo-stats .pos,.ritmo-tabela .pos{color:var(--ok)}
+.ritmo-stats .neg,.ritmo-tabela .neg{color:var(--danger)}
+.ritmo-grafico{color:var(--navy);margin-bottom:12px}
+.ritmo-spark{width:100%;height:56px;display:block}
+.ritmo-spark circle{fill:currentColor}
+.ritmo-eventos{display:flex;flex-direction:column;gap:4px;max-height:260px;overflow:auto}
+.ritmo-evento{display:grid;grid-template-columns:48px 1fr;gap:8px;font-size:12.5px;padding:4px 6px;border-radius:6px}
+.ritmo-evento.atraso_novo,.ritmo-evento.indice_cai{background:rgba(var(--danger-rgb),.07)}
+.ritmo-evento.atraso_resolvido,.ritmo-evento.indice_sobe{background:rgba(var(--ok-rgb),.07)}
+.ritmo-fechamento{background:rgba(var(--navy-rgb),.08);border-left:3px solid rgb(var(--navy-rgb));border-radius:8px;padding:8px 12px;font-size:13px;margin-bottom:10px}
+.ritmo-tabela{width:100%}
+.ritmo-tabela td,.ritmo-tabela th{white-space:nowrap}
+.ritmo-tabela tbody tr:hover{background:var(--surface-2)}
+.nivel-badge.excelente{background:rgba(var(--ok-rgb),.15);color:var(--ok)}
+.nivel-badge.bom{background:rgba(var(--brand-rgb),.13);color:var(--brand)}
+.nivel-badge.atencao{background:rgba(var(--warn-rgb),.16);color:var(--warn)}
+.nivel-badge.critico{background:rgba(var(--danger-rgb),.14);color:var(--danger)}
 .desemp-2col{display:grid;grid-template-columns:1.25fr 1fr;gap:16px;align-items:start}
 .secao-topo{display:flex;justify-content:space-between;align-items:baseline;gap:8px;margin-bottom:10px;flex-wrap:wrap}
 .secao-topo h3{margin:0}

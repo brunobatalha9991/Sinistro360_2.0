@@ -22,6 +22,8 @@ import { intervencoesPendentes } from "../logic/tasks";
 import { metricasExtras, assiduidade, calcularIndice, filaDoDia, semanasRecentes, pesosDesempenho } from "../logic/desempenhoPainel";
 import { HeroOperador, HojeGrid, FilaDoDiaCard, PilaresCard, TendenciaCard } from "../components/desempenho/PainelVisual.jsx";
 import { EquipeView } from "../components/desempenho/EquipeView.jsx";
+import { ImpactoCard, RitmoOperadorCard, RitmoEquipe } from "../components/desempenho/RitmoDia.jsx";
+import { impactoPendencias } from "../logic/desempenhoRitmo";
 
 // Desempenho v3 (a pedido do usuário: "visualização de alto impacto",
 // refeito por inteiro). Duas telas:
@@ -350,16 +352,22 @@ export function Desempenho() {
     const agenda = agendaPorUsuario[u.id];
     const conduta = condutaPorUsuario[u.id];
     const as = assidPorUsuario[u.id];
-    const indice = calcularIndice({ m, ex, ci, agenda, conduta, assid: as, pesos });
+    // Impacto das pendências de AGORA (independe do período escolhido).
+    const impacto = impactoPendencias({ claims, overrides, tasks, blocos: blocosAgenda, feedbacks: feedbacksAgenda, user: u, atendTemplateCfg, templates, cfgCI: semInteracaoCfg(config), agora: new Date() });
+    const indice = calcularIndice({ m, ex, ci, agenda, conduta, assid: as, pesos, impacto });
     const roteiro = temAgendaPropria(u) ? resumoRoteiro({ blocos: blocosAgenda, feedbacks: feedbacksAgenda, userId: u.id, agora: new Date(), cfg: cfgAgenda }) : null;
     return { u, m, ex, ci, agenda, conduta, as, indice, roteiro };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }), [users, metricas, extrasPorUsuario, ciPorUsuario, agendaPorUsuario, condutaPorUsuario, assidPorUsuario, config.corp_desempenho_pesos, blocosAgenda, feedbacksAgenda, minuto]);
+  }), [users, metricas, extrasPorUsuario, ciPorUsuario, agendaPorUsuario, condutaPorUsuario, assidPorUsuario, config.corp_desempenho_pesos, blocosAgenda, feedbacksAgenda, minuto, claims, overrides, tasks, config.corp_ci_sem_interacao]);
   const comScore = linhas.filter((l) => l.indice.score != null);
   const mediaEquipe = comScore.length ? Math.round(comScore.reduce((s, l) => s + l.indice.score, 0) / comScore.length) : null;
 
   // Quem não é Admin/VIP só enxerga o próprio painel, qualquer que seja a URL.
-  const perfilId = isAdminUser ? param : currentUser && currentUser.id;
+  // "ritmo" (fechamento do dia no sino) abre o Ritmo do dia da equipe.
+  const verRitmoParam = param === "ritmo";
+  const [verRitmo, setVerRitmo] = useState(verRitmoParam);
+  useEffect(() => { if (verRitmoParam) setVerRitmo(true); }, [verRitmoParam]);
+  const perfilId = isAdminUser ? (verRitmoParam ? null : param) : currentUser && currentUser.id;
   const linha = perfilId ? linhas.find((l) => l.u.id === perfilId) : null;
 
   // Evolução semanal (só do painel aberto).
@@ -422,7 +430,9 @@ export function Desempenho() {
           <FilaDoDiaCard itens={fila} navigate={navigate} />
           <FeedbackCard key={periodoLabel} analise={analise} u={u} periodoLabel={periodoLabel} verSinistros={(f) => verSinistros(u.id, f)} />
         </div>
+        <ImpactoCard indice={indice} navigate={navigate} />
         <PilaresCard indice={indice} pesos={pesos} />
+        <RitmoOperadorCard ritmo={records.corp_desempenho_ritmo} u={u} />
         {series && <TendenciaCard series={series} />}
 
         <div className="desemp-abas">
@@ -453,8 +463,12 @@ export function Desempenho() {
     <div className="page-enter desemp">
       <div className="desemp-equipe-barra">
         {periodo}
-        {isAdminUser && <button className="btn sm" onClick={() => setNovoRegistroPara([])}>+ Novo registro</button>}
+        <div style={{ display: "flex", gap: 8 }}>
+          {isAdminUser && <button className={"btn sm" + (verRitmo ? "" : " sec")} onClick={() => setVerRitmo((v) => !v)}>📈 Ritmo do dia</button>}
+          {isAdminUser && <button className="btn sm" onClick={() => setNovoRegistroPara([])}>+ Novo registro</button>}
+        </div>
       </div>
+      {isAdminUser && verRitmo && <RitmoEquipe ritmo={records.corp_desempenho_ritmo} operadores={users} navigate={navigate} />}
       {!linhas.length ? <div className="card"><EmptyState>Nenhum Atendente/Analista cadastrado.</EmptyState></div> : (
         <EquipeView linhas={linhas} t={t} navigate={navigate} periodoLabel={periodoLabel} />
       )}

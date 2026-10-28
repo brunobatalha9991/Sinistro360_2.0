@@ -1,7 +1,8 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useData } from "../data/DataProvider.jsx";
 import { dataLocalISO, addDias } from "../logic/agenda";
-import { ausenciaCfg, generalizarPorAusencia, idAcesso, semInteracaoCfg, verificarSemInteracao } from "../logic/ciAutomacao";
+import { ausenciaCfg, generalizarPorAusencia, idAcesso, semInteracaoCfg, verificarSemInteracao, verificarAlertasCriador } from "../logic/ciAutomacao";
+import { notificacaoSuportada } from "./useAgendaAlarme";
 import { isAdmin } from "../data/auth";
 import { useTasksActions } from "./useTasksActions";
 
@@ -82,9 +83,60 @@ export function useCiAusencia(currentUser) {
     });
     if (!alertas.length) return;
     const gestores = (users || []).filter(isAdmin).map((u) => u.id);
-    alertas.forEach(({ task, minutos }) => {
-      pushNotif(task.id, gestores, `⏱ ${task.ci || "CI"} sem interação dos destinatários há mais de ${minutos} min${task.urgencia === "Urgente" ? " (URGENTE)" : ""}: ${task.titulo || ""}`);
+    alertas.forEach(({ task, minutos, ausentes, aposConsiderada }) => {
+      const nomes = ausentes.map((id) => ((users || []).find((u) => u.id === id) || { nome: "?" }).nome).join(", ");
+      const texto = aposConsiderada
+        ? `⏱ ${task.ci || "CI"} continua sem interação após o período de interação considerada${task.urgencia === "Urgente" ? " (URGENTE)" : ""} — sem interação: ${nomes}: ${task.titulo || ""}`
+        : `⏱ ${task.ci || "CI"} sem interação dos destinatários há mais de ${minutos} min${task.urgencia === "Urgente" ? " (URGENTE)" : ""} — sem interação: ${nomes}: ${task.titulo || ""}`;
+      pushNotif(task.id, gestores, texto, undefined, false, false, false, { tipo: "sem_interacao", ausentes });
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [userId, prontos, agora, records.corp_tasks, config.corp_ci_sem_interacao]);
+
+  // Alerta repetido ao criador da CI + escalonamento (ver
+  // verificarAlertasCriador em logic/ciAutomacao.js).
+  useEffect(() => {
+    if (!userId || !prontos) return;
+    const cfg = semInteracaoCfg(config);
+    if (!cfg.ativo) return;
+    let alertas = [];
+    saveRecord("corp_tasks", (cur) => {
+      const r = verificarAlertasCriador(cur || [], records.corp_users || [], new Date(), cfg);
+      alertas = r.alertas;
+      return r.tasks;
+    });
+    if (!alertas.length) return;
+    const nomeDe = (id) => ((users || []).find((u) => u.id === id) || { nome: "?" }).nome;
+    alertas.forEach(({ task, minutos, ausentes, escalar, escalonadoPara }) => {
+      const nomes = ausentes.map(nomeDe).join(", ");
+      const urg = task.urgencia === "Urgente" ? " (URGENTE)" : "";
+      pushNotif(task.id, [task.origem], `⏱ ${task.ci || "CI"} sem interação dos destinatários há ${minutos} min${urg} — sem interação: ${nomes}: ${task.titulo || ""}`,
+        undefined, false, false, false, { tipo: "sem_interacao_criador", ausentes });
+      if (escalar && escalonadoPara) {
+        pushNotif(task.id, [escalonadoPara], `🟣 ${task.ci || "CI"} com alertas seguidos sem interação${urg} — avalie um pedido de intervenção. Criada por ${nomeDe(task.origem)}; sem interação: ${nomes}: ${task.titulo || ""}`,
+          undefined, false, false, false, { tipo: "escalonamento_ci", ausentes });
+      }
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [userId, prontos, agora, records.corp_tasks, config.corp_ci_sem_interacao]);
+
+  // Alerta do Windows pro usuário de escalonamento — uma vez por
+  // notificação nesta aba, só das recentes (abrir o sistema no dia
+  // seguinte não dispara tudo de novo).
+  const avisadosWindows = useRef(new Set());
+  const escalonamentos = (records.corp_notifs || []).filter((n) => n.userId === userId && n.tipo === "escalonamento_ci" && !n.read);
+  const chavesEsc = escalonamentos.map((n) => n.id).join(",");
+  useEffect(() => {
+    if (!notificacaoSuportada() || Notification.permission !== "granted") return;
+    escalonamentos.forEach((n) => {
+      if (avisadosWindows.current.has(n.id)) return;
+      avisadosWindows.current.add(n.id);
+      if (Date.now() - new Date(n.at).getTime() > 30 * 60 * 1000) return;
+      try {
+        const w = new Notification("🟣 Avaliar pedido de intervenção", { body: n.text, tag: "s360-escalonamento-" + n.id, requireInteraction: true });
+        w.onclick = () => { window.focus(); window.location.hash = "#/tarefas/open-" + n.taskId; w.close(); };
+      } catch { /* navegador sem suporte a notificação fora de service worker */ }
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [chavesEsc]);
 }

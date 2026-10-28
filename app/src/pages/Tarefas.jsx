@@ -19,7 +19,7 @@ import { clienteNomeFromId } from "../logic/clientes";
 import { fmtDateHoraBR, fmtDateBR } from "../logic/format";
 import {
   taskIsStale, taskCienteByMe, isTarefaEmergencia, isTarefaArquivada,
-  tarefasNoEscopo, tarefaTemPapel, compararTarefasAuto, TASK_FLAGS_DEFAULT, resumoRecorrencia,
+  tarefasNoEscopo, tarefaTemPapel, compararTarefasAuto, acompanhaTarefa, TASK_FLAGS_DEFAULT, resumoRecorrencia,
 } from "../logic/tasks";
 import { checklistProgresso } from "../logic/checklistMesaAtendimento";
 
@@ -51,6 +51,7 @@ function TaskCard({ t, claims, records, users, config, currentUser, navigate, ac
   const seguradoraNome = t.seguradoraId ? seguradoraNomeFromId(claims, records.corp_overrides, t.seguradoraId) : "";
   const clienteNome = t.clienteId ? clienteNomeFromId(claims, records.corp_overrides, t.clienteId) : "";
   const emergencia = isTarefaEmergencia(t);
+  const acompanhando = acompanhaTarefa(t, currentUser.id);
   return (
     <div
       className={"task-card " + (t.urgencia || "").toLowerCase() + (stale ? " stale" : "") + (emergencia ? " neon-alert" : "")}
@@ -78,6 +79,7 @@ function TaskCard({ t, claims, records, users, config, currentUser, navigate, ac
             {t.origemRecorrenciaId && <span className="badge gray" title="Gerada automaticamente por uma recorrência">🔁 Gerada</span>}
             {(t.flags || []).map((f) => <span key={f} className="badge amber">{f}</span>)}
             {stale && <span className="badge red">⚠ +2h sem interação</span>}
+            {isAdmin(currentUser) && acompanhando && <span className="badge orange">👁 Acompanhando</span>}
           </div>
           <div style={{ fontSize: 15, fontWeight: 600 }}>{t.titulo}</div>
           <div className="muted" style={{ fontSize: 12, marginTop: 2 }}>De {origem.nome} → {dests}</div>
@@ -100,6 +102,12 @@ function TaskCard({ t, claims, records, users, config, currentUser, navigate, ac
             <button type="button" {...dragHandleProps.attributes} {...dragHandleProps.listeners} className="btn ghost xs" style={{ cursor: "grab" }} title="Arrastar para reordenar">⠿ Arrastar</button>
           )}
           <button className="btn sec xs" onClick={() => openTask(t.id)}>Abrir / editar</button>
+          {isAdmin(currentUser) && (
+            <button type="button" className={"btn xs btn-acompanhar" + (acompanhando ? " ativo" : " sec")}
+              title={acompanhando ? "Deixar de acompanhar esta CI" : "Acompanhar esta CI (notificações e filtro Acompanhamento)"}
+              onClick={() => actions.alternarAcompanhamento(t, currentUser)}
+            >{acompanhando ? "👁 Acompanhando" : "👁 Acompanhar"}</button>
+          )}
           {t.status !== "Concluído" && !taskCienteByMe(t, currentUser) && (
             <button className="btn ok xs" title="Marcar que você viu esta tarefa (para o alerta parar)" onClick={() => actions.markTaskCiente(t.id)}>✓ Ciente</button>
           )}
@@ -188,8 +196,11 @@ export function Tarefas() {
     : filter.usuarioId === "todos" ? null
     : filter.usuarioId;
 
-  let tasks = tarefasNoEscopo(records.corp_tasks, usuarioFiltroId);
-  if (usuarioFiltroId != null && filter.papel !== "ambos") {
+  const filtrandoAcompanhamento = podeVerTodos && filter.acompanhamento;
+  let tasks = filtrandoAcompanhamento
+    ? (records.corp_tasks || []).filter((t) => acompanhaTarefa(t, currentUser.id))
+    : tarefasNoEscopo(records.corp_tasks, usuarioFiltroId);
+  if (!filtrandoAcompanhamento && usuarioFiltroId != null && filter.papel !== "ambos") {
     tasks = tasks.filter((t) => tarefaTemPapel(t, usuarioFiltroId, filter.papel));
   }
   // Arquivadas (concluídas há mais de 4 dias) somem da visão normal mesmo
@@ -219,6 +230,7 @@ export function Tarefas() {
   const escopoBase = tarefasNoEscopo(records.corp_tasks, usuarioFiltroId);
   const staleCount = escopoBase.filter((t) => !isTarefaArquivada(t) && taskIsStale(t, currentUser)).length;
   const arquivadasCount = escopoBase.filter(isTarefaArquivada).length;
+  const acompanhamentoCount = podeVerTodos ? (records.corp_tasks || []).filter((t) => acompanhaTarefa(t, currentUser.id) && !isTarefaArquivada(t)).length : 0;
 
   function openTask(taskId) {
     // marca notificações desta tarefa como lidas para o usuário atual
@@ -290,7 +302,7 @@ export function Tarefas() {
               ))}
             </div>
           )}
-          {usuarioFiltroId != null && (
+          {usuarioFiltroId != null && !filtrandoAcompanhamento && (
             <div className="chips" style={{ alignItems: "center" }}>
               <span className="muted" style={{ fontSize: 12, marginRight: 4 }}>Papel:</span>
               {PAPEL_CHIPS.map(([k, label]) => (
@@ -325,6 +337,9 @@ export function Tarefas() {
             {filter.proximaAcaoAte && <button className="chip-btn" onClick={() => taskFilterStore.patch({ proximaAcaoAte: "" })}>limpar data</button>}
           </div>
           <div className="chips" style={{ alignItems: "center" }}>
+            {podeVerTodos && (
+              <div className={"chip-btn" + (filter.acompanhamento ? " active" : "")} title="CIs em que você marcou Acompanhar — de qualquer usuário" onClick={() => taskFilterStore.patch({ acompanhamento: !filter.acompanhamento })}>👁 Acompanhamento ({acompanhamentoCount})</div>
+            )}
             <div className={"chip-btn" + (filter.stale ? " active" : "")} onClick={() => taskFilterStore.patch({ stale: !filter.stale })}>⚠ Pendente interação ({staleCount})</div>
             <div className={"chip-btn" + (filter.verArquivadas ? " active" : "")} onClick={() => taskFilterStore.patch({ verArquivadas: !filter.verArquivadas })}>Arquivadas ({arquivadasCount})</div>
             <div className={"chip-btn" + (filter.ordemManual ? " active" : "")} onClick={toggleOrdemManual}>🔀 Ordem manual</div>

@@ -25,5 +25,6 @@ export const PAGES = {
   desempenho: lazy(() => import("./Desempenho.jsx").then((m) => ({ default: m.Desempenho }))),
   emails: lazy(() => import("./Emails.jsx").then((m) => ({ default: m.Emails }))),
   integracao: lazy(() => import("./Integracao.jsx").then((m) => ({ default: m.Integracao }))),
+  notificacoes: lazy(() => import("./Notificacoes.jsx").then((m) => ({ default: m.Notificacoes }))),
   config: lazy(() => import("./Configuracoes.jsx").then((m) => ({ default: m.Configuracoes }))),
 };

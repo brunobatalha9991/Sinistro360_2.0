@@ -54,6 +54,7 @@ function App() {
     : allowedRoute === "oficina" ? "Oficinas / Detalhe"
     : allowedRoute === "seguradora" ? "Seguradoras / Detalhe"
     : allowedRoute === "cliente" ? "Clientes / Detalhe"
+    : allowedRoute === "notificacoes" ? "Notificações"
     : menuItem ? menuItem[1] : "Dashboard";
   const PageComponent = PAGES[allowedRoute];
 

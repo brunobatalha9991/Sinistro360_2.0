@@ -10,4 +10,7 @@ import { createStore } from "./createStore";
 export const taskFilterStore = createStore({
   status: "todas", urg: "todas", tipo: "todas", tipoAtendimento: "todas", stale: false, verArquivadas: false, q: "",
   usuarioId: "eu", papel: "ambos", showFilters: true, ordemManual: false, proximaAcaoAte: "",
+  // "Acompanhamento" (só admin/VIP): mostra as CIs em que o usuário marcou
+  // "Acompanhar", independente do filtro de usuário/papel.
+  acompanhamento: false,
 });

@@ -72,15 +72,23 @@ function criadaNoDia(t, data) {
   return !isNaN(d) && dataLocalISO(d) === data;
 }
 
-// Usuários (não Consulta) sem acesso registrado hoje, se já passou do
-// horário de corte. Fora do horário/dia, lista vazia.
+// Operadores da generalização por ausência: nem Consulta nem Administrador
+// (a pedido do usuário, o Administrador não conta como ausente nem é
+// incluído quando a CI é generalizada). VIP segue contando — continua com
+// a função de Atendente/Analista.
+function ehOperador(u) {
+  return !!u && u.role !== "consulta" && u.role !== "admin";
+}
+
+// Operadores sem acesso registrado hoje, se já passou do horário de corte.
+// Fora do horário/dia, lista vazia.
 export function usuariosAusentes(users, acessos, agora, cfg) {
   if (!cfg.ativo) return [];
   if (cfg.soDiasUteis && !ehDiaUtil(agora)) return [];
   const minAgora = agora.getHours() * 60 + agora.getMinutes();
   if (minAgora < hhmmToMin(cfg.horario || "09:30")) return [];
   const hoje = dataLocalISO(agora);
-  return (users || []).filter((u) => u && u.role !== "consulta" && !acessouNoDia(acessos, u.id, hoje));
+  return (users || []).filter((u) => ehOperador(u) && !acessouNoDia(acessos, u.id, hoje));
 }
 
 // Devolve a lista de tarefas com as generalizações aplicadas e o que mudou
@@ -91,7 +99,7 @@ export function generalizarPorAusencia(tasks, users, acessos, agora, cfg) {
   const ausentes = usuariosAusentes(users, acessos, agora, cfg);
   if (!ausentes.length) return { tasks, mudancas: [] };
   const hoje = dataLocalISO(agora);
-  const todos = naoConsulta(users);
+  const todos = (users || []).filter(ehOperador).map((u) => u.id);
   const at = agora.toISOString();
   const mudancas = [];
   const next = (tasks || []).map((t) => {
@@ -133,7 +141,11 @@ export function generalizarPorAusencia(tasks, users, acessos, agora, cfg) {
 // O prazo só corre no horário comercial (a pedido do usuário: fora dele "é
 // óbvio que não vai ter interação") — CI aberta às 17:55 de sexta estoura
 // os 10 min às 08:35 de segunda. Ver minutosUteisEntre.
-export const SEM_INTERACAO_CFG_DEFAULT = { ativo: true, minutos: 10, minutosUrgente: 5, horarioInicio: "08:30", horarioFim: "18:00", soDiasUteis: true };
+export const SEM_INTERACAO_CFG_DEFAULT = {
+  ativo: true, minutos: 10, minutosUrgente: 5, horarioInicio: "08:30", horarioFim: "18:00", soDiasUteis: true,
+  // Alerta repetido ao criador da CI + escalonamento (ver verificarAlertasCriador).
+  minutosCriador: 10, alertasParaEscalonar: 3, escalonarPara: "",
+};
 // Silêncios mais antigos que isso não alertam (evita disparar de uma vez por
 // CIs antigas esquecidas). Em dias corridos, pra cobrir fim de semana.
 const JANELA_SEM_INTERACAO_MS = 4 * 24 * 60 * 60 * 1000;
@@ -179,6 +191,113 @@ export function referenciaInteracao(t) {
   return ref;
 }
 
+// Destinatários (fora quem criou) e o instante da última interação de cada
+// um (null = nunca interagiu) — quem aparece como "ausente" no alerta.
+export function ultimaInteracaoPorDestinatario(t) {
+  const dests = (t.destinatarios || []).filter((id) => id && id !== t.origem);
+  return dests.map((id) => {
+    let ult = (t.ciente && t.ciente[id]) || null;
+    const considerar = (iso) => { if (iso && (!ult || String(iso) > ult)) ult = String(iso); };
+    (t.comments || []).forEach((c) => { if (c.userId === id) considerar(c.at); });
+    (t.log || []).forEach((e) => { if (e.who === id) considerar(e.at); });
+    return { userId: id, ultima: ult };
+  });
+}
+
+// "Interação considerada" (a pedido do usuário): Admin/VIP dizem que a
+// última interação vale por um período escolhido à mão — enquanto
+// `t.interacaoConsiderada.ate` não passa, a CI não alerta; depois dele, se
+// ainda não houve interação, o alerta volta.
+export function interacaoConsideradaAtiva(t, agora) {
+  const ate = t && t.interacaoConsiderada && new Date(t.interacaoConsiderada.ate).getTime();
+  return !!ate && !isNaN(ate) && (agora || new Date()).getTime() < ate;
+}
+
+// 4) Alerta repetido ao CRIADOR da CI (a pedido do usuário): a cada
+//    `minutosCriador` minutos de horário comercial sem interação dos
+//    destinatários — sem contar Administradores (role "admin") nem o
+//    próprio criador — o criador recebe um alerta. A cada
+//    `alertasParaEscalonar` alertas da mesma CI, o usuário de escalonamento
+//    (Configurações → Comunicação Interna; padrão: o usuário "Bruno") entra
+//    como destinatário, com comentário automático, e recebe alerta roxo +
+//    notificação do Windows para avaliar um pedido de intervenção. O
+//    "Considerar" dele (interacaoConsiderada) segura os alertas até o
+//    horário escolhido; a contagem volta a correr a partir dali.
+export function destinatariosOperadoresCI(t, users) {
+  const admins = new Set((users || []).filter((u) => u && u.role === "admin").map((u) => u.id));
+  return (t.destinatarios || []).filter((id) => id && id !== t.origem && !admins.has(id));
+}
+
+function referenciaInteracaoDe(t, dests) {
+  let ref = t.createdAt || "";
+  const considerar = (iso) => { if (iso && String(iso) > ref) ref = String(iso); };
+  dests.forEach((id) => considerar(t.ciente && t.ciente[id]));
+  (t.comments || []).forEach((c) => { if (dests.includes(c.userId)) considerar(c.at); });
+  (t.log || []).forEach((e) => { if (dests.includes(e.who)) considerar(e.at); });
+  return ref;
+}
+
+function semAcento(s) {
+  return String(s || "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().trim();
+}
+
+// Usuário que recebe o escalonamento: o configurado, ou (padrão) o
+// primeiro usuário chamado "Bruno".
+export function usuarioEscalonamentoId(cfg, users) {
+  const lista = users || [];
+  if (cfg && cfg.escalonarPara && lista.some((u) => u.id === cfg.escalonarPara)) return cfg.escalonarPara;
+  const bruno = lista.find((u) => u && u.role !== "consulta" && semAcento(u.nome).split(/\s+/)[0] === "bruno");
+  return bruno ? bruno.id : null;
+}
+
+export function verificarAlertasCriador(tasks, users, agora, cfg) {
+  if (!cfg.ativo) return { tasks, alertas: [] };
+  const intervalo = Number(cfg.minutosCriador) || 10;
+  const limiteEsc = Number(cfg.alertasParaEscalonar) || 3;
+  const escId = usuarioEscalonamentoId(cfg, users);
+  const t0 = agora.getTime();
+  const at = agora.toISOString();
+  const alertas = [];
+  const next = (tasks || []).map((t) => {
+    if (!t || !t.origem || t.status === "Concluído" || t.arquivadoManualmente) return t;
+    if (interacaoConsideradaAtiva(t, agora)) return t;
+    const dests = destinatariosOperadoresCI(t, users);
+    if (!dests.length) return t;
+    const ref = referenciaInteracaoDe(t, dests);
+    const consid = t.interacaoConsiderada && String(t.interacaoConsiderada.ate) > ref ? String(t.interacaoConsiderada.ate) : "";
+    const baseMs = new Date(consid || ref).getTime();
+    if (isNaN(baseMs) || t0 - baseMs > JANELA_SEM_INTERACAO_MS) return t;
+    const devidos = Math.floor(minutosUteisEntre(baseMs, t0, cfg) / intervalo);
+    const chave = consid ? ref + "|" + consid : ref;
+    const enviados = t.alertaCriador && t.alertaCriador.chave === chave ? t.alertaCriador.enviados || 0 : 0;
+    if (devidos <= enviados) return t;
+
+    const contador = ((t.escalonamentoCI && t.escalonamentoCI.contador) || 0) + 1;
+    const escalar = !!escId && contador >= limiteEsc;
+    let atualizada = {
+      ...t,
+      alertaCriador: { chave, enviados: devidos, at },
+      escalonamentoCI: { ...(t.escalonamentoCI || {}), contador: escalar ? 0 : contador, ...(escalar ? { ultimoEm: at, para: escId } : {}) },
+    };
+    let adicionado = false;
+    if (escalar) {
+      const nomeEsc = ((users || []).find((u) => u.id === escId) || { nome: "?" }).nome;
+      adicionado = !(t.destinatarios || []).includes(escId);
+      const texto = `⚠️ Comentário automático: ${limiteEsc} alertas seguidos sem interação dos destinatários — ${nomeEsc} ${adicionado ? "foi incluído(a) como destinatário(a)" : "foi acionado(a)"} para avaliar um pedido de intervenção.`;
+      atualizada = {
+        ...atualizada,
+        destinatarios: adicionado ? [...(t.destinatarios || []), escId] : (t.destinatarios || []),
+        updatedAt: at,
+        comments: [...(t.comments || []), { id: "cmt_" + Math.random().toString(36).slice(2, 9), userId: AUTOR_SISTEMA, sistema: true, text: texto, at }],
+        log: [...(t.log || []), { at, who: null, acao: `Escalonada para ${nomeEsc} após ${limiteEsc} alertas sem interação` }],
+      };
+    }
+    alertas.push({ task: atualizada, minutos: devidos * intervalo, ausentes: dests, escalar, escalonadoPara: escalar ? escId : null, adicionado });
+    return atualizada;
+  });
+  return { tasks: alertas.length ? next : tasks, alertas };
+}
+
 export function limiteSemInteracaoMin(t, cfg) {
   return t.urgencia === "Urgente" ? Number(cfg.minutosUrgente) || 5 : Number(cfg.minutos) || 10;
 }
@@ -192,14 +311,20 @@ export function verificarSemInteracao(tasks, agora, cfg) {
   const next = (tasks || []).map((t) => {
     if (!t || t.status === "Concluído" || t.arquivadoManualmente) return t;
     if (!(t.destinatarios || []).some((id) => id && id !== t.origem)) return t;
+    if (interacaoConsideradaAtiva(t, agora)) return t;
     const ref = referenciaInteracao(t);
     const refMs = new Date(ref).getTime();
-    if (isNaN(refMs) || t0 - refMs > JANELA_SEM_INTERACAO_MS) return t;
+    // Um período de "interação considerada" já vencido sem nova interação
+    // conta como um novo silêncio: alerta de novo (chave = ref + fim dele).
+    const consid = t.interacaoConsiderada && String(t.interacaoConsiderada.ate) > ref ? String(t.interacaoConsiderada.ate) : "";
+    const chave = consid ? ref + "|" + consid : ref;
+    const desdeMs = consid ? new Date(consid).getTime() : refMs;
+    if (isNaN(refMs) || t0 - desdeMs > JANELA_SEM_INTERACAO_MS) return t;
     const minutos = limiteSemInteracaoMin(t, cfg);
     if (minutosUteisEntre(refMs, t0, cfg) < minutos) return t;
-    if (t.alertaSemInteracao && t.alertaSemInteracao.ref === ref) return t;
-    const atualizada = { ...t, alertaSemInteracao: { ref, at: agora.toISOString(), minutos } };
-    alertas.push({ task: atualizada, minutos });
+    if (t.alertaSemInteracao && t.alertaSemInteracao.ref === chave) return t;
+    const atualizada = { ...t, alertaSemInteracao: { ref: chave, at: agora.toISOString(), minutos } };
+    alertas.push({ task: atualizada, minutos, ausentes: ultimaInteracaoPorDestinatario(t).map((d) => d.userId), aposConsiderada: !!consid });
     return atualizada;
   });
   return { tasks: alertas.length ? next : tasks, alertas };

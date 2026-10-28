@@ -6,7 +6,7 @@ import { txt } from "../logic/format";
 // (Emails.jsx). `value.label` é o texto já exibido (ex.: editando algo já
 // vinculado); `onChange(claimId)` recebe "" quando o usuário escolhe
 // "Nenhum".
-export function ProcSearch({ value, onChange, claims }) {
+export function ProcSearch({ value, onChange, claims, disabled }) {
   const [q, setQ] = useState(value.label || "");
   const [open, setOpen] = useState(false);
   const results = q.trim().length >= 2
@@ -22,12 +22,12 @@ export function ProcSearch({ value, onChange, claims }) {
   return (
     <div>
       <input
-        placeholder="Buscar por nome, nº sinistro ou placa..." value={q}
+        placeholder="Buscar por nome, nº sinistro ou placa..." value={q} disabled={disabled}
         onChange={(e) => { setQ(e.target.value); setOpen(true); }}
         onFocus={() => setOpen(true)}
         onBlur={() => setTimeout(() => setOpen(false), 150)}
       />
-      {open && (
+      {open && !disabled && (
         <div style={{ border: "1px solid var(--border)", borderRadius: 8, marginTop: 4, maxHeight: 200, overflow: "auto", background: "var(--card)" }}>
           <div style={{ padding: "8px 10px", cursor: "pointer", color: "var(--muted)", borderBottom: "1px solid var(--border-soft)" }} onMouseDown={(e) => { e.preventDefault(); pick(null); }}>
             — Nenhum (sem vínculo) —

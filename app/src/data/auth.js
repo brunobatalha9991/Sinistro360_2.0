@@ -85,6 +85,8 @@ export function podeSerResponsavel(user) { return !!(user && user.role !== "cons
 // exibindo a função original.
 export function resolveAllowedRoute(route, currentUser, currentRole) {
   let r = route;
+  // Notificações (aberto pelo sino) vale pra todo perfil.
+  if (r === "notificacoes") return r;
   if (r === "config" && !isAdmin(currentUser)) r = "dashboard";
   if (currentRole === "consulta" && !isAdmin(currentUser) && r !== "sinistros" && r !== "sinistro" && r !== "tarefas") {
     r = "sinistros";

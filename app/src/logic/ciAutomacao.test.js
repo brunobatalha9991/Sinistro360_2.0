@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { destinatariosAutomaticos, generalizarPorAusencia, usuariosAusentes, idAcesso, AUSENCIA_CFG_DEFAULT, AUTOR_SISTEMA, verificarSemInteracao, referenciaInteracao, SEM_INTERACAO_CFG_DEFAULT, minutosUteisEntre } from "./ciAutomacao";
+import { destinatariosAutomaticos, generalizarPorAusencia, usuariosAusentes, idAcesso, AUSENCIA_CFG_DEFAULT, AUTOR_SISTEMA, verificarSemInteracao, referenciaInteracao, SEM_INTERACAO_CFG_DEFAULT, minutosUteisEntre, interacaoConsideradaAtiva, verificarAlertasCriador, usuarioEscalonamentoId } from "./ciAutomacao";
 
 const users = [
   { id: "adm", nome: "Admin", role: "admin" },
@@ -40,11 +40,18 @@ describe("generalização por ausência", () => {
   it("consulta nunca conta como ausente", () => {
     expect(usuariosAusentes(users, acessos, qua0931, cfg).map((u) => u.id)).toEqual(["luiz"]);
   });
+  it("administrador não conta como ausente nem entra na generalização", () => {
+    const soAna = { [idAcesso("ana", "2026-10-28")]: {} };
+    expect(usuariosAusentes(users, soAna, qua0931, cfg).map((u) => u.id)).toEqual(["luiz"]);
+    const r = generalizarPorAusencia([tarefa()], users, soAna, qua0931, cfg);
+    expect(r.mudancas[0].adicionados).toEqual(["ana"]);
+    expect(r.tasks[0].destinatarios).not.toContain("adm");
+  });
   it("generaliza a CI de hoje do ausente, com comentário, e não repete", () => {
     const r = generalizarPorAusencia([tarefa()], users, acessos, qua0931, cfg);
     expect(r.mudancas).toHaveLength(1);
     const t = r.tasks[0];
-    expect(t.destinatarios.sort()).toEqual(["adm", "ana", "luiz"]);
+    expect(t.destinatarios.sort()).toEqual(["ana", "luiz"]);
     expect(t.comments[0].userId).toBe(AUTOR_SISTEMA);
     expect(t.comments[0].text).toContain("possível ausência de Luiz");
     expect(generalizarPorAusencia(r.tasks, users, acessos, qua0931, cfg).mudancas).toHaveLength(0);
@@ -90,6 +97,43 @@ describe("CI sem interação dos destinatários", () => {
     expect(verificarSemInteracao([t({ status: "Concluído" })], em(60), cfg).alertas).toHaveLength(0);
     expect(verificarSemInteracao([t({ destinatarios: ["adm"] })], em(60), cfg).alertas).toHaveLength(0);
     expect(verificarSemInteracao([t()], em(5 * 24 * 60), cfg).alertas).toHaveLength(0);
+  });
+  it("interação considerada segura o alerta até o prazo e depois alerta de novo", () => {
+    const r = verificarSemInteracao([t()], em(11), cfg);
+    expect(r.alertas[0].ausentes).toEqual(["luiz"]);
+    const consid = { ...r.tasks[0], interacaoConsiderada: { ate: em(60).toISOString(), por: "adm" } };
+    expect(verificarSemInteracao([consid], em(30), cfg).alertas).toHaveLength(0);
+    const depois = verificarSemInteracao([consid], em(61), cfg);
+    expect(depois.alertas).toHaveLength(1);
+    expect(depois.alertas[0].aposConsiderada).toBe(true);
+    expect(verificarSemInteracao(depois.tasks, em(90), cfg).alertas).toHaveLength(0);
+    expect(interacaoConsideradaAtiva(consid, em(30))).toBe(true);
+    expect(interacaoConsideradaAtiva(consid, em(61))).toBe(false);
+  });
+  it("alerta o criador a cada intervalo, ignora admin e escalona no 3º alerta", () => {
+    const us = [...users, { id: "bru", nome: "Bruno Batalha", role: "atendente" }];
+    expect(usuarioEscalonamentoId(cfg, us)).toBe("bru");
+    // Destinatário só admin: não alerta o criador.
+    expect(verificarAlertasCriador([t({ origem: "ana", destinatarios: ["adm"] })], us, em(60), cfg).alertas).toHaveLength(0);
+    let tasks = [t({ origem: "ana", destinatarios: ["luiz", "adm"] })];
+    expect(verificarAlertasCriador(tasks, us, em(9), cfg).alertas).toHaveLength(0);
+    let r = verificarAlertasCriador(tasks, us, em(10), cfg);
+    expect(r.alertas).toHaveLength(1);
+    expect(r.alertas[0].ausentes).toEqual(["luiz"]);
+    expect(r.alertas[0].escalar).toBe(false);
+    tasks = r.tasks;
+    expect(verificarAlertasCriador(tasks, us, em(15), cfg).alertas).toHaveLength(0);
+    tasks = verificarAlertasCriador(tasks, us, em(20), cfg).tasks;
+    r = verificarAlertasCriador(tasks, us, em(30), cfg);
+    expect(r.alertas[0].escalar).toBe(true);
+    expect(r.alertas[0].adicionado).toBe(true);
+    expect(r.tasks[0].destinatarios).toContain("bru");
+    expect(r.tasks[0].comments.at(-1).userId).toBe(AUTOR_SISTEMA);
+    // "Considerar" até em(90): nada até lá; depois volta a contar do prazo.
+    tasks = [{ ...r.tasks[0], interacaoConsiderada: { ate: em(90).toISOString(), por: "bru" } }];
+    expect(verificarAlertasCriador(tasks, us, em(85), cfg).alertas).toHaveLength(0);
+    expect(verificarAlertasCriador(tasks, us, em(95), cfg).alertas).toHaveLength(0);
+    expect(verificarAlertasCriador(tasks, us, em(100), cfg).alertas).toHaveLength(1);
   });
   it("só conta o horário comercial (08:30–18:00, seg–sex)", () => {
     const local = (d, h, m) => new Date(2026, 9, d, h, m);

@@ -158,6 +158,10 @@ export const RECORD_SPECS = {
   // Resumo das CIs que o purgeOldTasks apaga (concluídas há 15+ dias) —
   // mantém completos os indicadores de CI do Desempenho (logic/desempenhoCI.js).
   corp_ci_historico: { col: "s360_ci_historico", keyed: false },
+  // Ritmo do dia do Desempenho — fotos do Índice de cada operador ao longo
+  // do dia ("userId_AAAA-MM-DD") e o fechamento diário da equipe
+  // ("__fechamento_AAAA-MM-DD") — ver src/logic/desempenhoRitmo.js.
+  corp_desempenho_ritmo: { col: "s360_desempenho_ritmo", keyed: true },
 };
 
 export const CONFIG_COLLECTION = "s360_config";

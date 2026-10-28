@@ -90,6 +90,20 @@ export function taskParticipants(t) {
   ids.forEach((i) => { if (i && !seen[i]) { seen[i] = true; out.push(i); } });
   return out;
 }
+// Acompanhamento (a pedido do usuário): Admin/VIP marcam "Acompanhar" num
+// card de CI sem precisar ser origem/destinatário — a CI entra no filtro
+// "Acompanhamento" e eles passam a receber as notificações dela (em laranja
+// no sino). Não altera destinatários nem os relatórios de ciência.
+export function taskAcompanhantes(t) {
+  return (t && t.acompanhantes) || [];
+}
+export function acompanhaTarefa(t, userId) {
+  return taskAcompanhantes(t).indexOf(userId) >= 0;
+}
+export function acompanhantesSemParticipacao(t) {
+  const part = taskParticipants(t);
+  return taskAcompanhantes(t).filter((id) => part.indexOf(id) < 0);
+}
 // `escopoUserId` null/undefined = todas as tarefas (usado por admin/VIP no
 // filtro "Todos") — qualquer id = só as tarefas em que esse usuário é
 // origem OU destinatário (mesmo critério de sempre).

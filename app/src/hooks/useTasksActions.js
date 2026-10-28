@@ -1,7 +1,20 @@
 import { useData } from "../data/DataProvider.jsx";
 import { useAuth } from "./useAuth";
+import { isAdmin } from "../data/auth";
 import { resumoHistoricoCI } from "../logic/desempenhoCI";
-import { taskParticipants, proximoCI, recorrenciaVencida, recorrenciaEncerrada, gerarOcorrenciaRecorrente } from "../logic/tasks";
+import { semInteracaoCfg, usuarioEscalonamentoId } from "../logic/ciAutomacao";
+import { taskParticipants, acompanhantesSemParticipacao, acompanhaTarefa, proximoCI, recorrenciaVencida, recorrenciaEncerrada, gerarOcorrenciaRecorrente } from "../logic/tasks";
+
+export function rotuloDuracao(minutos) {
+  if (minutos % 1440 === 0) return `${minutos / 1440} dia(s)`;
+  if (minutos % 60 === 0) return `${minutos / 60} hora(s)`;
+  return `${minutos} min`;
+}
+function fmtDataHora(iso) {
+  const d = new Date(iso);
+  const p = (n) => String(n).padStart(2, "0");
+  return `${p(d.getDate())}/${p(d.getMonth() + 1)} ${p(d.getHours())}:${p(d.getMinutes())}`;
+}
 
 // Central de gravação em corp_tasks/corp_notifs/corp_demandas — porte 1:1
 // das funções de escrita do HTML original (pushNotif, taskInteract,
@@ -10,7 +23,7 @@ import { taskParticipants, proximoCI, recorrenciaVencida, recorrenciaEncerrada, 
 // mesmo motivo do useOverrideActions: evitar que duas gravações no mesmo
 // clique se percam uma à outra.
 export function useTasksActions() {
-  const { saveRecord } = useData();
+  const { records, config, saveRecord } = useData();
   const { currentUser } = useAuth();
 
   // `emergencia` marca a notificação como Assistência 24h — só diferencial
@@ -19,15 +32,27 @@ export function useTasksActions() {
   // comentário posterior) — usado pelo alarme em tela cheia de Mesa de
   // Atendimento (useTarefaAlarme.js), que só deve disparar uma vez, na
   // criação, não a cada interação seguinte na mesma tarefa.
-  function pushNotif(taskId, userIds, texto, exceptUserId, emergencia, criacao) {
+  // `acompanhamento` marca a notificação de quem só acompanha a CI (laranja
+  // no sino, ver NotifBell.jsx).
+  // `extra` = campos a mais gravados na notificação (ex.: tipo/ausentes do
+  // alerta de CI sem interação).
+  function pushNotif(taskId, userIds, texto, exceptUserId, emergencia, criacao, acompanhamento, extra) {
     saveRecord("corp_notifs", (current) => {
       const arr = [...(current || [])];
       (userIds || []).forEach((uid) => {
         if (uid === exceptUserId) return;
-        arr.push({ id: "ntf_" + Math.random().toString(36).slice(2, 9), taskId, userId: uid, text: texto, at: new Date().toISOString(), read: false, emergencia: !!emergencia, criacao: !!criacao });
+        arr.push({ id: "ntf_" + Math.random().toString(36).slice(2, 9), taskId, userId: uid, text: texto, at: new Date().toISOString(), read: false, emergencia: !!emergencia, criacao: !!criacao, ...(acompanhamento ? { acompanhamento: true } : {}), ...(extra || {}) });
       });
       return arr;
     });
+  }
+
+  // Acompanhantes que não são origem/destinatário — só quem ainda é
+  // Admin/VIP (quem perdeu o acesso deixa de ser notificado).
+  function notificarAcompanhantes(task, texto, exceptUserId, emergencia) {
+    const users = records.corp_users || [];
+    const alvos = acompanhantesSemParticipacao(task).filter((id) => isAdmin(users.find((u) => u.id === id)));
+    if (alvos.length) pushNotif(task.id, alvos, texto, exceptUserId, emergencia, false, true);
   }
 
   function saveTask(task) {
@@ -49,7 +74,46 @@ export function useTasksActions() {
     const next = { ...task, updatedAt, log: [...(task.log || []), ...novasEntradas] };
     saveTask(next);
     pushNotif(task.id, taskParticipants(task), notifTexto || lista[0], exceptUserId, emergencia);
+    notificarAcompanhantes(task, notifTexto || lista[0], exceptUserId, emergencia);
     return next;
+  }
+
+  // Liga/desliga o "Acompanhar" do usuário (Admin/VIP) nesta CI — fica na
+  // auditoria interna, mas não notifica ninguém.
+  function alternarAcompanhamento(task, usuario) {
+    if (!usuario || !isAdmin(usuario)) return;
+    const at = new Date().toISOString();
+    const ligando = !acompanhaTarefa(task, usuario.id);
+    saveRecord("corp_tasks", (current) => (current || []).map((t) => {
+      if (t.id !== task.id) return t;
+      const atuais = t.acompanhantes || [];
+      return {
+        ...t,
+        acompanhantes: ligando ? [...atuais.filter((id) => id !== usuario.id), usuario.id] : atuais.filter((id) => id !== usuario.id),
+        log: [...(t.log || []), { at, who: usuario.id, acao: ligando ? `${usuario.nome} passou a acompanhar a CI` : `${usuario.nome} deixou de acompanhar a CI` }],
+      };
+    }));
+  }
+
+  // "Interação considerada" (Admin/VIP, a partir do alerta de CI sem
+  // interação): segura novos alertas desta CI por `minutos` — ver
+  // interacaoConsideradaAtiva em logic/ciAutomacao.js.
+  // Também liberado pro usuário de escalonamento (o "Considerar" do alerta
+  // roxo) — e zera a contagem de alertas até o próximo escalonamento.
+  function podeConsiderarInteracao(usuario) {
+    if (!usuario) return false;
+    return isAdmin(usuario) || usuario.id === usuarioEscalonamentoId(semInteracaoCfg(config), records.corp_users || []);
+  }
+  function considerarInteracao(task, minutos, usuario) {
+    if (!podeConsiderarInteracao(usuario) || !(minutos > 0)) return;
+    const agora = new Date();
+    const ate = new Date(agora.getTime() + minutos * 60000).toISOString();
+    saveRecord("corp_tasks", (current) => (current || []).map((t) => (t.id !== task.id ? t : {
+      ...t,
+      interacaoConsiderada: { ate, at: agora.toISOString(), por: usuario.id, minutos },
+      escalonamentoCI: { ...(t.escalonamentoCI || {}), contador: 0 },
+      log: [...(t.log || []), { at: agora.toISOString(), who: usuario.id, acao: `${usuario.nome} marcou "Interação considerada" por ${rotuloDuracao(minutos)} (até ${fmtDataHora(ate)})` }],
+    })));
   }
 
   // Arquivamento manual — substitui o antigo botão "Remover" (a pedido do
@@ -133,7 +197,11 @@ export function useTasksActions() {
           const novos = apagadas.filter((h) => !ja.has(h.id));
           return novos.length ? [...(cur || []), ...novos] : cur;
         });
-        saveRecord("corp_notifs", (curNotifs) => (curNotifs || []).filter((n) => keepIds[n.taskId]));
+        // Só some notificação das tarefas apagadas — as que não são de CI
+        // (agenda, demandas, desempenho...) ficam.
+        const apagadasIds = {};
+        all.forEach((t) => { if (!keepIds[t.id]) apagadasIds[t.id] = true; });
+        saveRecord("corp_notifs", (curNotifs) => (curNotifs || []).filter((n) => !apagadasIds[n.taskId]));
         return keep;
       }
       return all;
@@ -187,6 +255,7 @@ export function useTasksActions() {
       log: [...(t.log || []), { at, who: autor.id, acao: `Intervenção de ${autor.nome}: "${texto.slice(0, 200)}"` }],
     })));
     pushNotif(task.id, alvos, `🚨 Intervenção de ${autor.nome} na ${task.ci || "CI"} — resposta obrigatória: ${texto.slice(0, 60)}`, autor.id);
+    notificarAcompanhantes(task, `🚨 Intervenção de ${autor.nome} na ${task.ci || "CI"}: ${texto.slice(0, 60)}`, autor.id);
   }
 
   function responderIntervencao(task, iv, texto, usuario) {
@@ -203,10 +272,11 @@ export function useTasksActions() {
     }));
     const avisar = [...new Set([iv.autorId, ...taskParticipants(task)])];
     pushNotif(task.id, avisar, `${usuario.nome} respondeu à intervenção na ${task.ci || "CI"}: ${texto.slice(0, 60)}`, usuario.id);
+    notificarAcompanhantes({ ...task, destinatarios: avisar }, `${usuario.nome} respondeu à intervenção na ${task.ci || "CI"}: ${texto.slice(0, 60)}`, usuario.id);
   }
 
   return {
-    pushNotif, saveTask, createTask, taskInteract, arquivarManualmente, excluirTarefa, definirOrdemManual,
+    pushNotif, saveTask, createTask, taskInteract, alternarAcompanhamento, considerarInteracao, podeConsiderarInteracao, arquivarManualmente, excluirTarefa, definirOrdemManual,
     markTaskCiente, markNotifRead, dismissAlarmeMesa, markAllNotifsRead, purgeOldTasks, gerarOcorrenciasRecorrentes,
     intervir, responderIntervencao,
   };

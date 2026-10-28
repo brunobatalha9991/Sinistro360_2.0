@@ -67,7 +67,7 @@ function ChecklistItemRow({ item, checked, onToggle }) {
 // Campo de upload de anexo do formulário de Solicitação — envia pro Google
 // Drive via Apps Script (logic/driveUpload.js), sem exigir login Google do
 // usuário. Guarda no valor do campo uma lista de {nome, url, id}.
-function CampoArquivo({ campo, valores, onChange, endpoint, uploadOk, pasta }) {
+function CampoArquivo({ campo, valores, onChange, endpoint, uploadOk, pasta, somenteLeitura }) {
   const [enviando, setEnviando] = useState(false);
   const [erro, setErro] = useState(null);
   const arquivos = valores[campo.id] || [];
@@ -95,7 +95,7 @@ function CampoArquivo({ campo, valores, onChange, endpoint, uploadOk, pasta }) {
 
   return (
     <div>
-      {!uploadOk ? (
+      {somenteLeitura ? null : !uploadOk ? (
         <p className="muted" style={{ fontSize: 11.5, margin: 0 }}>Configure o upload de anexos em Configurações para habilitar este campo.</p>
       ) : (
         <input type="file" multiple={campo.maxArquivos > 1} disabled={enviando} onChange={(e) => { handleFiles(e.target.files); e.target.value = ""; }} />
@@ -105,7 +105,7 @@ function CampoArquivo({ campo, valores, onChange, endpoint, uploadOk, pasta }) {
       {arquivos.map((a, idx) => (
         <div key={idx} style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12, marginTop: 4 }}>
           <a href={a.url} target="_blank" rel="noreferrer">{a.nome}</a>
-          <a style={{ color: "var(--danger)", cursor: "pointer" }} onClick={() => remover(idx)}>✕</a>
+          {!somenteLeitura && <a style={{ color: "var(--danger)", cursor: "pointer" }} onClick={() => remover(idx)}>✕</a>}
         </div>
       ))}
       <div className="muted" style={{ fontSize: 10.5, marginTop: 2 }}>Até {campo.maxArquivos} arquivo(s), {campo.maxTamanhoMb}MB cada.</div>
@@ -117,7 +117,7 @@ function CampoArquivo({ campo, valores, onChange, endpoint, uploadOk, pasta }) {
 // tanto nos campos "fixos" da seção quanto em cada terceiro extra (ver
 // SolicitacaoFields abaixo). `onChange` recebe sempre o objeto `valores`
 // inteiro já com este campo atualizado (mesmo contrato de CampoArquivo).
-function CampoInput({ campo, valores, onChange, endpoint, uploadOk, pasta }) {
+function CampoInput({ campo, valores, onChange, endpoint, uploadOk, pasta, somenteLeitura }) {
   const v = valores || {};
   function set(valor) { onChange({ ...v, [campo.id]: valor }); }
   return (
@@ -134,7 +134,7 @@ function CampoInput({ campo, valores, onChange, endpoint, uploadOk, pasta }) {
       ) : campo.tipo === "datahora" ? (
         <input type="datetime-local" value={v[campo.id] || ""} onChange={(e) => set(e.target.value)} />
       ) : campo.tipo === "arquivo" ? (
-        <CampoArquivo campo={campo} valores={v} onChange={onChange} endpoint={endpoint} uploadOk={uploadOk} pasta={pasta} />
+        <CampoArquivo campo={campo} valores={v} onChange={onChange} endpoint={endpoint} uploadOk={uploadOk} pasta={pasta} somenteLeitura={somenteLeitura} />
       ) : (
         <input value={v[campo.id] || ""} onChange={(e) => set(e.target.value)} />
       )}
@@ -154,7 +154,9 @@ function CampoInput({ campo, valores, onChange, endpoint, uploadOk, pasta }) {
 // `contextoPdf` ({ tituloTarefa, processoLabel, solicitante, geradoPor })
 // entra no cabeçalho do PDF exportado pelo botão "Exportar PDF" (a pedido
 // do usuário) — ver logic/solicitacaoPdf.js.
-function SolicitacaoFields({ tipoAtendimento, valores, onChange, config, pastaDrive, contextoPdf }) {
+// `somenteLeitura` (CI concluída): campos travados, só a exportação em PDF
+// continua disponível.
+function SolicitacaoFields({ tipoAtendimento, valores, onChange, config, pastaDrive, contextoPdf, somenteLeitura }) {
   const def = getFormularioEfetivo(tipoAtendimento, config);
   const v = valores || {};
   const uploadOk = isDriveUploadConfigured(config);
@@ -197,6 +199,7 @@ function SolicitacaoFields({ tipoAtendimento, valores, onChange, config, pastaDr
         </button>
       </div>
       {erroPdf && <div style={{ color: "var(--danger)", fontSize: 11.5, marginTop: 6 }}>{erroPdf}</div>}
+      <fieldset disabled={!!somenteLeitura} style={{ border: 0, padding: 0, margin: 0, minWidth: 0 }}>
       {secoes.map((secao) => {
         if (def.secaoVisivel && !def.secaoVisivel(secao, v)) return null;
         const camposSecao = def.campos.filter((c) => c.secao === secao);
@@ -205,29 +208,30 @@ function SolicitacaoFields({ tipoAtendimento, valores, onChange, config, pastaDr
           <div key={secao}>
             <div className="muted" style={{ fontSize: 11.5, fontWeight: 700, textTransform: "uppercase", letterSpacing: ".4px", marginTop: 12, marginBottom: 4 }}>{secao}</div>
             {camposSecao.map((campo) => (
-              <CampoInput key={campo.id} campo={campo} valores={v} onChange={onChange} endpoint={endpoint} uploadOk={uploadOk} pasta={pastaDrive} />
+              <CampoInput key={campo.id} campo={campo} valores={v} onChange={onChange} endpoint={endpoint} uploadOk={uploadOk} pasta={pastaDrive} somenteLeitura={somenteLeitura} />
             ))}
             {repetivel && (v.terceirosExtra || []).map((entrada, idx) => (
               <div key={idx} style={{ marginTop: 12, paddingTop: 12, borderTop: "1px dashed var(--border)" }}>
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
                   <b style={{ fontSize: 12 }}>Terceiro #{idx + 2}</b>
-                  <a style={{ cursor: "pointer", fontSize: 12, color: "var(--danger)" }} onClick={() => removerTerceiro(idx)}>remover este terceiro</a>
+                  {!somenteLeitura && <a style={{ cursor: "pointer", fontSize: 12, color: "var(--danger)" }} onClick={() => removerTerceiro(idx)}>remover este terceiro</a>}
                 </div>
                 {camposSecao.map((campo) => (
                   <CampoInput
                     key={campo.id} campo={campo} valores={entrada}
                     onChange={(novaEntrada) => setTerceiroExtra(idx, novaEntrada)}
-                    endpoint={endpoint} uploadOk={uploadOk} pasta={pastaDrive}
+                    endpoint={endpoint} uploadOk={uploadOk} pasta={pastaDrive} somenteLeitura={somenteLeitura}
                   />
                 ))}
               </div>
             ))}
-            {repetivel && (
+            {repetivel && !somenteLeitura && (
               <button type="button" className="btn sec xs" style={{ marginTop: 10 }} onClick={adicionarTerceiro}>+ Adicionar outro terceiro</button>
             )}
           </div>
         );
       })}
+      </fieldset>
     </div>
   );
 }
@@ -529,6 +533,9 @@ export function TaskModal() {
   const [checklistAberto, setChecklistAberto] = useState(false);
   const [pastaDriveId, setPastaDriveId] = useState("");
   const [comentarioConclusao, setComentarioConclusao] = useState("");
+  // Comentário já na abertura da CI (a pedido do usuário, vale pra todos os
+  // perfis) — vira a primeira mensagem do chat.
+  const [comentarioInicial, setComentarioInicial] = useState("");
   // Destinatários marcados pelas regras automáticas (Configurações →
   // Comunicação Interna) — guardados pra desmarcar quando o tipo muda.
   const destAutoRef = useRef([]);
@@ -568,7 +575,7 @@ export function TaskModal() {
       setProximaAcaoData(editing.proximaAcaoData || (editing.createdAt || "").slice(0, 10) || todayISO());
       setTipoAtendimento(editing.tipoAtendimento || ""); setChecklistMesa(editing.checklistMesa || checklistVazio());
       setSolicitacao(editing.solicitacao || null); setSolicitacaoAberta(false); setChecklistAberto(false);
-      setPastaDriveId(editing.id); setComentarioConclusao("");
+      setPastaDriveId(editing.id); setComentarioConclusao(""); setComentarioInicial("");
     } else {
       setTipo(taskTypes[0]); setUrgencia("Leve"); setStatus("Pendente");
       setDestSel({}); setFlagSel({});
@@ -577,7 +584,7 @@ export function TaskModal() {
       setProximaAcaoData(todayISO());
       setTipoAtendimento(""); setChecklistMesa(checklistVazio());
       setSolicitacao(null); setSolicitacaoAberta(false); setChecklistAberto(false);
-      setPastaDriveId("sol_" + Math.random().toString(36).slice(2, 9)); setComentarioConclusao("");
+      setPastaDriveId("sol_" + Math.random().toString(36).slice(2, 9)); setComentarioConclusao(""); setComentarioInicial("");
       const prefill = takeDemandaPrefill();
       setTitulo(prefill?.titulo || ""); setDescricao(prefill?.descricao || "");
       if (prefill?.oficinaId) setOficinaId(prefill.oficinaId);
@@ -658,8 +665,13 @@ export function TaskModal() {
   // envolvidos) — só na TRANSIÇÃO para Concluído, não em toda gravação de
   // uma tarefa já concluída antes.
   const concluindoAgora = status === "Concluído" && antigoStatus !== "Concluído";
+  // A pedido do usuário: CI concluída fica congelada — ninguém altera mais
+  // nenhum campo, nem se desmarca dos destinatários. Comentários seguem a
+  // regra própria do Chat (ver consultaBloqueado).
+  const bloqueada = antigoStatus === "Concluído";
 
   function toggleChecklistItem(id) {
+    if (bloqueada) return;
     setChecklistMesa((c) => ({ ...c, itens: { ...c.itens, [id]: !c.itens[id] } }));
   }
 
@@ -667,6 +679,7 @@ export function TaskModal() {
   // atalho "abrir novo atendimento" usa esse retorno pra saber a qual
   // tarefa vincular o processo criado em seguida no módulo Abertura.
   function salvar() {
+    if (bloqueada) return;
     const t = titulo.trim();
     if (!t) { alert("Informe o título."); return; }
     const dests = Object.keys(destSel).filter((k) => destSel[k]);
@@ -701,14 +714,20 @@ export function TaskModal() {
       idSalvo = atual.id;
     } else {
       const agora = new Date().toISOString();
+      const inicial = comentarioInicial.trim()
+        ? { id: "cmt_" + Math.random().toString(36).slice(2, 9), userId: currentUser.id, text: comentarioInicial.trim(), at: agora }
+        : null;
       const novo = {
         id: "tsk_" + Math.random().toString(36).slice(2, 9), ci: proximoCI(tasks), tipo, titulo: t, origem: currentUser.id, destinatarios: dests,
         descricao, anexo, obs, status, urgencia, processo: processoId, oficinaId, seguradoraId, produtorGrupo, clienteId, recorrencia, proximaAcaoData, flags, tipoAtendimento,
         ...(tipo === "Mesa de Atendimento" ? { checklistMesa, solicitacao } : {}),
         ...(concluindoAgora ? { concludedAt: new Date().toISOString() } : {}),
         createdAt: agora, updatedAt: agora,
-        log: [{ at: agora, who: currentUser.id, acao: `Tarefa criada por ${currentUser.nome}` }],
-        comments: novoComentario ? [novoComentario] : [],
+        log: [
+          { at: agora, who: currentUser.id, acao: `Tarefa criada por ${currentUser.nome}` },
+          ...(inicial ? [{ at: agora, who: currentUser.id, acao: `${currentUser.nome} comentou: ${inicial.text.slice(0, 200)}` }] : []),
+        ],
+        comments: [inicial, novoComentario].filter(Boolean),
       };
       actions.createTask(novo);
       const textoNotif = (isEmergencia ? "EMERGÊNCIA — " : "") + `Nova tarefa de ${currentUser.nome}: ${t}`;
@@ -739,7 +758,7 @@ export function TaskModal() {
 
         <div className="grid c2">
           <div className="field"><label>Tipo</label>
-            <select value={tipo} onChange={(e) => {
+            <select value={tipo} disabled={bloqueada} onChange={(e) => {
               // A pedido do usuário: a finalidade da CI é definida na abertura
               // e não muda depois — outra finalidade pede uma nova CI.
               if (editing) {
@@ -751,12 +770,12 @@ export function TaskModal() {
           </div>
           <div className="field"><label>Grau de urgência</label>
             <span className={"badge chip-live " + urgenciaCor(urgencia)}>
-              <select className="inline" value={urgencia} onChange={(e) => setUrgencia(e.target.value)}>{["Leve", "Moderado", "Urgente"].map((s) => <option key={s} value={s}>{s}</option>)}</select>
+              <select className="inline" value={urgencia} disabled={bloqueada} onChange={(e) => setUrgencia(e.target.value)}>{["Leve", "Moderado", "Urgente"].map((s) => <option key={s} value={s}>{s}</option>)}</select>
             </span>
           </div>
         </div>
 
-        {isMesaAtendimento && canEdit(currentUser) && (
+        {isMesaAtendimento && canEdit(currentUser) && !bloqueada && (
           <div style={{ marginBottom: 14 }}>
             <button
               type="button" className="btn sm"
@@ -778,7 +797,7 @@ export function TaskModal() {
             <label>Atendimento</label>
             <div className="chips">
               {ATENDIMENTO_OPCOES.map(([k, label]) => (
-                <div key={k} className={"chip-btn" + (tipoAtendimento === k ? " active" : "")} onClick={() => setTipoAtendimento(tipoAtendimento === k ? "" : k)}>{label}</div>
+                <div key={k} className={"chip-btn" + (tipoAtendimento === k ? " active" : "")} onClick={() => { if (!bloqueada) setTipoAtendimento(tipoAtendimento === k ? "" : k); }}>{label}</div>
               ))}
             </div>
             {isEmergencia && (
@@ -799,7 +818,7 @@ export function TaskModal() {
 
         {isMesaAtendimento && tipoAtendimento && solicitacaoAberta && (
           <SolicitacaoFields
-            tipoAtendimento={tipoAtendimento} valores={solicitacao} onChange={setSolicitacao} config={config}
+            tipoAtendimento={tipoAtendimento} valores={solicitacao} onChange={setSolicitacao} config={config} somenteLeitura={bloqueada}
             pastaDrive={caminhoPastaSolicitacao(tipoAtendimento, solicitacao, pastaDriveId)}
             contextoPdf={{
               tituloTarefa: titulo,
@@ -811,14 +830,14 @@ export function TaskModal() {
         )}
 
         <div className="field" style={{ marginTop: isMesaAtendimento && tipoAtendimento && solicitacaoAberta ? 14 : 0 }}><label>Título</label>
-          <input placeholder="Título da tarefa" value={titulo} onChange={(e) => setTitulo(e.target.value)} />
+          <input placeholder="Título da tarefa" value={titulo} disabled={bloqueada} onChange={(e) => setTitulo(e.target.value)} />
         </div>
 
         <div className="grid c2">
           <div className="field"><label>Usuário origem</label><input value={(editing ? users.find((u) => u.id === editing.origem)?.nome : currentUser.nome) || ""} disabled /></div>
           <div className="field"><label>Status</label>
             <span className={"badge chip-live " + statusCor(status)}>
-              <select className="inline" value={status} onChange={(e) => setStatus(e.target.value)}>{["Pendente", "Em andamento", "Concluído"].map((s) => <option key={s} value={s}>{s}</option>)}</select>
+              <select className="inline" value={status} disabled={bloqueada} onChange={(e) => setStatus(e.target.value)}>{["Pendente", "Em andamento", "Concluído"].map((s) => <option key={s} value={s}>{s}</option>)}</select>
             </span>
           </div>
         </div>
@@ -833,27 +852,30 @@ export function TaskModal() {
         <div className="field">
           <label>Próxima ação</label>
           <span className="badge chip-live blue" style={{ gap: 6 }}>
-            📅 <input type="date" className="inline" value={proximaAcaoData} onChange={(e) => setProximaAcaoData(e.target.value)} />
+            📅 <input type="date" className="inline" value={proximaAcaoData} disabled={bloqueada} onChange={(e) => setProximaAcaoData(e.target.value)} />
           </span>
           <div className="muted" style={{ fontSize: 11, marginTop: 4 }}>Data prevista pra resolver esta tarefa — já vem preenchida com a data de criação, ajuste se for resolver em uma data futura.</div>
         </div>
 
         <div className="field">
           <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
-            <button type="button" className={"btn sm" + (recorrencia ? "" : " sec")} onClick={() => setRecorrenciaAberta((v) => !v)}>
-              🔁 Recorrência{recorrencia ? " (ativa)" : ""}
-            </button>
-            {recorrencia && !recorrenciaAberta && <span className="muted" style={{ fontSize: 11.5 }}>{resumoRecorrencia(recorrencia)}</span>}
+            {!bloqueada && (
+              <button type="button" className={"btn sm" + (recorrencia ? "" : " sec")} onClick={() => setRecorrenciaAberta((v) => !v)}>
+                🔁 Recorrência{recorrencia ? " (ativa)" : ""}
+              </button>
+            )}
+            {bloqueada && <span className="muted" style={{ fontSize: 11.5 }}>🔁 {recorrencia ? resumoRecorrencia(recorrencia) : "Sem recorrência"}</span>}
+            {!bloqueada && recorrencia && !recorrenciaAberta && <span className="muted" style={{ fontSize: 11.5 }}>{resumoRecorrencia(recorrencia)}</span>}
           </div>
-          {recorrenciaAberta && <RecorrenciaFields recorrencia={recorrencia} onChange={setRecorrencia} />}
+          {recorrenciaAberta && !bloqueada && <RecorrenciaFields recorrencia={recorrencia} onChange={setRecorrencia} />}
         </div>
 
         <div className="field">
           <label>Destinatário(s) — pode selecionar vários</label>
           <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
             {users.map((u) => (
-              <label key={u.id} className={"chip-btn" + (destSel[u.id] ? " active" : "")} style={{ cursor: "pointer" }}
-                onClick={() => setDestSel((s) => ({ ...s, [u.id]: !s[u.id] }))}
+              <label key={u.id} className={"chip-btn" + (destSel[u.id] ? " active" : "")} style={{ cursor: bloqueada ? "default" : "pointer" }}
+                onClick={() => { if (!bloqueada) setDestSel((s) => ({ ...s, [u.id]: !s[u.id] })); }}
               >{u.nome}</label>
             ))}
           </div>
@@ -868,8 +890,8 @@ export function TaskModal() {
           <label>Sinalizadores</label>
           <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
             {(config.corp_task_flags && config.corp_task_flags.length ? config.corp_task_flags : TASK_FLAGS_DEFAULT).map((f) => (
-              <label key={f} className={"chip-btn" + (flagSel[f] ? " active" : "")} style={{ cursor: "pointer" }}
-                onClick={() => setFlagSel((s) => ({ ...s, [f]: !s[f] }))}
+              <label key={f} className={"chip-btn" + (flagSel[f] ? " active" : "")} style={{ cursor: bloqueada ? "default" : "pointer" }}
+                onClick={() => { if (!bloqueada) setFlagSel((s) => ({ ...s, [f]: !s[f] })); }}
               >{f}</label>
             ))}
           </div>
@@ -878,38 +900,38 @@ export function TaskModal() {
 
         <div className="field">
           <label>Descrição</label>
-          <textarea rows={3} placeholder="Descrição" value={descricao} onChange={(e) => setDescricao(e.target.value)} />
+          <textarea rows={3} placeholder="Descrição" value={descricao} disabled={bloqueada} onChange={(e) => setDescricao(e.target.value)} />
         </div>
 
         <div className="grid c2">
-          <div className="field"><label>Anexo</label><input placeholder="Link/nome do anexo (opcional)" value={anexo} onChange={(e) => setAnexo(e.target.value)} /></div>
-          <div className="field"><label>Observação</label><input placeholder="Observação (opcional)" value={obs} onChange={(e) => setObs(e.target.value)} /></div>
+          <div className="field"><label>Anexo</label><input placeholder="Link/nome do anexo (opcional)" value={anexo} disabled={bloqueada} onChange={(e) => setAnexo(e.target.value)} /></div>
+          <div className="field"><label>Observação</label><input placeholder="Observação (opcional)" value={obs} disabled={bloqueada} onChange={(e) => setObs(e.target.value)} /></div>
         </div>
 
         <div className="field">
           <label>Vincular a processo existente</label>
-          <ProcSearch value={{ label: procClaim ? (procClaim.numsin || "#" + procClaim.nosnum) + " — " + txt(procClaim.segurado) : "" }} onChange={vinculoProcesso} claims={claims} />
-          {procClaim && <div className="muted" style={{ fontSize: 11, marginTop: 4 }}>Oficina, seguradora e grupo do produtor/agente abaixo foram preenchidos automaticamente a partir deste processo — ajuste se precisar.</div>}
+          <ProcSearch value={{ label: procClaim ? (procClaim.numsin || "#" + procClaim.nosnum) + " — " + txt(procClaim.segurado) : "" }} onChange={vinculoProcesso} claims={claims} disabled={bloqueada} />
+          {procClaim && !bloqueada && <div className="muted" style={{ fontSize: 11, marginTop: 4 }}>Oficina, seguradora e grupo do produtor/agente abaixo foram preenchidos automaticamente a partir deste processo — ajuste se precisar.</div>}
         </div>
 
         <div className="grid c3">
           <div className="field">
             <label>V. Oficina</label>
-            <select value={oficinaId} onChange={(e) => setOficinaId(e.target.value)}>
+            <select value={oficinaId} disabled={bloqueada} onChange={(e) => setOficinaId(e.target.value)}>
               <option value="">— Nenhuma —</option>
               {oficinas.map((o) => <option key={o.id} value={o.id}>{o.nome}</option>)}
             </select>
           </div>
           <div className="field">
             <label>V. Seguradora</label>
-            <select value={seguradoraId} onChange={(e) => setSeguradoraId(e.target.value)}>
+            <select value={seguradoraId} disabled={bloqueada} onChange={(e) => setSeguradoraId(e.target.value)}>
               <option value="">— Nenhuma —</option>
               {seguradorasLista.map((s) => <option key={s.id} value={s.id}>{s.nome}</option>)}
             </select>
           </div>
           <div className="field">
             <label>V. Grupo do Produtor ou agente</label>
-            <select value={produtorGrupo} onChange={(e) => setProdutorGrupo(e.target.value)}>
+            <select value={produtorGrupo} disabled={bloqueada} onChange={(e) => setProdutorGrupo(e.target.value)}>
               <option value="">— Nenhum —</option>
               {gruposOuAgentesLista.map((g) => <option key={g} value={g}>{g}</option>)}
             </select>
@@ -940,7 +962,7 @@ export function TaskModal() {
             </div>
 
             <label style={{ display: "flex", gap: 8, alignItems: "center", padding: "8px 10px", marginTop: 12, borderRadius: 8, background: "var(--card)", border: "1px solid var(--border)", cursor: "pointer" }}>
-              <input type="checkbox" checked={checklistMesa.temTerceiro} onChange={() => setChecklistMesa((c) => ({ ...c, temTerceiro: !c.temTerceiro }))} />
+              <input type="checkbox" checked={checklistMesa.temTerceiro} disabled={bloqueada} onChange={() => setChecklistMesa((c) => ({ ...c, temTerceiro: !c.temTerceiro }))} />
               <b style={{ fontSize: 13 }}>Houve terceiro envolvido?</b>
             </label>
 
@@ -957,9 +979,22 @@ export function TaskModal() {
           </div>
         )}
 
-        <div style={{ display: "flex", gap: 8, marginTop: 6 }}>
-          <button className="btn" onClick={salvar}>{editing ? "Salvar alterações" : "Criar tarefa"}</button>
-        </div>
+        {!editing && (
+          <div className="field">
+            <label>Comentário (opcional)</label>
+            <textarea rows={2} placeholder="Escreva um comentário — ele abre o histórico da conversa desta CI." value={comentarioInicial} onChange={(e) => setComentarioInicial(e.target.value)} />
+          </div>
+        )}
+
+        {bloqueada ? (
+          <div className="muted" style={{ marginTop: 6, fontSize: 12.5, background: "rgba(var(--ok-rgb),.08)", border: "1px solid rgba(var(--ok-rgb),.32)", borderRadius: 8, padding: "8px 12px" }}>
+            🔒 {editing.ci || "Esta CI"} foi concluída e não aceita mais alterações. Para dar continuidade ao assunto, abra uma nova CI.
+          </div>
+        ) : (
+          <div style={{ display: "flex", gap: 8, marginTop: 6 }}>
+            <button className="btn" onClick={salvar}>{editing ? "Salvar alterações" : "Criar tarefa"}</button>
+          </div>
+        )}
 
         {editing && <Chat task={editing} currentUser={currentUser} actions={actions} users={users} />}
         {editing && isAdmin(currentUser) && <TaskAuditPanel task={editing} users={users} />}

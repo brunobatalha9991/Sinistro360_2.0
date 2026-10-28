@@ -54,7 +54,7 @@ export function Agenda() {
   const gestor = isAdmin(currentUser);
   const agendaUsers = useMemo(() => (records.corp_users || []).filter(temAgendaPropria).sort((a, b) => a.nome.localeCompare(b.nome)), [records.corp_users]);
 
-  const [aba, setAba] = useState(param === "feedbacks" && gestor ? "feedbacks" : "dia");
+  const [aba, setAba] = useState(param === "feedbacks" ? "feedbacks" : "dia");
   const [userIdSel, setUserIdSel] = useState(() => (temAgendaPropria(currentUser) ? currentUser.id : (agendaUsers[0] || {}).id));
   const [dataISO, setDataISO] = useState(dataLocalISO());
   const [modalBloco, setModalBloco] = useState(null); // { bloco, dataDia }
@@ -152,7 +152,7 @@ export function Agenda() {
       </div>
 
       {aba === "feedbacks" && (
-        <FeedbacksPanel feedbacks={feedbacks} users={users} agendaUsers={agendaUsers} podeVerTodos={gestor} currentUser={currentUser} />
+        <FeedbacksPanel feedbacks={feedbacks} users={users} agendaUsers={agendaUsers} podeVerTodos={gestor} currentUser={currentUser} onComentar={actions.comentarFeedback} />
       )}
       {aba === "indicadores" && (
         <IndicadoresPanel blocos={blocos} feedbacks={feedbacks} agendaUsers={gestor ? agendaUsers : agendaUsers.filter((u) => u.id === currentUser.id)} userIdSelecionado={userId} podeVerTodos={gestor} cfg={cfg} />

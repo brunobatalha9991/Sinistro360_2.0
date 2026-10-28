@@ -64,11 +64,39 @@ export function useAgendaActions() {
     saveRecord("corp_notifs", (cur) => [
       ...(cur || []),
       ...gestores.map((g) => ({
-        id: uid("ntf"), taskId: "__agenda__", userId: g.id, tipo: "agenda_feedback", read: false, at,
+        id: uid("ntf"), taskId: "__agenda__", userId: g.id, tipo: "agenda_feedback", feedbackId: fbItem.id, read: false, at,
         text: `${dono ? dono.nome : "Usuário"} • ${rotulo} — ${oc.icone ? oc.icone + " " : ""}${oc.titulo} (${oc.inicio}): ${fbItem.texto}`,
       })),
     ]);
   }
 
-  return { salvarBloco, salvarExcecao, excluirBloco, aplicarModeloParaUsuarios, registrarFeedback };
+  // Comentário sobre um feedback da agenda (a pedido do usuário) — o gestor
+  // comenta a partir da notificação recebida (ou da aba Feedbacks) e o
+  // operador dono da agenda é notificado; se quem comenta é o próprio
+  // operador (resposta), notifica os Administradores/VIP.
+  function comentarFeedback({ feedbackId, texto, autor }) {
+    const t = String(texto || "").trim();
+    if (!t || !autor) return;
+    const fb = (records.corp_agenda_feedback || []).find((f) => f.id === feedbackId);
+    if (!fb) return;
+    const at = new Date().toISOString();
+    const comentario = { id: uid("agc"), autorId: autor.id, texto: t, at };
+    saveRecord("corp_agenda_feedback", (cur) => (cur || []).map((f) => (
+      f.id === feedbackId ? { ...f, comentarios: [...(f.comentarios || []), comentario] } : f
+    )));
+
+    const alvos = autor.id === fb.userId
+      ? users.filter((u) => isAdmin(u) && u.id !== autor.id)
+      : users.filter((u) => u.id === fb.userId);
+    if (!alvos.length) return;
+    saveRecord("corp_notifs", (cur) => [
+      ...(cur || []),
+      ...alvos.map((u) => ({
+        id: uid("ntf"), taskId: "__agenda__", userId: u.id, tipo: "agenda_comentario", feedbackId, read: false, at,
+        text: `${autor.nome} comentou em ${fb.icone ? fb.icone + " " : ""}${fb.titulo} (${fb.previstoInicio}): ${t.slice(0, 120)}`,
+      })),
+    ]);
+  }
+
+  return { salvarBloco, salvarExcecao, excluirBloco, aplicarModeloParaUsuarios, registrarFeedback, comentarFeedback };
 }

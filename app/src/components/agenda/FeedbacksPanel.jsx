@@ -5,9 +5,43 @@ import { FEEDBACK_TIPOS, dataLocalISO, addDias, fmtDataBRCurta, fmtHoraDe } from
 
 const LIMITE = 300;
 
+// Comentários de um feedback (gestor ↔ operador) — ver comentarFeedback em
+// hooks/useAgendaActions.js. Também usado no sino de notificações.
+export function ComentariosFeedback({ feedback, porId, currentUser, onComentar, autoFocus }) {
+  const [texto, setTexto] = useState("");
+  const lista = feedback.comentarios || [];
+  function enviar() {
+    if (!texto.trim() || !onComentar) return;
+    onComentar({ feedbackId: feedback.id, texto, autor: currentUser });
+    setTexto("");
+  }
+  return (
+    <div className="agenda-comentarios">
+      {lista.map((c) => {
+        const a = porId[c.autorId];
+        return (
+          <div key={c.id} className="agenda-comentario">
+            <b>{a ? a.nome : "Usuário removido"}</b> <span className="muted">• {fmtDataBRCurta(dataLocalISO(new Date(c.at)))} {fmtHoraDe(c.at)}</span>
+            <div style={{ whiteSpace: "pre-wrap" }}>{c.texto}</div>
+          </div>
+        );
+      })}
+      {onComentar && (
+        <div style={{ display: "flex", gap: 6, alignItems: "flex-end" }}>
+          <textarea rows={1} placeholder="Escreva um comentário..." style={{ flex: 1 }} value={texto} autoFocus={autoFocus}
+            onChange={(e) => setTexto(e.target.value)}
+            onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); enviar(); } }}
+          />
+          <button type="button" className="btn xs" onClick={enviar} disabled={!texto.trim()}>Comentar</button>
+        </div>
+      )}
+    </div>
+  );
+}
+
 // Feedbacks da agenda — o gestor (Administrador/VIP) vê os de toda a
 // equipe; Atendente/Analista vê só os próprios.
-export function FeedbacksPanel({ feedbacks, users, agendaUsers, podeVerTodos, currentUser, userIdInicial }) {
+export function FeedbacksPanel({ feedbacks, users, agendaUsers, podeVerTodos, currentUser, userIdInicial, onComentar }) {
   const hoje = dataLocalISO();
   const [de, setDe] = useState(hoje);
   const [ate, setAte] = useState(hoje);
@@ -67,6 +101,7 @@ export function FeedbacksPanel({ feedbacks, users, agendaUsers, podeVerTodos, cu
                   <div className="muted" style={{ fontSize: 11, marginTop: 4 }}>
                     {fmtDataBRCurta(f.data)} • registrado às {fmtHoraDe(f.at)}{autor ? ` por ${autor.nome}` : ""}
                   </div>
+                  <ComentariosFeedback feedback={f} porId={porId} currentUser={currentUser} onComentar={onComentar} />
                 </div>
               </div>
             );

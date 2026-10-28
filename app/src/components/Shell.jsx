@@ -18,6 +18,7 @@ import { useHorarioAlarme } from "../hooks/useHorarioAlarme";
 import { useTarefaAlarme } from "../hooks/useTarefaAlarme";
 import { useAgendaAlarme } from "../hooks/useAgendaAlarme";
 import { useCiAusencia } from "../hooks/useCiAusencia";
+import { useDesempenhoMonitor } from "../hooks/useDesempenhoMonitor";
 import { useDicasAssistente } from "../hooks/useDicasAssistente";
 
 const SIDEBAR_KEY = "corp_sidebar_collapsed";
@@ -93,6 +94,7 @@ export function Shell({ route, param, crumb, currentUser, currentRole, onNavigat
   const { alarmes: alarmesTarefa, dismiss: dismissAlarmeTarefa, dismissAll: dismissAllAlarmeTarefa, markViewed: markViewedAlarmeTarefa } = useTarefaAlarme(currentUser);
   const { alarmes: alarmesAgenda, cfg: agendaCfg } = useAgendaAlarme(currentUser);
   useCiAusencia(currentUser);
+  useDesempenhoMonitor(currentUser);
   useDicasAssistente(currentUser);
   const menu = visibleMenu(currentUser, currentRole);
   const nome = currentUser?.nome || "Usuário";

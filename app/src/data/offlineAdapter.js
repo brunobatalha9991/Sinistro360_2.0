@@ -37,6 +37,7 @@ const RECORD_SEED = {
   corp_acessos: {},
   corp_conduta: [],
   corp_ci_historico: [],
+  corp_desempenho_ritmo: {},
 };
 
 function readKey(key, fallback) {
