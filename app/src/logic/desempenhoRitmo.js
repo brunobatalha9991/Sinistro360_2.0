@@ -27,7 +27,7 @@
 import { getResponsavel, isFinalizado, getNextAction, visibleClaims, loadComms } from "./claims";
 import {
   dataLocalISO, addDias, hhmmToMin, ocorrenciasDoDia, indexarFeedbacks, statusOcorrencia, instante,
-  temAgendaPropria, metricasAgenda, agendaCfg,
+  temAgendaPropria, metricasAgenda, agendaCfg, inicioDiaLocalISO, fimDiaLocalISO,
 } from "./agenda";
 import { calcularMetricasTodosUsuarios, calcularMetricasUsuario } from "./desempenho";
 import { todasCIsNormalizadas, metricasCIUsuario } from "./desempenhoCI";
@@ -188,8 +188,8 @@ export function ganhosDoDia({ ctx, user, impacto, agora = new Date() }) {
   const hoje = dataLocalISO(agora);
   const itens = [];
   if (!userId) return { itens, pontos: 0, pontosBrutos: 0, oportunidades: [] };
-  const deISO = hoje + "T00:00:00.000Z";
-  const ateISO = hoje + "T23:59:59.999Z";
+  const deISO = inicioDiaLocalISO(hoje);
+  const ateISO = fimDiaLocalISO(hoje);
   const m = calcularMetricasUsuario({ claims: ctx.claims, overrides: ctx.overrides, historico: ctx.historico, usuarioId: userId, usuarioNome: user.nome, periodoInicioISO: deISO, periodoFimISO: ateISO, atendTemplateCfg: ctx.atendTemplateCfg, templates: ctx.templates, tasks: ctx.tasks });
   const ex = metricasExtras({ claims: ctx.claims, overrides: ctx.overrides, historico: ctx.historico, userId, userNome: user.nome, deISO: hoje, ateISO: hoje, atendTemplateCfg: ctx.atendTemplateCfg, templates: ctx.templates, ocorrencias: ctx.ocorrencias });
   const ci = metricasCIUsuario({ cis: ctx.cis, notifs: ctx.notifs, userId, deISO: hoje, ateISO: hoje, config: ctx.config, agora });
@@ -297,7 +297,7 @@ export function indicesOperadores({ records, config, operadores, agora = new Dat
   const pesos = pesosDesempenho(config);
   const cfgAgenda = agendaCfg(config);
   const cfgCI = semInteracaoCfg(config);
-  const metricas = calcularMetricasTodosUsuarios({ users, claims, overrides, historico, periodoInicioISO: de + "T00:00:00.000Z", periodoFimISO: hoje + "T23:59:59.999Z", atendTemplateCfg, templates, tasks });
+  const metricas = calcularMetricasTodosUsuarios({ users, claims, overrides, historico, periodoInicioISO: inicioDiaLocalISO(de), periodoFimISO: fimDiaLocalISO(hoje), atendTemplateCfg, templates, tasks });
   const cis = todasCIsNormalizadas(tasks, records.corp_ci_historico);
   const ocorrencias = [...(records.corp_oficina_ocorrencias || []), ...(records.corp_seguradora_ocorrencias || []), ...(records.corp_cliente_ocorrencias || [])];
   const ctx = contextoDesempenho(records, config);

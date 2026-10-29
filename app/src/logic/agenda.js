@@ -102,6 +102,15 @@ function pad2(n) { return String(n).padStart(2, "0"); }
 export function dataLocalISO(d = new Date()) {
   return d.getFullYear() + "-" + pad2(d.getMonth() + 1) + "-" + pad2(d.getDate());
 }
+// Limites do dia LOCAL (AAAA-MM-DD) como instante ISO/UTC — pra comparar
+// com os `at` gravados via toISOString(). Montar "AAAA-MM-DDT00:00:00.000Z"
+// direto corta o dia às 21h (horário de Brasília).
+export function inicioDiaLocalISO(dataISO) {
+  return new Date(dataISO + "T00:00:00").toISOString();
+}
+export function fimDiaLocalISO(dataISO) {
+  return new Date(dataISO + "T23:59:59.999").toISOString();
+}
 export function parseDataLocal(dataISO) {
   const [y, m, d] = String(dataISO).split("-").map(Number);
   return new Date(y, m - 1, d);

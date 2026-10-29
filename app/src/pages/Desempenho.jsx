@@ -10,7 +10,7 @@ import { isDriveUploadConfigured, uploadArquivoDrive, sanitizarNomePasta, CONTEX
 import { isAdmin } from "../data/auth";
 import { isGeminiConfigured } from "../ai/geminiApi";
 import { gerarFeedbackEmTextoCorrido } from "../ai/gerarFeedbackTexto";
-import { metricasAgenda, temAgendaPropria, agendaCfg, fmtPct, minToHHMM } from "../logic/agenda";
+import { metricasAgenda, temAgendaPropria, agendaCfg, fmtPct, minToHHMM, inicioDiaLocalISO, fimDiaLocalISO } from "../logic/agenda";
 import { IndicadoresAgendaGrid } from "../components/agenda/IndicadoresPanel.jsx";
 import { ehOperacional, metricasConduta, comConduta } from "../logic/conduta";
 import { CondutaPerfilCard, NovoRegistroModal } from "../components/desempenho/CondutaPanel.jsx";
@@ -66,6 +66,7 @@ function PeriodoChips({ periodoDe, periodoAte, setPeriodoDe, setPeriodoAte }) {
   return (
     <div className="periodo-barra">
       <span className="muted" style={{ fontSize: 12 }}>Período</span>
+      <div className={"chip-btn" + (periodoDe === todayISO() && periodoAte === todayISO() ? " active" : "")} onClick={() => { setPeriodoDe(todayISO()); setPeriodoAte(todayISO()); }}>Hoje</div>
       {[7, 30, 90].map((d) => (
         <div key={d} className={"chip-btn" + (ativo(d) ? " active" : "")} onClick={() => { setPeriodoDe(diasAtras(d)); setPeriodoAte(todayISO()); }}>{d} dias</div>
       ))}
@@ -288,9 +289,11 @@ export function Desempenho() {
   const isAdminUser = isAdmin(currentUser);
   const pesos = pesosDesempenho(config);
 
-  const inicioISO = periodoDe ? periodoDe + "T00:00:00.000Z" : null;
-  const fimISO = periodoAte ? periodoAte + "T23:59:59.999Z" : null;
-  const periodoLabel = periodoDe && periodoAte ? `${fmtBR(periodoDe)} a ${fmtBR(periodoAte)}` : "todo o histórico";
+  const inicioISO = periodoDe ? inicioDiaLocalISO(periodoDe) : null;
+  const fimISO = periodoAte ? fimDiaLocalISO(periodoAte) : null;
+  const periodoLabel = periodoDe && periodoAte
+    ? (periodoDe === periodoAte ? (periodoDe === todayISO() ? "hoje" : fmtBR(periodoDe)) : `${fmtBR(periodoDe)} a ${fmtBR(periodoAte)}`)
+    : "todo o histórico";
 
   const metricas = useMemo(
     () => calcularMetricasTodosUsuarios({ users, claims, overrides, historico, periodoInicioISO: inicioISO, periodoFimISO: fimISO, atendTemplateCfg, templates, tasks }),
@@ -384,7 +387,7 @@ export function Desempenho() {
     if (!linha) return null;
     const s = { historicos: [], finalizados: [], ciNoPrazo: [], agenda: [] };
     semanasRecentes(8).forEach((w) => {
-      const mw = calcularMetricasUsuario({ claims, overrides, historico, usuarioId: perfilId, usuarioNome: linha.u.nome, periodoInicioISO: w.de + "T00:00:00.000Z", periodoFimISO: w.ate + "T23:59:59.999Z", atendTemplateCfg, templates, tasks });
+      const mw = calcularMetricasUsuario({ claims, overrides, historico, usuarioId: perfilId, usuarioNome: linha.u.nome, periodoInicioISO: inicioDiaLocalISO(w.de), periodoFimISO: fimDiaLocalISO(w.ate), atendTemplateCfg, templates, tasks });
       const cw = metricasCIUsuario({ cis, notifs: [], userId: perfilId, deISO: w.de, ateISO: w.ate, config });
       const aw = temAgendaPropria(linha.u) ? metricasAgenda({ blocos: blocosAgenda || [], feedbacks: feedbacksAgenda || [], userId: perfilId, deISO: w.de, ateISO: w.ate, cfg: cfgAgenda }) : null;
       s.historicos.push({ rotulo: w.rotulo, valor: mw.historicosRegistrados });

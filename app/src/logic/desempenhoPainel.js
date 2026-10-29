@@ -44,8 +44,11 @@ export function nivelDoScore(score) {
 }
 
 // ---------- métricas extras de processos ----------
+// Instante com hora vira o dia LOCAL (um `at` de 22h em Brasília já é o
+// dia seguinte em UTC); data pura (AAAA-MM-DD) fica como está.
 function noPeriodo(iso, deISO, ateISO) {
-  const d = String(iso || "").slice(0, 10);
+  const s = String(iso || "");
+  const d = s.length > 10 && !isNaN(new Date(s).getTime()) ? dataLocalISO(new Date(s)) : s.slice(0, 10);
   if (!d) return false;
   if (deISO && d < deISO) return false;
   if (ateISO && d > ateISO) return false;
