@@ -160,14 +160,14 @@ function ModelosCard({ config, saveConfig }) {
                 return (
                   <tr key={i}>
                     <td>
-                      <select value={it.presetId || ""} onChange={(e) => alterarItem(aberto, i, { presetId: e.target.value })}>
-                        {!p && <option value="">(preset removido)</option>}
+                      <select value={it.presetId || ""} onChange={(e) => alterarItem(aberto, i, { presetId: e.target.value, titulo: null, acao: null })}>
+                        {!p && <option value="">{it.acao ? `${it.acao.icone || ""} ${it.acao.titulo} (personalizada)` : "(preset removido)"}</option>}
                         {presets.map((x) => <option key={x.id} value={x.id}>{x.icone} {x.nome}</option>)}
                       </select>
                     </td>
                     <td><CampoAoSair type="time" value={it.inicio} onSalvar={(v) => alterarItem(aberto, i, { inicio: v })} /></td>
                     <td>
-                      {p && p.tipo === "marco"
+                      {((it.acao && it.acao.tipo) || (p && p.tipo)) === "marco"
                         ? <span className="muted" style={{ fontSize: 12 }}>marco</span>
                         : <CampoAoSair type="time" value={it.fim} onSalvar={(v) => alterarItem(aberto, i, { fim: v })} />}
                     </td>

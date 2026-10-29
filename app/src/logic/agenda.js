@@ -275,16 +275,22 @@ export function aplicarModelo({ blocosAtuais, modelo, presets, userId, dataInici
   const porId = {};
   (presets || []).forEach((p) => { porId[p.id] = p; });
   const novos = (modelo.itens || []).map((it) => {
+    // it.acao: cópia da ação gravada junto quando o modelo nasce de um dia
+    // já montado (modeloDoDia) — prevalece sobre o preset, pra ação
+    // personalizada (sem preset) ou ajustada não perder ícone/cor/tipo.
+    const a = it.acao || {};
     const p = porId[it.presetId] || {};
+    const tipo = a.tipo || p.tipo || "acao";
+    const lembrete = a.lembreteMin != null ? a.lembreteMin : p.lembreteMin;
     return {
       id: novoId(),
       userId, presetId: it.presetId || null,
-      titulo: it.titulo || p.nome || "Ação",
-      icone: p.icone || "", cor: p.cor || "#2f6bff",
-      tipo: p.tipo || "acao", pausa: !!p.pausa,
-      inicio: it.inicio, fim: (p.tipo === "marco") ? it.inicio : it.fim,
-      lembreteMin: p.lembreteMin != null ? Number(p.lembreteMin) : 5,
-      descricao: "",
+      titulo: a.titulo || it.titulo || p.nome || "Ação",
+      icone: a.icone != null ? a.icone : (p.icone || ""), cor: a.cor || p.cor || "#2f6bff",
+      tipo, pausa: a.pausa != null ? !!a.pausa : !!p.pausa,
+      inicio: it.inicio, fim: tipo === "marco" ? it.inicio : it.fim,
+      lembreteMin: lembrete != null ? Number(lembrete) : 5,
+      descricao: a.descricao || "",
       data: dataInicio,
       recorrencia: recorrencia || { tipo: "dias_uteis" },
       excecoes: {},
@@ -292,6 +298,29 @@ export function aplicarModelo({ blocosAtuais, modelo, presets, userId, dataInici
     };
   });
   return [...base, ...novos];
+}
+
+// Modelo de dia a partir do que está montado num dia (a pedido do
+// usuário: Administrador/VIP edita a agenda e grava o resultado como
+// "preset" do dia, ou torna recorrente). Cada item guarda a ação inteira
+// em `acao` (ver aplicarModelo) e o título solto, que é o que versões
+// antigas do sistema leem.
+export function modeloDoDia(ocorrencias, { id, nome }) {
+  return {
+    id, nome,
+    itens: (ocorrencias || []).map((oc) => ({
+      presetId: oc.presetId || null,
+      inicio: oc.inicio, fim: oc.fim,
+      titulo: oc.titulo,
+      acao: { titulo: oc.titulo, icone: oc.icone || "", cor: oc.cor, tipo: oc.tipo, pausa: !!oc.pausa, lembreteMin: oc.lembreteMin, descricao: oc.descricao || "" },
+    })),
+  };
+}
+
+// Descrição curta de uma ação pro registro de alteração da agenda.
+export function rotuloAcao(oc) {
+  const hora = oc.tipo === "marco" ? oc.inicio : `${oc.inicio}–${oc.fim}`;
+  return `${oc.icone ? oc.icone + " " : ""}${oc.titulo} (${hora})`;
 }
 
 // ---------- indicadores ----------
@@ -360,7 +389,7 @@ export function metricasAgenda({ blocos, feedbacks, userId, deISO, ateISO, agora
 
   const inicioPer = deISO || "0000-00-00";
   const fimPer = ateISO || "9999-99-99";
-  feedbacksQtd = meusFb.filter((f) => f.data >= inicioPer && f.data <= fimPer && f.tipo !== "soneca").length;
+  feedbacksQtd = meusFb.filter((f) => f.data >= inicioPer && f.data <= fimPer && f.tipo !== "soneca" && f.tipo !== "alteracao").length;
 
   return {
     previstas, vencidas, concluidas, naoRealizadas, semRegistro, iniciadas, sonecas, lembretes, feedbacks: feedbacksQtd,
@@ -390,4 +419,11 @@ export const FEEDBACK_TIPOS = {
   nao_realizada: { label: "Não realizada", badge: "red", pergunta: "Por que a ação não foi realizada?" },
   soneca: { label: "Soneca", badge: "amber", pergunta: "Por que precisa adiar? O que está fazendo agora?" },
   lembrete: { label: "Lembrete", badge: "purple", pergunta: "Ciente — como vai se preparar para esta ação?" },
+  alteracao: { label: "Alteração da agenda", badge: "orange", pergunta: "Por que a agenda deste dia precisa ser alterada?" },
 };
+// Atendente/Analista só altera a agenda montada pelo gestor depois de
+// registrar o motivo (botão "Alterar agenda"). O registro é um feedback
+// tipo "alteracao" com este blocoId fixo — nunca casa com uma ação real,
+// então não interfere no andamento/alarmes (indexarFeedbacks) — e acumula
+// em `mudancas` o que foi alterado em seguida.
+export const BLOCO_ALTERACAO = "__alteracao__";

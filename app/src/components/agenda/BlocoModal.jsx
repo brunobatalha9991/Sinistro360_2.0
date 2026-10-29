@@ -6,7 +6,9 @@ import { RECORRENCIAS, DIAS_SEMANA, hhmmToMin, minToHHMM, fmtDataBRCurta } from 
 // de um dia, o usuário escolhe se a alteração vale "só para este dia"
 // (o dia sai da série e vira uma ação avulsa) ou "para toda a série".
 // Excluir tem também "deste dia em diante" (encerra a série na véspera).
-export function BlocoModal({ bloco, dataDia, presets, onSalvar, onExcluir, onClose }) {
+// `soDia` (Atendente/Analista em "Alterar agenda"): tudo vale só para o
+// dia aberto — sem repetição, sem "toda a série".
+export function BlocoModal({ bloco, dataDia, presets, soDia, onSalvar, onExcluir, onClose }) {
   const existente = !!bloco.id;
   const recorrente = existente && bloco.recorrencia && bloco.recorrencia.tipo !== "nenhuma";
   const [form, setForm] = useState(() => ({
@@ -144,7 +146,7 @@ export function BlocoModal({ bloco, dataDia, presets, onSalvar, onExcluir, onClo
           É uma pausa (almoço, café) — fica fora do tempo produtivo nos indicadores
         </label>
 
-        {(!existente || escopo === "serie") && (
+        {!soDia && (!existente || escopo === "serie") && (
           <div className="agenda-modal-secao">
             <div className="grid" style={{ gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))", gap: 10 }}>
               <div className="field">
@@ -174,7 +176,10 @@ export function BlocoModal({ bloco, dataDia, presets, onSalvar, onExcluir, onClo
           </div>
         )}
 
-        {recorrente && (
+        {soDia && (
+          <p className="muted" style={{ fontSize: 12 }}>A alteração vale só para {fmtDataBRCurta(dataDia)}.</p>
+        )}
+        {recorrente && !soDia && (
           <div className="agenda-modal-secao">
             <label>Esta ação se repete. Aplicar a alteração a:</label>
             <div className="chips" style={{ marginBottom: 0 }}>
@@ -192,14 +197,14 @@ export function BlocoModal({ bloco, dataDia, presets, onSalvar, onExcluir, onClo
             {existente && confirmarExclusao && (
               <div style={{ display: "flex", gap: 6, flexWrap: "wrap", alignItems: "center" }}>
                 <span className="muted" style={{ fontSize: 12 }}>Excluir:</span>
-                {recorrente ? (
+                {recorrente && !soDia ? (
                   <>
                     <button type="button" className="btn danger xs" onClick={() => onExcluir("dia")}>Só este dia</button>
                     <button type="button" className="btn danger xs" onClick={() => onExcluir("diante")}>Deste dia em diante</button>
                     <button type="button" className="btn danger xs" onClick={() => onExcluir("serie")}>Toda a série</button>
                   </>
                 ) : (
-                  <button type="button" className="btn danger xs" onClick={() => onExcluir("serie")}>Confirmar exclusão</button>
+                  <button type="button" className="btn danger xs" onClick={() => onExcluir(recorrente ? "dia" : "serie")}>Confirmar exclusão</button>
                 )}
                 <button type="button" className="btn sec xs" onClick={() => setConfirmarExclusao(false)}>Cancelar</button>
               </div>

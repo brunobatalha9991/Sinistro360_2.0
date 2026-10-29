@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
 import {
   blocoAplicaNaData, ocorrenciasDoDia, alarmesAgenda, statusOcorrencia, indexarFeedbacks,
-  metricasAgenda, aplicarModelo, dataLocalISO, addDias, PRESETS_DEFAULT, MODELOS_DEFAULT,
+  metricasAgenda, aplicarModelo, dataLocalISO, addDias, PRESETS_DEFAULT, MODELOS_DEFAULT, modeloDoDia,
 } from "./agenda";
 
 // 2026-10-26 é uma segunda-feira.
@@ -146,5 +146,21 @@ describe("modelos", () => {
     expect(out.find((b) => b.id === "rec").recorrencia.ate).toBe("2026-11-01");
     expect(out.find((b) => b.id === "avulsa")).toBeUndefined();
     expect(out.find((b) => b.id === "outro").recorrencia.ate).toBeUndefined();
+  });
+});
+
+describe("modeloDoDia", () => {
+  it("guarda a ação inteira e aplicarModelo recria igual, inclusive personalizada", () => {
+    const blocos = [
+      { id: "b1", userId: "u1", data: "2026-10-29", recorrencia: { tipo: "dias_uteis" }, inicio: "08:30", fim: "09:00", titulo: "Checar e-mails", icone: "✉️", cor: "#0891b2", presetId: "ap_emails", tipo: "acao", lembreteMin: 5, excecoes: { "2026-10-29": { inicio: "08:45", fim: "09:15" } } },
+      { id: "b2", userId: "u1", data: "2026-10-29", recorrencia: { tipo: "nenhuma" }, inicio: "10:00", fim: "10:30", titulo: "Reunião X", icone: "🤝", cor: "#123456", presetId: null, tipo: "acao", pausa: false, lembreteMin: 10, descricao: "pauta" },
+    ];
+    const ocs = ocorrenciasDoDia(blocos, "u1", "2026-10-29");
+    const modelo = modeloDoDia(ocs, { id: "m1", nome: "Dia X" });
+    expect(modelo.itens).toHaveLength(2);
+    let n = 0;
+    const novos = aplicarModelo({ blocosAtuais: [], modelo, presets: [], userId: "u2", dataInicio: "2026-10-30", recorrencia: { tipo: "dias_uteis" }, substituir: false, autorId: "g", novoId: () => "n" + (n++), agoraISO: "x" });
+    expect(novos[0]).toMatchObject({ titulo: "Checar e-mails", inicio: "08:45", fim: "09:15", icone: "✉️", cor: "#0891b2", presetId: "ap_emails" });
+    expect(novos[1]).toMatchObject({ titulo: "Reunião X", icone: "🤝", cor: "#123456", lembreteMin: 10, descricao: "pauta", presetId: null });
   });
 });

@@ -93,11 +93,20 @@ export function FeedbacksPanel({ feedbacks, users, agendaUsers, podeVerTodos, cu
                     <b style={{ fontSize: 13 }}>{u ? u.nome : "Usuário removido"}</b>
                     <span className={"badge " + t.badge}>{t.label}</span>
                     {f.semInicio && <span className="badge orange">Sem início registrado</span>}
-                    <span className="muted" style={{ fontSize: 12 }}>
-                      {f.icone} {f.titulo} • previsto {f.previstoInicio}{f.previstoFim && f.previstoFim !== f.previstoInicio ? "–" + f.previstoFim : ""}
-                    </span>
+                    {f.tipo !== "alteracao" && (
+                      <span className="muted" style={{ fontSize: 12 }}>
+                        {f.icone} {f.titulo} • previsto {f.previstoInicio}{f.previstoFim && f.previstoFim !== f.previstoInicio ? "–" + f.previstoFim : ""}
+                      </span>
+                    )}
                   </div>
-                  <div style={{ fontSize: 13, marginTop: 4, whiteSpace: "pre-wrap" }}>{f.texto}</div>
+                  <div style={{ fontSize: 13, marginTop: 4, whiteSpace: "pre-wrap" }}>{f.tipo === "alteracao" ? <><b>Motivo:</b> {f.texto}</> : f.texto}</div>
+                  {f.tipo === "alteracao" && (
+                    <div className="muted" style={{ fontSize: 12, marginTop: 4 }}>
+                      {(f.mudancas || []).length
+                        ? (f.mudancas || []).map((m, i) => <div key={i}>• {fmtHoraDe(m.at)} — {m.texto}</div>)
+                        : "Nenhuma mudança feita depois do motivo."}
+                    </div>
+                  )}
                   <div className="muted" style={{ fontSize: 11, marginTop: 4 }}>
                     {fmtDataBRCurta(f.data)} • registrado às {fmtHoraDe(f.at)}{autor ? ` por ${autor.nome}` : ""}
                   </div>

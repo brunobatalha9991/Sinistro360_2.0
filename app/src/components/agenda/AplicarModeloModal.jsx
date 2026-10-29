@@ -4,7 +4,9 @@ import { RECORRENCIAS, DIAS_SEMANA, fmtDataBRCurta } from "../../logic/agenda";
 
 // Aplica um modelo de dia na agenda de um ou mais usuários (o gestor pode
 // aplicar pra equipe toda de uma vez; o Atendente/Analista só na própria).
-export function AplicarModeloModal({ modelos, presets, agendaUsers, userIdInicial, podeEscolherUsuarios, dataInicial, onAplicar, onClose }) {
+// Também usado no "Tornar recorrente" (um modelo só, montado a partir do
+// dia editado — `titulo`/`textoBotao` trocam os rótulos).
+export function AplicarModeloModal({ modelos, presets, agendaUsers, userIdInicial, podeEscolherUsuarios, dataInicial, titulo, textoBotao, onAplicar, onClose }) {
   const [modeloId, setModeloId] = useState(modelos[0] ? modelos[0].id : "");
   const [userIds, setUserIds] = useState([userIdInicial].filter(Boolean));
   const [dataInicio, setDataInicio] = useState(dataInicial);
@@ -13,7 +15,11 @@ export function AplicarModeloModal({ modelos, presets, agendaUsers, userIdInicia
   const [substituir, setSubstituir] = useState(true);
 
   const modelo = modelos.find((m) => m.id === modeloId);
-  const nomeItem = (it) => { const p = presets.find((x) => x.id === it.presetId); return p ? `${p.icone || ""} ${p.nome}` : "(preset removido)"; };
+  const nomeItem = (it) => {
+    if (it.acao) return `${it.acao.icone || ""} ${it.acao.titulo}`;
+    const p = presets.find((x) => x.id === it.presetId);
+    return p ? `${p.icone || ""} ${p.nome}` : (it.titulo || "(preset removido)");
+  };
   const valido = modelo && modelo.itens.length && userIds.length && dataInicio && (recTipo !== "semanal" || dias.length);
 
   function toggle(lista, set, v) { set(lista.indexOf(v) >= 0 ? lista.filter((x) => x !== v) : [...lista, v]); }
@@ -30,11 +36,11 @@ export function AplicarModeloModal({ modelos, presets, agendaUsers, userIdInicia
     <div className="agenda-modal-fundo" onClick={onClose}>
       <div className="agenda-modal" onClick={(e) => e.stopPropagation()}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 8 }}>
-          <h3 style={{ margin: 0 }}>Aplicar modelo de dia</h3>
+          <h3 style={{ margin: 0 }}>{titulo || "Aplicar modelo de dia"}</h3>
           <button className="btn sec xs" onClick={onClose}>✕ Fechar</button>
         </div>
 
-        <div className="field" style={{ marginTop: 12 }}>
+        <div className="field" style={{ marginTop: 12, display: modelos.length > 1 ? undefined : "none" }}>
           <label>Modelo</label>
           <select value={modeloId} onChange={(e) => setModeloId(e.target.value)}>
             {modelos.map((m) => <option key={m.id} value={m.id}>{m.nome} ({m.itens.length} ações)</option>)}
@@ -92,7 +98,7 @@ export function AplicarModeloModal({ modelos, presets, agendaUsers, userIdInicia
         )}
 
         <div style={{ display: "flex", justifyContent: "flex-end", marginTop: 14 }}>
-          <button className="btn sm" disabled={!valido} onClick={aplicar}>Aplicar modelo</button>
+          <button className="btn sm" disabled={!valido} onClick={aplicar}>{textoBotao || "Aplicar modelo"}</button>
         </div>
       </div>
     </div>,

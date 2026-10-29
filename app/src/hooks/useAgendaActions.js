@@ -1,7 +1,7 @@
 import { useData } from "../data/DataProvider.jsx";
 import { isAdmin } from "../data/auth";
 import { uid } from "../logic/format";
-import { aplicarModelo, FEEDBACK_TIPOS } from "../logic/agenda";
+import { aplicarModelo, FEEDBACK_TIPOS, BLOCO_ALTERACAO, fmtDataBRCurta } from "../logic/agenda";
 
 // Gravações do módulo Agenda (ver logic/agenda.js). Todo feedback também
 // vira notificação no sino de cada Administrador/VIP (a pedido do
@@ -70,6 +70,42 @@ export function useAgendaActions() {
     ]);
   }
 
+  // "Alterar agenda" (Atendente/Analista): grava o motivo como feedback
+  // tipo "alteracao" do dia e notifica os Administradores/VIP na hora.
+  // Devolve o id do registro — cada mudança feita em seguida entra nele
+  // (registrarMudancaAgenda).
+  function iniciarAlteracao({ dono, data, motivo, autor }) {
+    const at = new Date().toISOString();
+    const fbItem = {
+      id: uid("agf"),
+      userId: dono.id, autorId: autor ? autor.id : null,
+      blocoId: BLOCO_ALTERACAO, data, tipo: "alteracao", texto: String(motivo || "").trim(), at,
+      titulo: "Alteração da agenda", icone: "✏️", presetId: null,
+      previstoInicio: "", previstoFim: "",
+      mudancas: [],
+    };
+    saveRecord("corp_agenda_feedback", (cur) => [...(cur || []), fbItem]);
+    const gestores = users.filter((u) => isAdmin(u) && u.id !== fbItem.autorId);
+    if (gestores.length) {
+      saveRecord("corp_notifs", (cur) => [
+        ...(cur || []),
+        ...gestores.map((g) => ({
+          id: uid("ntf"), taskId: "__agenda__", userId: g.id, tipo: "agenda_feedback", feedbackId: fbItem.id, read: false, at,
+          text: `${dono.nome} • Alteração da agenda de ${fmtDataBRCurta(data)}: ${fbItem.texto}`,
+        })),
+      ]);
+    }
+    return fbItem.id;
+  }
+
+  function registrarMudancaAgenda(feedbackId, texto) {
+    if (!feedbackId || !texto) return;
+    const item = { at: new Date().toISOString(), texto };
+    saveRecord("corp_agenda_feedback", (cur) => (cur || []).map((f) => (
+      f.id === feedbackId ? { ...f, mudancas: [...(f.mudancas || []), item] } : f
+    )));
+  }
+
   // Comentário sobre um feedback da agenda (a pedido do usuário) — o gestor
   // comenta a partir da notificação recebida (ou da aba Feedbacks) e o
   // operador dono da agenda é notificado; se quem comenta é o próprio
@@ -98,5 +134,5 @@ export function useAgendaActions() {
     ]);
   }
 
-  return { salvarBloco, salvarExcecao, excluirBloco, aplicarModeloParaUsuarios, registrarFeedback, comentarFeedback };
+  return { salvarBloco, salvarExcecao, excluirBloco, aplicarModeloParaUsuarios, registrarFeedback, iniciarAlteracao, registrarMudancaAgenda, comentarFeedback };
 }

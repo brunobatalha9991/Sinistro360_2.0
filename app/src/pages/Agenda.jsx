@@ -1,6 +1,7 @@
 import { useMemo, useState } from "react";
 import { createPortal } from "react-dom";
 import { useData } from "../data/DataProvider.jsx";
+import { uid } from "../logic/format";
 import { useAuth } from "../hooks/useAuth";
 import { useHashRoute } from "../hooks/useHashRoute";
 import { useAgendaActions } from "../hooks/useAgendaActions";
@@ -17,6 +18,7 @@ import { AgendaConfigPanel } from "../components/agenda/AgendaConfigPanel.jsx";
 import {
   temAgendaPropria, ocorrenciasDoDia, indexarFeedbacks, statusOcorrencia, STATUS_LABEL, FEEDBACK_TIPOS,
   agendaPresets, agendaModelos, dataLocalISO, addDias, parseDataLocal, hhmmToMin, minToHHMM, fmtHoraDe,
+  fmtDataBRCurta, modeloDoDia, rotuloAcao,
 } from "../logic/agenda";
 
 const DIAS_EXTENSO = ["Domingo", "Segunda-feira", "Terça-feira", "Quarta-feira", "Quinta-feira", "Sexta-feira", "Sábado"];
@@ -36,9 +38,66 @@ function FeedbackManualModal({ pedido, cfg, onConfirmar, onClose }) {
   );
 }
 
+// Motivo obrigatório antes de o Atendente/Analista alterar a agenda.
+function MotivoAlteracaoModal({ dataISO, cfg, onConfirmar, onClose }) {
+  return createPortal(
+    <div className="agenda-modal-fundo" onClick={onClose}>
+      <div className="agenda-modal" style={{ width: 480 }} onClick={(e) => e.stopPropagation()}>
+        <h3 style={{ margin: 0 }}>✏️ Alterar agenda de {fmtDataBRCurta(dataISO)}</h3>
+        <p className="muted" style={{ fontSize: 12, margin: "4px 0 0" }}>
+          O motivo e tudo o que você mudar em seguida ficam registrados e o gestor é avisado. A alteração vale só para este dia.
+        </p>
+        <FeedbackForm tipo="alteracao" minChars={cfg.feedbackMinChars} onVoltar={onClose} onConfirmar={onConfirmar} />
+      </div>
+    </div>,
+    document.body,
+  );
+}
+
+// Grava o dia montado como modelo de dia ("preset" da agenda) — novo ou
+// substituindo um existente.
+function SalvarPresetModal({ nomeInicial, modelos, onSalvar, onClose }) {
+  const [nome, setNome] = useState(nomeInicial);
+  const [substituirId, setSubstituirId] = useState("");
+  const valido = substituirId || nome.trim();
+  return createPortal(
+    <div className="agenda-modal-fundo" onClick={onClose}>
+      <div className="agenda-modal" style={{ width: 480 }} onClick={(e) => e.stopPropagation()}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 8 }}>
+          <h3 style={{ margin: 0 }}>💾 Salvar preset da agenda</h3>
+          <button className="btn sec xs" onClick={onClose}>✕ Fechar</button>
+        </div>
+        <p className="muted" style={{ fontSize: 12 }}>O dia como está agora vira um modelo de dia — fica em "Presets e modelos" e no "Aplicar modelo".</p>
+        <div className="field">
+          <label>Salvar como</label>
+          <select value={substituirId} onChange={(e) => setSubstituirId(e.target.value)}>
+            <option value="">Novo modelo</option>
+            {modelos.map((m) => <option key={m.id} value={m.id}>Substituir: {m.nome}</option>)}
+          </select>
+        </div>
+        {!substituirId && (
+          <div className="field">
+            <label>Nome do modelo</label>
+            <input autoFocus value={nome} onChange={(e) => setNome(e.target.value)} />
+          </div>
+        )}
+        <div style={{ display: "flex", justifyContent: "flex-end", marginTop: 14 }}>
+          <button className="btn sm" disabled={!valido} onClick={() => onSalvar({ nome: nome.trim(), substituirId })}>Salvar preset</button>
+        </div>
+      </div>
+    </div>,
+    document.body,
+  );
+}
+
 // Módulo Agenda (a pedido do usuário) — ver logic/agenda.js. Cada
-// Atendente/Analista tem a própria agenda; Administrador e VIP consultam e
-// editam a de qualquer um, recebem os feedbacks e cuidam da padronização.
+// Atendente/Analista tem a própria agenda, montada pelo gestor: ele só
+// altera um dia (hoje ou futuro) depois de clicar em "Alterar agenda" e
+// registrar o motivo — o motivo e cada mudança ficam num feedback tipo
+// "alteracao" e o gestor é notificado. Administrador e VIP consultam e
+// editam a de qualquer um livremente, recebem os feedbacks e cuidam da
+// padronização; depois de editar um dia, podem salvá-lo como preset
+// (modelo de dia) ou torná-lo recorrente.
 export function Agenda() {
   const { records, config, saveConfig } = useData();
   const { currentUser } = useAuth();
@@ -60,6 +119,11 @@ export function Agenda() {
   const [modalBloco, setModalBloco] = useState(null); // { bloco, dataDia }
   const [modalModelo, setModalModelo] = useState(false);
   const [pedidoFeedback, setPedidoFeedback] = useState(null); // { oc, tipo }
+  const [pedirMotivo, setPedirMotivo] = useState(false);
+  const [alteracao, setAlteracao] = useState(null); // { feedbackId, userId, data, motivo } — operador
+  const [editadosGestor, setEditadosGestor] = useState({}); // "userId|data" -> true
+  const [modalPreset, setModalPreset] = useState(false);
+  const [modalRecorrente, setModalRecorrente] = useState(false);
 
   const idx = useMemo(() => indexarFeedbacks(records.corp_agenda_feedback || []), [records.corp_agenda_feedback]);
 
@@ -75,9 +139,33 @@ export function Agenda() {
   const userId = gestor ? userIdSel : currentUser.id;
   const dono = users.find((u) => u.id === userId);
   const ehDono = !!dono && dono.id === currentUser.id;
-  const podeEditar = !!dono && (ehDono || gestor);
   const hoje = dataLocalISO(agora);
   const ocorrencias = dono ? ocorrenciasDoDia(blocos, dono.id, dataISO) : [];
+  const emAlteracao = !gestor && ehDono && !!alteracao && alteracao.userId === userId && alteracao.data === dataISO;
+  const podeEditar = !!dono && (gestor || emAlteracao);
+  const podeAlterar = !gestor && ehDono && dataISO >= hoje && ocorrencias.length > 0 && !emAlteracao;
+  const chaveDia = userId + "|" + dataISO;
+  const gestorEditou = gestor && !!dono && !!editadosGestor[chaveDia];
+
+  // Toda edição: o gestor ganha os botões de preset/recorrente; o
+  // operador em "Alterar agenda" registra a mudança no motivo aberto.
+  function registrarEdicao(texto) {
+    if (gestor) setEditadosGestor((cur) => (cur[chaveDia] ? cur : { ...cur, [chaveDia]: true }));
+    else if (emAlteracao) actions.registrarMudancaAgenda(alteracao.feedbackId, texto);
+  }
+
+  function iniciarAlteracao(motivo) {
+    const feedbackId = actions.iniciarAlteracao({ dono, data: dataISO, motivo, autor: currentUser });
+    setAlteracao({ feedbackId, userId, data: dataISO, motivo: motivo.trim() });
+    setPedirMotivo(false);
+  }
+
+  function salvarPreset({ nome, substituirId }) {
+    const atual = substituirId ? modelos.find((m) => m.id === substituirId) : null;
+    const novo = modeloDoDia(ocorrencias, { id: atual ? atual.id : uid("am"), nome: atual ? atual.nome : nome });
+    saveConfig("corp_agenda_modelos", atual ? modelos.map((m) => (m.id === atual.id ? novo : m)) : [...modelos, novo]);
+    setModalPreset(false);
+  }
 
   function abrirNova(hhmm) {
     const ini = hhmm || minToHHMM(Math.max(hhmmToMin(cfg.inicio), Math.ceil((agora.getHours() * 60 + agora.getMinutes()) / 15) * 15));
@@ -85,17 +173,20 @@ export function Agenda() {
   }
 
   function abrirOcorrencia(oc) {
+    if (!podeEditar) return;
     setModalBloco({ bloco: { ...oc.bloco, inicio: oc.inicio, fim: oc.fim }, dataDia: oc.data });
   }
 
   function mover(oc, inicio, fim) {
     if (oc.recorrente) actions.salvarExcecao(oc.blocoId, oc.data, { inicio, fim });
     else actions.salvarBloco({ ...oc.bloco, inicio, fim });
+    registrarEdicao(`Mudou o horário de ${rotuloAcao(oc)} para ${oc.tipo === "marco" ? inicio : `${inicio}–${fim}`}`);
   }
 
   function salvarBloco(form, escopo) {
     const { bloco, dataDia } = modalBloco;
     const original = blocos.find((b) => b.id === bloco.id);
+    registrarEdicao(original ? `Editou ${rotuloAcao(bloco)} → ${rotuloAcao(form)}` : `Criou ${rotuloAcao(form)}`);
     if (!original) {
       actions.salvarBloco({ ...form, userId: dono.id, criadoPor: currentUser.id });
     } else if (original.recorrencia && original.recorrencia.tipo !== "nenhuma" && escopo === "dia") {
@@ -120,6 +211,7 @@ export function Agenda() {
     const { bloco, dataDia } = modalBloco;
     const original = blocos.find((b) => b.id === bloco.id);
     if (!original) { setModalBloco(null); return; }
+    registrarEdicao(`Excluiu ${rotuloAcao(bloco)}`);
     if (escopo === "dia") actions.salvarExcecao(original.id, dataDia, { removida: true });
     else if (escopo === "diante" && dataDia > original.data) actions.salvarBloco({ ...original, recorrencia: { ...original.recorrencia, ate: addDias(dataDia, -1) } });
     else actions.excluirBloco(original.id);
@@ -128,7 +220,9 @@ export function Agenda() {
 
   function aplicarModelo({ modelo, userIds, dataInicio, recorrencia, substituir }) {
     actions.aplicarModeloParaUsuarios({ modelo, presets, userIds, dataInicio, recorrencia, substituir, autorId: currentUser.id });
+    if (userIds.indexOf(userId) >= 0) registrarEdicao(`Aplicou o modelo ${modelo.nome}`);
     setModalModelo(false);
+    setModalRecorrente(false);
   }
 
   const contagem = {};
@@ -175,20 +269,45 @@ export function Agenda() {
               <input type="date" className="inline" value={dataISO} onChange={(e) => e.target.value && setDataISO(e.target.value)} />
               <b style={{ fontSize: 13 }}>{DIAS_EXTENSO[parseDataLocal(dataISO).getDay()]}</b>
             </div>
-            {podeEditar && (
+            {gestor && dono && (
               <div style={{ display: "flex", gap: 6, marginLeft: "auto" }}>
                 <button className="btn sec sm" onClick={() => setModalModelo(true)}>📋 Aplicar modelo</button>
                 <button className="btn sm" onClick={() => abrirNova()}>+ Nova ação</button>
               </div>
             )}
+            {emAlteracao && (
+              <div style={{ display: "flex", gap: 6, marginLeft: "auto" }}>
+                <button className="btn sec sm" onClick={() => abrirNova()}>+ Nova ação</button>
+                <button className="btn sm" onClick={() => setAlteracao(null)}>✓ Concluir alteração</button>
+              </div>
+            )}
+            {podeAlterar && (
+              <div style={{ display: "flex", gap: 6, marginLeft: "auto" }}>
+                <button className="btn sm" onClick={() => setPedirMotivo(true)}>✏️ Alterar agenda</button>
+              </div>
+            )}
           </div>
+
+          {emAlteracao && (
+            <div className="card" style={{ borderLeft: "4px solid var(--warn, #f59e0b)", fontSize: 13 }}>
+              <b>Alterando a agenda de {fmtDataBRCurta(dataISO)}.</b> Motivo: {alteracao.motivo}
+              <div className="muted" style={{ fontSize: 12 }}>Tudo o que você mudar vale só para este dia e fica registrado para o gestor. Clique em "Concluir alteração" ao terminar.</div>
+            </div>
+          )}
+          {gestorEditou && (
+            <div className="card" style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap", borderLeft: "4px solid var(--primary, #2f6bff)" }}>
+              <span style={{ fontSize: 13, flex: 1, minWidth: 220 }}>Você alterou a agenda de <b>{dono.nome}</b> em {fmtDataBRCurta(dataISO)}.</span>
+              <button className="btn sec sm" disabled={!ocorrencias.length} onClick={() => setModalPreset(true)}>💾 Salvar preset</button>
+              <button className="btn sm" disabled={!ocorrencias.length} onClick={() => setModalRecorrente(true)}>🔁 Tornar recorrente</button>
+            </div>
+          )}
 
           {!dono ? <div className="card"><EmptyState>Nenhum Atendente/Analista cadastrado.</EmptyState></div> : (
             <div className="agenda-layout">
               <div className="card agenda-card-timeline">
                 {!ocorrencias.length && (
                   <p className="muted" style={{ fontSize: 13, marginTop: 0 }}>
-                    Nenhuma ação neste dia. {podeEditar ? "Clique num horário da grade para criar, ou use \"Aplicar modelo\" pra montar o dia inteiro." : ""}
+                    Nenhuma ação neste dia. {gestor ? "Clique num horário da grade para criar, ou use \"Aplicar modelo\" pra montar o dia inteiro." : emAlteracao ? "Clique num horário da grade para criar uma ação." : "Sua agenda é montada pelo gestor."}
                   </p>
                 )}
                 <AgendaDia
@@ -248,7 +367,7 @@ export function Agenda() {
       {modalBloco && (
         <BlocoModal
           key={(modalBloco.bloco.id || "novo") + modalBloco.dataDia}
-          bloco={modalBloco.bloco} dataDia={modalBloco.dataDia} presets={presets}
+          bloco={modalBloco.bloco} dataDia={modalBloco.dataDia} presets={presets} soDia={!gestor}
           onSalvar={salvarBloco} onExcluir={excluirBloco} onClose={() => setModalBloco(null)}
         />
       )}
@@ -257,6 +376,21 @@ export function Agenda() {
           modelos={modelos} presets={presets} agendaUsers={agendaUsers} userIdInicial={userId}
           podeEscolherUsuarios={gestor} dataInicial={dataISO}
           onAplicar={aplicarModelo} onClose={() => setModalModelo(false)}
+        />
+      )}
+      {pedirMotivo && (
+        <MotivoAlteracaoModal dataISO={dataISO} cfg={cfg} onConfirmar={iniciarAlteracao} onClose={() => setPedirMotivo(false)} />
+      )}
+      {modalPreset && (
+        <SalvarPresetModal nomeInicial={`Agenda ${dono ? dono.nome : ""} ${fmtDataBRCurta(dataISO)}`.trim()} modelos={modelos} onSalvar={salvarPreset} onClose={() => setModalPreset(false)} />
+      )}
+      {modalRecorrente && (
+        <AplicarModeloModal
+          modelos={[modeloDoDia(ocorrencias, { id: "__dia__", nome: `Agenda de ${fmtDataBRCurta(dataISO)}` })]}
+          presets={presets} agendaUsers={agendaUsers} userIdInicial={userId}
+          podeEscolherUsuarios dataInicial={addDias(dataISO, 1)}
+          titulo={`🔁 Tornar recorrente — agenda de ${fmtDataBRCurta(dataISO)}`} textoBotao="Tornar recorrente"
+          onAplicar={aplicarModelo} onClose={() => setModalRecorrente(false)}
         />
       )}
       {pedidoFeedback && (
