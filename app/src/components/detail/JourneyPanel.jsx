@@ -4,6 +4,7 @@ import {
   stepStatusEhConcluida, stepStatusEhNegativa, stepStatusEhConstatacao, stepDateConfig, stepHoraConfig,
 } from "../../logic/claims";
 import { fmtDateHoraBR } from "../../logic/format";
+import { PREFIXO_AUDIT_JORNADA } from "../../logic/autoria";
 
 // Porte 1:1 de journeyPanel() do HTML original, com registro automático
 // (a pedido do usuário) de data/hora/usuário da última interação de cada
@@ -29,6 +30,9 @@ export function JourneyPanel({ c, overrides, config, actions, canEdit, isAdminUs
     const next = { ...uj, caminho: v, steps };
     if (v && !uj.caminhoDefinidoEm) next.caminhoDefinidoEm = new Date().toISOString();
     persist(next);
+    // Auditoria por alteração — o Desempenho conta cada uma pra quem fez
+    // (ver atividadeDoUsuarioNoPeriodo em logic/desempenho.js).
+    if (canEdit && v !== (uj.caminho || "")) actions.logAudit(c.id, PREFIXO_AUDIT_JORNADA + "caminho definido", v || "(limpo)");
   }
   // Grava o título da etapa junto com o status — situacaoEfetiva() usa isso
   // pra reconhecer etapas como "Encerramento" e "Status da assistência" em
@@ -36,12 +40,16 @@ export function JourneyPanel({ c, overrides, config, actions, canEdit, isAdminUs
   // `step` (quando for mudança de status) é usado só pra checar se o novo
   // valor está na lista de status "concluída" configurada pelo admin.
   function setStepField(stepId, field, value, title, step) {
+    const anterior = steps[stepId] || {};
+    if (field === "note" && String(anterior.note || "") === String(value || "")) return;
     const sd = { ...(steps[stepId] || { status: "", date: "", note: "" }), [field]: value };
     if (title) sd.title = title;
     const agora = new Date().toISOString();
     const quem = (currentUser && currentUser.nome) || "—";
+    const quemId = (currentUser && currentUser.id) || null;
     sd.lastInteractionAt = agora;
     sd.lastInteractionBy = quem;
+    sd.lastInteractionById = quemId;
     // Marca quando a etapa recebeu status pela primeira vez — uma vez só,
     // nunca sobrescrito (diferente de lastInteractionAt) — usada pelo
     // módulo Oficinas pra calcular tempo médio de reparo (ver
@@ -69,6 +77,7 @@ export function JourneyPanel({ c, overrides, config, actions, canEdit, isAdminUs
         // ultimaEtapaEfetiva em logic/claims.js).
         sd.concludedAt = agora;
         sd.concludedBy = quem;
+        sd.concludedById = quemId;
         // Só exige (e avisa sobre) a data quando este status realmente tem
         // campo de data configurado (ver stepDateConfig) — etapa sem esse
         // campo resolve/minimiza na hora, sem alerta nenhum. O aviso só faz
@@ -80,9 +89,13 @@ export function JourneyPanel({ c, overrides, config, actions, canEdit, isAdminUs
       } else {
         delete sd.concludedAt;
         delete sd.concludedBy;
+        delete sd.concludedById;
       }
     }
     persist({ ...uj, steps: { ...steps, [stepId]: sd } });
+    if (canEdit && field === "status" && value !== (anterior.status || "")) {
+      actions.logAudit(c.id, PREFIXO_AUDIT_JORNADA + "status alterado", `${title || sd.title || stepId}: ${value || "(sem status)"}`);
+    }
   }
 
   let lista;

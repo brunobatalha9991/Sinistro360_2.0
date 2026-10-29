@@ -143,8 +143,12 @@ export const BONUS_MAX = 20;
 export const REGRAS_GANHO = [
   { key: "historico", icone: "📝", label: "Histórico registrado no processo", pts: 0.5, max: 4 },
   { key: "contato_cliente", icone: "📞", label: "Contato com o cliente (histórico canal Cliente)", pts: 0.5, max: 2 },
+  { key: "proxima_acao", icone: "📌", label: "Próxima ação definida", pts: 0.25, max: 2 },
+  { key: "jornada", icone: "🛤", label: "Jornada atualizada (status/caminho)", pts: 0.25, max: 2 },
   { key: "etapa", icone: "🧭", label: "Etapa da jornada concluída", pts: 0.5, max: 3 },
-  { key: "finalizado", icone: "🏁", label: "Processo finalizado", pts: 1.5, max: 4.5 },
+  { key: "outras", icone: "🛠", label: "Outras atualizações no processo", pts: 0.1, max: 1 },
+  { key: "finalizado", icone: "🏁", label: "Processo finalizado em que você atuou", pts: 1.5, max: 4.5 },
+  { key: "finalizou", icone: "🥇", label: "Bônus: desfecho marcado por você", pts: 1, max: 3 },
   { key: "satisfacao", icone: "⭐", label: "Pesquisa de satisfação com nota 4 ou 5", pts: 1, max: 2 },
   { key: "ci_prazo", icone: "📨", label: "CI com 1ª interação no prazo", pts: 0.5, max: 3 },
   { key: "ci_concluida", icone: "✔️", label: "CI concluída por você", pts: 0.5, max: 2 },
@@ -186,8 +190,8 @@ export function ganhosDoDia({ ctx, user, impacto, agora = new Date() }) {
   if (!userId) return { itens, pontos: 0, pontosBrutos: 0, oportunidades: [] };
   const deISO = hoje + "T00:00:00.000Z";
   const ateISO = hoje + "T23:59:59.999Z";
-  const m = calcularMetricasUsuario({ claims: ctx.claims, overrides: ctx.overrides, historico: ctx.historico, usuarioId: userId, periodoInicioISO: deISO, periodoFimISO: ateISO, atendTemplateCfg: ctx.atendTemplateCfg, templates: ctx.templates, tasks: ctx.tasks });
-  const ex = metricasExtras({ claims: ctx.claims, overrides: ctx.overrides, historico: ctx.historico, userId, deISO: hoje, ateISO: hoje, atendTemplateCfg: ctx.atendTemplateCfg, templates: ctx.templates, ocorrencias: ctx.ocorrencias });
+  const m = calcularMetricasUsuario({ claims: ctx.claims, overrides: ctx.overrides, historico: ctx.historico, usuarioId: userId, usuarioNome: user.nome, periodoInicioISO: deISO, periodoFimISO: ateISO, atendTemplateCfg: ctx.atendTemplateCfg, templates: ctx.templates, tasks: ctx.tasks });
+  const ex = metricasExtras({ claims: ctx.claims, overrides: ctx.overrides, historico: ctx.historico, userId, userNome: user.nome, deISO: hoje, ateISO: hoje, atendTemplateCfg: ctx.atendTemplateCfg, templates: ctx.templates, ocorrencias: ctx.ocorrencias });
   const ci = metricasCIUsuario({ cis: ctx.cis, notifs: ctx.notifs, userId, deISO: hoje, ateISO: hoje, config: ctx.config, agora });
   const ag = temAgendaPropria(user) ? metricasAgenda({ blocos: ctx.blocos || [], feedbacks: ctx.feedbacks || [], userId, deISO: hoje, ateISO: hoje, agora, cfg: ctx.cfgAgenda }) : null;
   const as = assiduidade({ acessos: ctx.acessos, userId, deISO: hoje, ateISO: hoje, inicioExpediente: ctx.cfgCI.horarioInicio || "08:30", agora });
@@ -200,8 +204,12 @@ export function ganhosDoDia({ ctx, user, impacto, agora = new Date() }) {
   };
   add("historico", m.historicosRegistrados || 0, `${m.historicosRegistrados} hoje`);
   add("contato_cliente", ex.historicosCliente || 0, `${ex.historicosCliente} com o cliente`);
+  add("proxima_acao", m.proximasAcoesRegistradas || 0, `${m.proximasAcoesRegistradas} definida(s)`);
+  add("jornada", m.interacoesJornada || 0, `${m.interacoesJornada} atualização(ões)`);
   add("etapa", ex.etapasConcluidas || 0, `${ex.etapasConcluidas} etapa(s)`);
+  add("outras", m.outrasAtualizacoes || 0, `${m.outrasAtualizacoes} atualização(ões)`);
   add("finalizado", m.finalizadosNoPeriodo || 0, `${m.finalizadosNoPeriodo} finalizado(s)`);
+  add("finalizou", m.finalizadosPorEleNoPeriodo || 0, `${m.finalizadosPorEleNoPeriodo} desfecho(s) marcado(s) por você`);
   if (ex.pesquisasCorretora && ex.notaCorretoraMedia >= 4) add("satisfacao", ex.pesquisasCorretora, `média ${ex.notaCorretoraMedia.toFixed(1)}`);
   add("ci_prazo", ci.noPrazo || 0, `${ci.noPrazo} no prazo`);
   add("ci_concluida", ci.concluidasPorEle || 0, `${ci.concluidasPorEle} concluída(s)`);
@@ -237,7 +245,7 @@ export function ganhosDoDia({ ctx, user, impacto, agora = new Date() }) {
   });
   const feitos = {};
   itens.forEach((i) => { feitos[i.key] = i.pontos; });
-  ["historico", "contato_cliente", "ci_prazo", "etapa", "finalizado", "agenda"].forEach((k) => {
+  ["historico", "contato_cliente", "proxima_acao", "jornada", "ci_prazo", "etapa", "finalizado", "agenda"].forEach((k) => {
     const r = REGRA[k];
     if (k === "agenda" && !ag) return;
     const falta = arred(r.max - (feitos[k] || 0));
@@ -296,7 +304,7 @@ export function indicesOperadores({ records, config, operadores, agora = new Dat
   const out = {};
   users.forEach((u) => {
     const m = metricas.find((x) => x.usuarioId === u.id);
-    const ex = metricasExtras({ claims, overrides, historico, userId: u.id, deISO: de, ateISO: hoje, atendTemplateCfg, templates, ocorrencias });
+    const ex = metricasExtras({ claims, overrides, historico, userId: u.id, userNome: u.nome, deISO: de, ateISO: hoje, atendTemplateCfg, templates, ocorrencias });
     const ci = metricasCIUsuario({ cis, notifs: records.corp_notifs, userId: u.id, deISO: de, ateISO: hoje, config });
     const agenda = temAgendaPropria(u) ? metricasAgenda({ blocos: records.corp_agenda || [], feedbacks: records.corp_agenda_feedback || [], userId: u.id, deISO: de, ateISO: hoje, cfg: cfgAgenda }) : null;
     const conduta = metricasConduta({ registros: records.corp_conduta || [], userId: u.id, deISO: de, ateISO: hoje });

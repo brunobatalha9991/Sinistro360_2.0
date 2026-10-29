@@ -24,7 +24,7 @@ export const analisarDesempenhoTool = {
 
     const inicioISO = args.periodoInicio ? args.periodoInicio + "T00:00:00.000Z" : null;
     const fimISO = args.periodoFim ? args.periodoFim + "T23:59:59.999Z" : null;
-    const metodologia = "Métricas calculadas a partir de corp_responsabilidade_historico (intervalos de vigência de responsável) — tempo/atraso anterior ao início da responsabilidade de cada usuário nunca é atribuído a ele. Feedback/plano de ação são gerados por regras (comparação com a média do time), não pelo modelo de IA. Ver docs/ia-sinistros/metricas-desempenho.md.";
+    const metodologia = "Métricas calculadas a partir de corp_responsabilidade_historico (intervalos de vigência de responsável) — tempo/atraso anterior ao início da responsabilidade de cada usuário nunca é atribuído a ele. Produção (histórico, próxima ação, jornada, demais atualizações) conta para quem fez; processo finalizado conta para todos que atuaram nele. Feedback/plano de ação são gerados por regras (comparação com a média do time), não pelo modelo de IA. Ver docs/ia-sinistros/metricas-desempenho.md.";
 
     const todos = calcularMetricasTodosUsuarios({ users, claims, overrides, historico, periodoInicioISO: inicioISO, periodoFimISO: fimISO, atendTemplateCfg, templates, tasks });
 
@@ -32,7 +32,7 @@ export const analisarDesempenhoTool = {
       const q = String(args.usuarioNome).trim().toLowerCase();
       const usuario = users.find((u) => u.nome.toLowerCase().indexOf(q) >= 0);
       if (!usuario) return { error: `Usuário "${args.usuarioNome}" não encontrado.` };
-      const m = todos.find((x) => x.usuarioId === usuario.id) || calcularMetricasUsuario({ claims, overrides, historico, usuarioId: usuario.id, periodoInicioISO: inicioISO, periodoFimISO: fimISO, atendTemplateCfg, templates, tasks });
+      const m = todos.find((x) => x.usuarioId === usuario.id) || calcularMetricasUsuario({ claims, overrides, historico, usuarioId: usuario.id, usuarioNome: usuario.nome, periodoInicioISO: inicioISO, periodoFimISO: fimISO, atendTemplateCfg, templates, tasks });
       const analise = gerarFeedbackEPlanoDeAcao(m, todos);
       return {
         usuario: usuario.nome, metricas: m, feedback: analise, metodologia,

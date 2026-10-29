@@ -197,6 +197,9 @@ export function useOverrideActions() {
           id: "au_" + Math.random().toString(36).slice(2, 9),
           at: new Date().toISOString(),
           who: (currentUser && currentUser.nome) || "—",
+          // id do autor — o Desempenho conta a produção pra quem fez (ver
+          // logic/autoria.js); `who` continua sendo o nome exibido.
+          whoId: (currentUser && currentUser.id) || null,
           role: (currentUser && currentUser.role) || "consulta",
           acao, detalhe: detalhe || "",
         };

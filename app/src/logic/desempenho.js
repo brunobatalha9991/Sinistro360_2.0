@@ -1,19 +1,25 @@
 // Analytics de desempenho — Fase 5 (IA Sinistros), ampliado numa "v2" a
-// pedido do usuário (gestão de equipe: Atendentes/Analistas). Continua
-// dependendo do histórico de responsabilidade da Fase 2
-// (corp_responsabilidade_historico) para respeitar a regra de justiça: um
-// usuário nunca é penalizado por tempo/atraso/evento anterior ao início da
-// sua responsabilidade sobre o processo — cada evento novo (histórico,
-// próxima ação, desfecho) só conta pro usuário que era o responsável
-// VIGENTE no instante exato em que aconteceu (responsavelVigenteEm),
-// não "o responsável atual".
+// pedido do usuário (gestão de equipe: Atendentes/Analistas). Duas regras:
+// - CARTEIRA (estoque, atrasos, sem atualização, tempos de
+//   responsabilidade): continua dependendo do histórico de
+//   responsabilidade da Fase 2 (corp_responsabilidade_historico) — um
+//   usuário nunca é penalizado por tempo/atraso anterior ao início da sua
+//   responsabilidade sobre o processo.
+// - PRODUÇÃO (histórico, próxima ação, jornada e qualquer outra
+//   atualização no processo): conta para QUEM FEZ, seja ou não o
+//   responsável pelo processo (a pedido do usuário, 2026-10-29 — antes só
+//   contava pro responsável vigente, e quem ajudava na carteira de outro
+//   não pontuava nada). Desfecho conta pra todos que atuaram no processo
+//   em algum momento, e quem marcou o desfecho é destacado (bônus nos
+//   ganhos do dia). Ver logic/autoria.js.
 import {
   visibleClaims, getResponsavel, isFinalizado, isAtrasado, isSemAtualizacao, situacaoEfetiva,
   loadComms, loadAudit, comFlagContaComoMetrica,
   pesquisaSatisfacaoCompleta, ultimaEtapaEfetiva, getUserJourney, inicioAndamentoEm,
 } from "./claims";
-import { getHistoricoDoProcesso, responsavelVigenteEm } from "./responsabilidade";
+import { getHistoricoDoProcesso } from "./responsabilidade";
 import { taskParticipants } from "./tasks";
+import { feitoPor, ehAcaoJornada, CANAL_IMPORTADO } from "./autoria";
 import { mediaArr } from "./format";
 
 function sobrepoe(intervalo, inicioISO, fimISO) {
@@ -86,28 +92,37 @@ function dentroPeriodo(iso, inicioISO, fimISO) {
   if (fimISO && v > fimISO) return false;
   return true;
 }
-// Só conta um evento (comunicação, próxima ação, desfecho) pro usuário se
-// ele era o responsável VIGENTE no instante exato do evento — a mesma
-// regra de justiça da Fase 2, aplicada evento a evento em vez de "quem é o
-// responsável agora".
-function eventoDoUsuario(historico, claimId, atISO, usuarioId) {
-  const r = responsavelVigenteEm(historico, claimId, atISO);
-  return !!(r && r.usuarioResponsavelId === usuarioId);
-}
 function atComm(m) { return m.at || (m.date ? m.date + "T12:00:00.000Z" : null); }
+// Comunicação registrada pelo usuário (não importada em lote).
+function commDoUsuario(m, usuario) {
+  return m.canal !== CANAL_IMPORTADO && feitoPor(m.whoId, m.who, usuario);
+}
+function auditDoUsuario(a, usuario) {
+  return !/importad[ao] via planilha$/.test(a.acao || "") && feitoPor(a.whoId, a.who, usuario);
+}
 
-// Histórico de comunicações (aba Histórico) atribuído ao usuário no
+// Usuário atuou no processo em algum momento (qualquer data): registrou
+// histórico, mexeu na jornada ou fez qualquer ação gravada na auditoria.
+export function atuouNoProcesso(overrides, claimId, usuario) {
+  if (loadComms(overrides, claimId).some((m) => commDoUsuario(m, usuario))) return true;
+  if (loadAudit(overrides, claimId).some((a) => auditDoUsuario(a, usuario))) return true;
+  return Object.values((getUserJourney(overrides, claimId) || {}).steps || {}).some((sd) => sd && (
+    feitoPor(sd.lastInteractionById, sd.lastInteractionBy, usuario) || feitoPor(sd.concludedById, sd.concludedBy, usuario)
+  ));
+}
+
+// Histórico de comunicações (aba Histórico) registrado pelo usuário no
 // período: quantidade, "aguardando retorno"/"limitação de comunicação"
 // (mesmo critério de perpetuação de métrica já usado no filtro de
 // Sinistros — comFlagContaComoMetrica) e nota média das avaliações.
-function historicoDoUsuarioNoPeriodo(claims, overrides, historico, usuarioId, periodoInicioISO, periodoFimISO) {
+function historicoDoUsuarioNoPeriodo(claims, overrides, usuario, periodoInicioISO, periodoFimISO) {
   let qtd = 0, aguardandoRetorno = 0, limitacaoComunicacao = 0;
   const notas = [];
   (claims || []).forEach((c) => {
     loadComms(overrides, c.id).forEach((m) => {
       const at = atComm(m);
       if (!dentroPeriodo(at, periodoInicioISO, periodoFimISO)) return;
-      if (!eventoDoUsuario(historico, c.id, at, usuarioId)) return;
+      if (!commDoUsuario(m, usuario)) return;
       qtd++;
       if (comFlagContaComoMetrica(m, "aguardandoRetorno")) aguardandoRetorno++;
       if (comFlagContaComoMetrica(m, "limitacaoComunicacao")) limitacaoComunicacao++;
@@ -117,30 +132,77 @@ function historicoDoUsuarioNoPeriodo(claims, overrides, historico, usuarioId, pe
   return { qtd, aguardandoRetorno, limitacaoComunicacao, avaliacaoMedia: mediaArr(notas) };
 }
 
-// Próximas ações DEFINIDAS (registradas) no período — usa a auditoria
-// interna ("Próxima ação definida", gravada em NextActionPanel.jsx), não o
-// valor atual de nextAction (que não guarda quantas vezes foi trocado).
-function proximasAcoesRegistradasNoPeriodo(claims, overrides, historico, usuarioId, periodoInicioISO, periodoFimISO) {
+// Próximas ações DEFINIDAS (registradas) pelo usuário no período — usa a
+// auditoria interna ("Próxima ação definida", gravada em
+// NextActionPanel.jsx), não o valor atual de nextAction (que não guarda
+// quantas vezes foi trocado).
+function proximasAcoesRegistradasNoPeriodo(claims, overrides, usuario, periodoInicioISO, periodoFimISO) {
   let qtd = 0;
   (claims || []).forEach((c) => {
     loadAudit(overrides, c.id).forEach((a) => {
       if (a.acao !== "Próxima ação definida") return;
       if (!dentroPeriodo(a.at, periodoInicioISO, periodoFimISO)) return;
-      if (!eventoDoUsuario(historico, c.id, a.at, usuarioId)) return;
+      if (!feitoPor(a.whoId, a.who, usuario)) return;
       qtd++;
     });
   });
   return qtd;
 }
 
+// Ações da auditoria que já têm contagem própria — ficam fora de "outras
+// atualizações".
+const ACOES_CONTADAS_A_PARTE = new Set(["Comunicação registrada", "Próxima ação definida", "Prazo do histórico renovado"]);
+function acaoContadaAParte(acao) {
+  return ACOES_CONTADAS_A_PARTE.has(acao) || /^Mensagem de template/.test(acao || "") || ehAcaoJornada(acao);
+}
+
+// Tudo o mais que o usuário fez nos processos no período: interações na
+// jornada (status/caminho), demais atualizações registradas na auditoria
+// (anexos, temperatura, situação de atendimento, edição de histórico,
+// pesquisa de satisfação, link de acompanhamento, criação de processo...)
+// e em quantos processos diferentes ele mexeu. Jornada: a auditoria
+// "Jornada: ..." só existe desde 2026-10-29 — em processo sem nenhuma
+// dela do usuário no período, cai na última interação gravada em cada
+// etapa (lastInteractionAt/By), que é o que existia antes.
+function atividadeDoUsuarioNoPeriodo(claims, overrides, usuario, periodoInicioISO, periodoFimISO) {
+  let jornada = 0, outras = 0;
+  const tocados = new Set();
+  (claims || []).forEach((c) => {
+    let jornadaAudit = 0;
+    loadAudit(overrides, c.id).forEach((a) => {
+      if (!dentroPeriodo(a.at, periodoInicioISO, periodoFimISO)) return;
+      if (!auditDoUsuario(a, usuario)) return;
+      tocados.add(c.id);
+      if (ehAcaoJornada(a.acao)) jornadaAudit++;
+      else if (!acaoContadaAParte(a.acao)) outras++;
+    });
+    if (jornadaAudit) {
+      jornada += jornadaAudit;
+    } else {
+      Object.values((getUserJourney(overrides, c.id) || {}).steps || {}).forEach((sd) => {
+        if (!sd || !dentroPeriodo(sd.lastInteractionAt, periodoInicioISO, periodoFimISO)) return;
+        if (!feitoPor(sd.lastInteractionById, sd.lastInteractionBy, usuario)) return;
+        jornada++;
+        tocados.add(c.id);
+      });
+    }
+    if (loadComms(overrides, c.id).some((m) => dentroPeriodo(atComm(m), periodoInicioISO, periodoFimISO) && commDoUsuario(m, usuario))) tocados.add(c.id);
+  });
+  return { jornada, outras, processosTocados: tocados.size };
+}
+
 // Processos FINALIZADOS (Indenizado/Encerrado sem Indenização) no
-// período, atribuídos a quem era responsável no instante do desfecho —
+// período, contados para TODOS que atuaram no processo em algum momento
+// (atuouNoProcesso — a pedido do usuário, 2026-10-29); `porEle` é o
+// subconjunto em que ele mesmo marcou o desfecho (concludedBy) — vira
+// bônus nos ganhos do dia. Data do desfecho = concludedAt da ÚLTIMA etapa
+// efetiva —
 // data do desfecho = concludedAt da ÚLTIMA etapa efetiva (ver
 // ultimaEtapaEfetiva/JourneyPanel.jsx). Aproximação honesta: não existe um
 // campo "situação mudou em X", este é o timestamp mais confiável que o
 // sistema já grava.
-function finalizadosNoPeriodo(claims, overrides, templates, atendTemplateCfg, historico, usuarioId, periodoInicioISO, periodoFimISO) {
-  let indenizados = 0, semIndenizacao = 0, constatacoes = 0;
+function finalizadosNoPeriodo(claims, overrides, templates, atendTemplateCfg, usuario, periodoInicioISO, periodoFimISO) {
+  let indenizados = 0, semIndenizacao = 0, constatacoes = 0, porEle = 0;
   const claimIds = [];
   (claims || []).forEach((c) => {
     const sit = situacaoEfetiva(overrides, c, atendTemplateCfg, templates).label;
@@ -150,11 +212,13 @@ function finalizadosNoPeriodo(claims, overrides, templates, atendTemplateCfg, hi
     const sd = ((getUserJourney(overrides, c.id) || {}).steps || {})[step.id];
     const concludedAt = sd && sd.concludedAt;
     if (!dentroPeriodo(concludedAt, periodoInicioISO, periodoFimISO)) return;
-    if (!eventoDoUsuario(historico, c.id, concludedAt, usuarioId)) return;
+    const finalizou = feitoPor(sd.concludedById, sd.concludedBy, usuario);
+    if (!finalizou && !atuouNoProcesso(overrides, c.id, usuario)) return;
+    if (finalizou) porEle++;
     if (sit === "Indenizado") indenizados++; else if (sit === "Constatação") constatacoes++; else semIndenizacao++;
     claimIds.push(c.id);
   });
-  return { indenizados, semIndenizacao, constatacoes, total: indenizados + semIndenizacao + constatacoes, claimIds };
+  return { indenizados, semIndenizacao, constatacoes, porEle, total: indenizados + semIndenizacao + constatacoes, claimIds };
 }
 
 // Tarefas de Comunicação interna (origem OU destinatário) criadas no
@@ -181,10 +245,13 @@ function diasSemAtualizacao(overrides, c) {
   return (Date.now() - new Date(d + "T00:00:00").getTime()) / 86400000;
 }
 
+// `usuarioNome` identifica a autoria dos registros antigos (sem id do
+// autor) — ver logic/autoria.js.
 export function calcularMetricasUsuario({
-  claims, overrides, historico, usuarioId, periodoInicioISO, periodoFimISO,
+  claims, overrides, historico, usuarioId, usuarioNome, periodoInicioISO, periodoFimISO,
   atendTemplateCfg, templates, tasks,
 }) {
+  const usuario = { id: usuarioId, nome: usuarioNome };
   const intervalos = intervalosDoUsuarioNoPeriodo(historico, usuarioId, periodoInicioISO, periodoFimISO);
   const assumidos = intervalos.filter((h) => (
     (!periodoInicioISO || String(h.inicioResponsabilidadeEm) >= periodoInicioISO) &&
@@ -209,9 +276,10 @@ export function calcularMetricasUsuario({
   const tempoMedioPendenteDias = mediaArr(porSituacao.pendenteArr);
   const tempoMedioAndamentoDias = mediaArr(porSituacao.andamentoArr);
 
-  const historicoPeriodo = historicoDoUsuarioNoPeriodo(claims, overrides, historico, usuarioId, periodoInicioISO, periodoFimISO);
-  const proximasAcoesQtd = proximasAcoesRegistradasNoPeriodo(claims, overrides, historico, usuarioId, periodoInicioISO, periodoFimISO);
-  const finalizados = finalizadosNoPeriodo(claims, overrides, templates || {}, atendTemplateCfg, historico, usuarioId, periodoInicioISO, periodoFimISO);
+  const historicoPeriodo = historicoDoUsuarioNoPeriodo(claims, overrides, usuario, periodoInicioISO, periodoFimISO);
+  const proximasAcoesQtd = proximasAcoesRegistradasNoPeriodo(claims, overrides, usuario, periodoInicioISO, periodoFimISO);
+  const atividade = atividadeDoUsuarioNoPeriodo(claims, overrides, usuario, periodoInicioISO, periodoFimISO);
+  const finalizados = finalizadosNoPeriodo(claims, overrides, templates || {}, atendTemplateCfg, usuario, periodoInicioISO, periodoFimISO);
   const { tarefas: tarefasQtd, assistencias: assistenciasQtd } = tarefasDoUsuarioNoPeriodo(tasks, usuarioId, periodoInicioISO, periodoFimISO);
 
   return {
@@ -235,7 +303,11 @@ export function calcularMetricasUsuario({
     limitacaoComunicacaoQtd: historicoPeriodo.limitacaoComunicacao,
     avaliacaoMediaHistorico: historicoPeriodo.avaliacaoMedia,
     proximasAcoesRegistradas: proximasAcoesQtd,
+    interacoesJornada: atividade.jornada,
+    outrasAtualizacoes: atividade.outras,
+    processosAtualizados: atividade.processosTocados,
     finalizadosNoPeriodo: finalizados.total,
+    finalizadosPorEleNoPeriodo: finalizados.porEle,
     indenizadosNoPeriodo: finalizados.indenizados,
     semIndenizacaoNoPeriodo: finalizados.semIndenizacao,
     constatacoesNoPeriodo: finalizados.constatacoes,
@@ -249,7 +321,7 @@ export function calcularMetricasUsuario({
 export function calcularMetricasTodosUsuarios({ users, claims, overrides, historico, periodoInicioISO, periodoFimISO, atendTemplateCfg, templates, tasks }) {
   return (users || []).map((u) => ({
     usuarioId: u.id, usuarioNome: u.nome, usuarioFoto: u.fotoUrl || null,
-    ...calcularMetricasUsuario({ claims, overrides, historico, usuarioId: u.id, periodoInicioISO, periodoFimISO, atendTemplateCfg, templates, tasks }),
+    ...calcularMetricasUsuario({ claims, overrides, historico, usuarioId: u.id, usuarioNome: u.nome, periodoInicioISO, periodoFimISO, atendTemplateCfg, templates, tasks }),
   }));
 }
 

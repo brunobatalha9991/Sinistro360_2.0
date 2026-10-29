@@ -6,14 +6,17 @@
 // acrescenta as que o sistema registrava mas ninguém media (metricasExtras
 // e assiduidade).
 //
-// Regra de justiça (mesma da Fase 2): evento de processo só conta pra quem
-// era o responsável VIGENTE no instante em que aconteceu.
+// Produção (histórico, WhatsApp, renovações, etapas concluídas) conta pra
+// QUEM FEZ (logic/autoria.js). Indicadores de qualidade da carteira (nota
+// da pesquisa, reclamações) seguem com quem era o responsável VIGENTE no
+// instante do evento (regra de justiça da Fase 2).
 import {
   getResponsavel, isFinalizado, isAtrasado, getNextAction, loadComms, loadAudit,
   getUserJourney, claimTemEtapaForaDoPrazo, getPesquisaSatisfacao, getEmailAlertas, visibleClaims,
 } from "./claims";
 import { responsavelVigenteEm } from "./responsabilidade";
 import { dataLocalISO, addDias, hhmmToMin } from "./agenda";
+import { feitoPor, CANAL_IMPORTADO } from "./autoria";
 
 // ---------- pesos e níveis ----------
 export const PILARES = [
@@ -53,7 +56,8 @@ function doUsuario(historico, claimId, at, userId) {
   return !!(r && r.usuarioResponsavelId === userId);
 }
 
-export function metricasExtras({ claims, overrides, historico, userId, deISO, ateISO, atendTemplateCfg, templates, ocorrencias }) {
+export function metricasExtras({ claims, overrides, historico, userId, userNome, deISO, ateISO, atendTemplateCfg, templates, ocorrencias }) {
+  const usuario = { id: userId, nome: userNome };
   const todos = visibleClaims(claims || []);
   const estoque = todos.filter((c) => {
     const r = getResponsavel(overrides, c.id);
@@ -72,13 +76,13 @@ export function metricasExtras({ claims, overrides, historico, userId, deISO, at
     emailsPendentes += getEmailAlertas(overrides, c.id).length;
   });
 
-  // Eventos no período atribuídos a quem era o responsável vigente.
+  // Produção no período — de quem fez.
   let historicos = 0, historicosCliente = 0, whatsapp = 0, renovacoes = 0, etapasConcluidas = 0;
   const notasCorretora = [];
   todos.forEach((c) => {
     loadComms(overrides, c.id).forEach((m) => {
       const at = m.at || (m.date ? m.date + "T12:00:00.000Z" : null);
-      if (!noPeriodo(at, deISO, ateISO) || !doUsuario(historico, c.id, at, userId)) return;
+      if (!noPeriodo(at, deISO, ateISO) || m.canal === CANAL_IMPORTADO || !feitoPor(m.whoId, m.who, usuario)) return;
       historicos++;
       if (m.canal === "Cliente") historicosCliente++;
     });
@@ -88,13 +92,13 @@ export function metricasExtras({ claims, overrides, historico, userId, deISO, at
       const ehWhats = /^Mensagem de template/.test(acao);
       const ehRenov = acao === "Prazo do histórico renovado";
       if (!ehWhats && !ehRenov) return;
-      if (!doUsuario(historico, c.id, a.at, userId)) return;
+      if (!feitoPor(a.whoId, a.who, usuario)) return;
       if (ehWhats) whatsapp++;
       if (ehRenov) renovacoes++;
     });
     const steps = (getUserJourney(overrides, c.id) || {}).steps || {};
     Object.values(steps).forEach((sd) => {
-      if (sd && sd.concludedAt && noPeriodo(sd.concludedAt, deISO, ateISO) && doUsuario(historico, c.id, sd.concludedAt, userId)) etapasConcluidas++;
+      if (sd && sd.concludedAt && noPeriodo(sd.concludedAt, deISO, ateISO) && feitoPor(sd.concludedById, sd.concludedBy, usuario)) etapasConcluidas++;
     });
     const p = getPesquisaSatisfacao(overrides, c.id);
     if (p && p.respondidoEm && noPeriodo(p.respondidoEm, deISO, ateISO) && p.corretora && Number(p.corretora.nota) > 0 && doUsuario(historico, c.id, p.respondidoEm, userId)) {

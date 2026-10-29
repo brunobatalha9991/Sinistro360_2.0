@@ -171,12 +171,15 @@ function DetalheProcessos({ m, ex, as, periodoLabel, verSinistros }) {
         <Stat label="Pesquisas de satisfação completas" value={fmtNum(m.pesquisasSatisfacaoCompletas)} />
       </Section>
 
-      <Section title={`Atividade no período (${periodoLabel})`} desc="Só conta o que aconteceu enquanto este usuário era o responsável vigente no instante do evento — regra de justiça.">
+      <Section title={`Atividade no período (${periodoLabel})`} desc="Tudo o que este usuário fez em qualquer processo, sendo ou não o responsável por ele. Nota da pesquisa e reclamações seguem com quem era o responsável no momento.">
+        <Stat label="Processos em que atuou" value={fmtNum(m.processosAtualizados)} title="Processos diferentes em que registrou histórico, mexeu na jornada ou fez qualquer outra atualização" />
         <Stat label="Históricos registrados" value={fmtNum(m.historicosRegistrados)} />
         <Stat label="Contato direto com o cliente" value={fmtPct(ex.pctContatoCliente)} title="% dos históricos registrados no canal Cliente" />
         <Stat label="Mensagens de WhatsApp (templates)" value={fmtNum(ex.whatsapp)} />
+        <Stat label="Atualizações na jornada" value={fmtNum(m.interacoesJornada)} title="Mudanças de status de etapa e definição de caminho" />
         <Stat label="Etapas da jornada concluídas" value={fmtNum(ex.etapasConcluidas)} />
         <Stat label="Próximas ações registradas" value={fmtNum(m.proximasAcoesRegistradas)} />
+        <Stat label="Outras atualizações" value={fmtNum(m.outrasAtualizacoes)} title="Anexos, temperatura, situação de atendimento, edição de histórico, pesquisa de satisfação, link de acompanhamento etc." />
         <Stat label='Renovações "Dentro do prazo"' value={fmtNum(ex.renovacoes)} danger={ex.renovacoes >= 5 && ex.renovacoes > ex.historicos / 2} title="Renovações do prazo do histórico sem registrar atualização" />
         <Stat label="Aguardando retorno" value={fmtNum(m.aguardandoRetornoQtd)} />
         <Stat label="Limitação de comunicação" value={fmtNum(m.limitacaoComunicacaoQtd)} />
@@ -190,8 +193,9 @@ function DetalheProcessos({ m, ex, as, periodoLabel, verSinistros }) {
         <Stat label="Tempo médio em Em andamento" value={fmtDiasMedia(m.tempoMedioAndamentoDias)} />
       </Section>
 
-      <Section title={`Desfechos no período (${periodoLabel})`} desc="Data do desfecho = conclusão da última etapa efetiva do processo.">
+      <Section title={`Desfechos no período (${periodoLabel})`} desc="Conta para todos que atuaram no processo em algum momento. Data do desfecho = conclusão da última etapa efetiva do processo.">
         <Stat label="Finalizados" value={fmtNum(m.finalizadosNoPeriodo)} />
+        <Stat label="Desfecho marcado por ele" value={fmtNum(m.finalizadosPorEleNoPeriodo)} title="Finalizados em que este usuário marcou o desfecho na jornada (bônus nos ganhos do dia)" />
         <Stat label="Indenizados" value={fmtNum(m.indenizadosNoPeriodo)} />
         <Stat label="Constatação" value={fmtNum(m.constatacoesNoPeriodo)} />
         <Stat label="Sem indenização" value={fmtNum(m.semIndenizacaoNoPeriodo)} />
@@ -332,7 +336,7 @@ export function Desempenho() {
   const extrasPorUsuario = useMemo(() => {
     const ocorrencias = [...(ocOf || []), ...(ocSeg || []), ...(ocCli || [])];
     const out = {};
-    users.forEach((u) => { out[u.id] = metricasExtras({ claims, overrides, historico, userId: u.id, deISO: periodoDe || null, ateISO: periodoAte || null, atendTemplateCfg, templates, ocorrencias }); });
+    users.forEach((u) => { out[u.id] = metricasExtras({ claims, overrides, historico, userId: u.id, userNome: u.nome, deISO: periodoDe || null, ateISO: periodoAte || null, atendTemplateCfg, templates, ocorrencias }); });
     return out;
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [users, claims, overrides, historico, periodoDe, periodoAte, atendTemplateCfg, templates, ocOf, ocSeg, ocCli]);
@@ -380,7 +384,7 @@ export function Desempenho() {
     if (!linha) return null;
     const s = { historicos: [], finalizados: [], ciNoPrazo: [], agenda: [] };
     semanasRecentes(8).forEach((w) => {
-      const mw = calcularMetricasUsuario({ claims, overrides, historico, usuarioId: perfilId, periodoInicioISO: w.de + "T00:00:00.000Z", periodoFimISO: w.ate + "T23:59:59.999Z", atendTemplateCfg, templates, tasks });
+      const mw = calcularMetricasUsuario({ claims, overrides, historico, usuarioId: perfilId, usuarioNome: linha.u.nome, periodoInicioISO: w.de + "T00:00:00.000Z", periodoFimISO: w.ate + "T23:59:59.999Z", atendTemplateCfg, templates, tasks });
       const cw = metricasCIUsuario({ cis, notifs: [], userId: perfilId, deISO: w.de, ateISO: w.ate, config });
       const aw = temAgendaPropria(linha.u) ? metricasAgenda({ blocos: blocosAgenda || [], feedbacks: feedbacksAgenda || [], userId: perfilId, deISO: w.de, ateISO: w.ate, cfg: cfgAgenda }) : null;
       s.historicos.push({ rotulo: w.rotulo, valor: mw.historicosRegistrados });

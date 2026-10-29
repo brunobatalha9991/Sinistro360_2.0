@@ -234,7 +234,7 @@ export function CommsPanel({ c, overrides, actions, canEdit, config, clientes })
       text: box.texto.trim(), aguardandoRetorno: !!box.aguardandoRetorno,
       ...(canal === "Oficina" ? { limitacaoComunicacao: !!box.limitacaoComunicacao } : {}),
       ...(comAvaliacao ? { avaliacao: box.avaliacao || 0, motivoAvaliacao: (box.motivoAvaliacao || "").trim() } : {}),
-      who: (currentUser && currentUser.nome) || "—", at: new Date().toISOString(),
+      who: (currentUser && currentUser.nome) || "—", whoId: (currentUser && currentUser.id) || null, at: new Date().toISOString(),
     }));
     if (!novos.length) { alert("Preencha ao menos uma das comunicações (Cliente, Oficina, Seguradora ou Comunicação Interna Corretora)."); return; }
     const arr = [...loadComms(overrides, c.id), ...novos];
@@ -256,7 +256,7 @@ export function CommsPanel({ c, overrides, actions, canEdit, config, clientes })
   function salvarEdicao(id, patch) {
     if (!canEdit) { alert("Seu perfil é apenas de consulta. Você pode visualizar, mas não editar processos."); return; }
     const arr = loadComms(overrides, c.id).map((m) => (
-      m.id === id ? { ...m, ...patch, editadoPor: (currentUser && currentUser.nome) || "—", editadoEm: new Date().toISOString() } : m
+      m.id === id ? { ...m, ...patch, editadoPor: (currentUser && currentUser.nome) || "—", editadoPorId: (currentUser && currentUser.id) || null, editadoEm: new Date().toISOString() } : m
     ));
     actions.saveComms(c.id, arr);
     actions.logAudit(c.id, "Comunicação editada", patch.titulo || "");
