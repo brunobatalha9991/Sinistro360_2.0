@@ -72,6 +72,9 @@ export const CONFIG_KEYS = [
   "corp_ci_sem_interacao",
   // Pesos do Índice de Desempenho (logic/desempenhoPainel.js).
   "corp_desempenho_pesos",
+  // Parâmetros do Índice v4 (logic/desempenhoEntrega.js): tolerância de
+  // chegada e meta mínima diária de processos atuados.
+  "corp_desempenho_cfg",
   // Registro de versões/atualizações do sistema (Configurações → Versões do
   // sistema) — ver logic/versoesSistema.js.
   "corp_versoes_sistema",

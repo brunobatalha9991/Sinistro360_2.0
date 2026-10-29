@@ -11,12 +11,14 @@ describe("índice de desempenho", () => {
 
   it("média ponderada dos pilares com dado", () => {
     const r = calcularIndice({ m, ex, ci, agenda, conduta, assid, pesos: PESOS_DEFAULT });
-    const proc = (0.8 + 0.9 + 0.9 + 1) / 4;
+    // Carteira (v4): próximas ações em dia e histórico atualizado pesam 2.
+    const proc = (0.8 * 2 + 0.9 * 2 + 0.9 + 1) / 6;
     const ciV = (0.8 + 1) / 2;
     const ag = 0.8;
     const as = 0.75;
     const cd = 1;
-    const esperado = Math.round(((proc * 35 + ciV * 25 + ag * 20 + as * 10 + cd * 10) / 100) * 100);
+    // Sem `en` (Entrega/Produção) esses pilares ficam de fora.
+    const esperado = Math.round(((proc * 20 + ciV * 15 + ag * 10 + as * 5 + cd * 5) / 55) * 100);
     expect(r.score).toBe(esperado);
     expect(r.pilares.find((p) => p.key === "ci").componentes[2].valor).toBeNull();
   });
@@ -51,7 +53,8 @@ describe("assiduidade", () => {
   });
   it("hoje antes do limite não conta como falta", () => {
     const acessos = { ...ac("u", "2026-10-29", 8, 31) };
-    const r = assiduidade({ acessos, userId: "u", agora: new Date(2026, 9, 30, 8, 40) });
+    // Limite padrão v4: 08:30 + 10 min = 08:40.
+    const r = assiduidade({ acessos, userId: "u", agora: new Date(2026, 9, 30, 8, 39) });
     expect(r.diasUteis).toBe(1);
   });
 });

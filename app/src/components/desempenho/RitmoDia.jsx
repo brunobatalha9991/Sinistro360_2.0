@@ -2,7 +2,7 @@ import { useState } from "react";
 import { EmptyState } from "../EmptyState.jsx";
 import { dataLocalISO, fmtDataBRCurta, fmtHoraDe } from "../../logic/agenda";
 import { nivelDoScore } from "../../logic/desempenhoPainel";
-import { FAIXAS_ATRASO, PONTOS_PENDENTE, PONTOS_INTERVENCAO, IMPACTO_MAX, BONUS_MAX, REGRAS_GANHO, resumoRitmo, idRitmo, idFechamento } from "../../logic/desempenhoRitmo";
+import { FAIXAS_ATRASO, PONTOS_PENDENTE, PONTOS_INTERVENCAO, IMPACTO_MAX, BONUS_MAX, REGRAS_GANHO, resumoRitmo, registroRitmo, registroFechamento, FATOR_IMPACTO, CARTEIRA_MIN_IMPACTO } from "../../logic/desempenhoRitmo";
 import { imprimirHtml } from "../../logic/solicitacaoPdf";
 
 // Relatório "Ritmo do dia" e impacto das pendências no Desempenho (ver
@@ -41,7 +41,7 @@ export function BalancoCard({ indice, navigate }) {
         <span className="muted" style={{ fontSize: 12 }}>zera à meia-noite</span>
       </div>
       <div className="balanco-conta">
-        <div><small>Pilares (30 dias)</small><b>{indice.scoreBase ?? "—"}</b></div>
+        <div><small>Pilares (período)</small><b>{indice.scoreBase ?? "—"}</b></div>
         <span className="balanco-op">−</span>
         <div className="neg"><small>Pendências agora</small><b>{perdas}</b></div>
         <span className="balanco-op">+</span>
@@ -69,7 +69,7 @@ export function BalancoCard({ indice, navigate }) {
           {imp.itens.map((i) => (
             <ItemBalanco key={i.key} icone={i.icone} titulo={i.titulo} sub={i.sub} pts={i.pontos} sinalPts="−" status={i.status} onClick={ir(i.rota)} />
           ))}
-          {imp.pontosBrutos > imp.pontos && <p className="muted" style={{ fontSize: 12 }}>Somando tudo daria −{imp.pontosBrutos}; o desconto vai até −{IMPACTO_MAX}.</p>}
+          <p className="muted" style={{ fontSize: 12 }}>Peso das pendências: {imp.pontosBrutos}. O desconto é proporcional à carteira ({imp.carteira || 0} processo(s)): {imp.pontosBrutos} × {FATOR_IMPACTO} ÷ {Math.max(imp.carteira || 0, CARTEIRA_MIN_IMPACTO)} = −{imp.pontos}{imp.pontos >= IMPACTO_MAX ? " (teto)" : ""}.</p>
         </div>
       ))}
 
@@ -91,7 +91,7 @@ export function BalancoCard({ indice, navigate }) {
               <li>Pendente de hoje: −{PONTOS_PENDENTE} (vira atraso no fim do expediente)</li>
               <li>Intervenção sem resposta: −{PONTOS_INTERVENCAO}</li>
               <li>CI urgente atrasada: −1 extra</li>
-              <li>Teto: −{IMPACTO_MAX}</li>
+              <li>Desconto = soma × {FATOR_IMPACTO} ÷ carteira (mín. {CARTEIRA_MIN_IMPACTO}), até −{IMPACTO_MAX}</li>
             </ul>
           </div>
           <div>
@@ -154,7 +154,7 @@ table{border-collapse:collapse;width:100%}th,td{border:1px solid #ccc;padding:5p
 // ---------- operador ----------
 export function RitmoOperadorCard({ ritmo, u }) {
   const [data, setData] = useState(dataLocalISO());
-  const reg = (ritmo || {})[idRitmo(u.id, data)];
+  const reg = registroRitmo(ritmo, u.id, data);
   const s = resumoRitmo(reg);
   const eventos = (reg && reg.eventos) || [];
 
@@ -198,9 +198,9 @@ export function RitmoOperadorCard({ ritmo, u }) {
 // ---------- equipe ----------
 export function RitmoEquipe({ ritmo, operadores, navigate }) {
   const [data, setData] = useState(dataLocalISO());
-  const linhas = operadores.map((u) => ({ u, s: resumoRitmo((ritmo || {})[idRitmo(u.id, data)]) }))
+  const linhas = operadores.map((u) => ({ u, s: resumoRitmo(registroRitmo(ritmo, u.id, data)) }))
     .sort((a, b) => (b.s ? b.s.atual ?? -1 : -2) - (a.s ? a.s.atual ?? -1 : -2));
-  const fech = (ritmo || {})[idFechamento(data)];
+  const fech = registroFechamento(ritmo, data);
   const com = linhas.filter((l) => l.s);
 
   function imprimir() {

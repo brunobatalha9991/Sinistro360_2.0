@@ -34,6 +34,7 @@ import { todasCIsNormalizadas, metricasCIUsuario } from "./desempenhoCI";
 import { metricasConduta } from "./conduta";
 import { metricasExtras, assiduidade, calcularIndice, pesosDesempenho, nivelDoScore, PILARES } from "./desempenhoPainel";
 import { semInteracaoCfg, minutosUteisEntre, limiteSemInteracaoMin } from "./ciAutomacao";
+import { indiceProcessos, entregaNoPeriodo, desempenhoCfg } from "./desempenhoEntrega";
 
 // ---------- impacto progressivo ----------
 export const FAIXAS_ATRASO = [
@@ -44,9 +45,14 @@ export const FAIXAS_ATRASO = [
 ];
 export const PONTOS_PENDENTE = 0.5;
 export const PONTOS_INTERVENCAO = 3;
-// Teto do desconto — o índice continua refletindo os pilares, o impacto
-// não zera ninguém sozinho.
-export const IMPACTO_MAX = 40;
+// Desconto PROPORCIONAL à carteira (v4): os pontos de cada item medem a
+// gravidade, mas o desconto é pontosBrutos × FATOR_IMPACTO ÷ carteira
+// (mínimo CARTEIRA_MIN_IMPACTO) — a v3 descontava o valor bruto e quem
+// tinha carteira grande batia o teto (−40) mesmo produzindo muito. Ex.:
+// carteira inteira com atraso de +7 dias = −50 → teto −20.
+export const IMPACTO_MAX = 20;
+export const FATOR_IMPACTO = 10;
+export const CARTEIRA_MIN_IMPACTO = 20;
 
 export function pontosPorAtraso(dias) {
   const d = Math.max(1, dias);
@@ -66,8 +72,9 @@ function interagiuNaCI(t, userId) {
 export function impactoPendencias({ claims, overrides, tasks, blocos, feedbacks, user, atendTemplateCfg, templates, cfgCI, agora = new Date() }) {
   const userId = user && user.id;
   const itens = [];
-  if (!userId) return { itens, pontos: 0, pontosBrutos: 0, atrasadas: 0, pendentes: 0 };
+  if (!userId) return { itens, pontos: 0, pontosBrutos: 0, atrasadas: 0, pendentes: 0, carteira: 0 };
   const hoje = dataLocalISO(agora);
+  let carteira = 0;
   const cfg = cfgCI || semInteracaoCfg(null);
   const fimExpediente = agora.getHours() * 60 + agora.getMinutes() >= hhmmToMin(cfg.horarioFim || "18:00");
 
@@ -75,6 +82,7 @@ export function impactoPendencias({ claims, overrides, tasks, blocos, feedbacks,
   visibleClaims(claims || []).forEach((c) => {
     const r = getResponsavel(overrides, c.id);
     if (!r || r.id !== userId || isFinalizado(overrides, c, atendTemplateCfg, templates)) return;
+    carteira++;
     const na = getNextAction(overrides, c.id);
     if (!na || !na.date || na.date > hoje) return;
     const titulo = `${na.title || "Próxima ação"} — ${c.segurado || c.numsin || "processo"}`;
@@ -129,15 +137,19 @@ export function impactoPendencias({ claims, overrides, tasks, blocos, feedbacks,
   const pontosBrutos = itens.reduce((s, i) => s + i.pontos, 0);
   return {
     itens,
-    pontos: Math.min(IMPACTO_MAX, pontosBrutos),
-    pontosBrutos,
+    pontos: Math.min(IMPACTO_MAX, Math.round((pontosBrutos * FATOR_IMPACTO / Math.max(carteira, CARTEIRA_MIN_IMPACTO)) * 10) / 10),
+    pontosBrutos, carteira,
     atrasadas: itens.filter((i) => i.status === "atrasada").length,
     pendentes: itens.filter((i) => i.status === "pendente").length,
   };
 }
 
 // ---------- ganhos do dia ----------
-export const BONUS_MAX = 20;
+// v4: teto menor (era 20) — a maior parte do que os ganhos premiam
+// (histórico, jornada, próxima ação...) já entra no pilar Produção/Entrega;
+// com teto alto a mesma produção contava duas vezes (simulação com os
+// perfis descritos pelo usuário: +8 para quem tratou só 31% da demanda).
+export const BONUS_MAX = 5;
 // Cada regra: pontos por ocorrência e teto. `alvo` é só pra dica de
 // "como ganhar mais" (quantas faltam pro teto).
 export const REGRAS_GANHO = [
@@ -173,7 +185,7 @@ export function sequenciaSemAtraso(ritmo, userId, hoje) {
     const d = addDias(hoje, -i);
     const w = new Date(d + "T12:00:00").getDay();
     if (w === 0 || w === 6) continue;
-    const f = (ritmo || {})[idFechamento(d)];
+    const f = registroFechamento(ritmo, d);
     const l = f && (f.linhas || []).find((x) => x.userId === userId);
     if (!l || l.atrasosAgora > 0) break;
     n++;
@@ -194,7 +206,7 @@ export function ganhosDoDia({ ctx, user, impacto, agora = new Date() }) {
   const ex = metricasExtras({ claims: ctx.claims, overrides: ctx.overrides, historico: ctx.historico, userId, userNome: user.nome, deISO: hoje, ateISO: hoje, atendTemplateCfg: ctx.atendTemplateCfg, templates: ctx.templates, ocorrencias: ctx.ocorrencias });
   const ci = metricasCIUsuario({ cis: ctx.cis, notifs: ctx.notifs, userId, deISO: hoje, ateISO: hoje, config: ctx.config, agora });
   const ag = temAgendaPropria(user) ? metricasAgenda({ blocos: ctx.blocos || [], feedbacks: ctx.feedbacks || [], userId, deISO: hoje, ateISO: hoje, agora, cfg: ctx.cfgAgenda }) : null;
-  const as = assiduidade({ acessos: ctx.acessos, userId, deISO: hoje, ateISO: hoje, inicioExpediente: ctx.cfgCI.horarioInicio || "08:30", agora });
+  const as = assiduidade({ acessos: ctx.acessos, userId, deISO: hoje, ateISO: hoje, inicioExpediente: ctx.cfgCI.horarioInicio || "08:30", toleranciaMin: (ctx.cfgDesemp || desempenhoCfg(null)).toleranciaChegadaMin, agora });
 
   const add = (key, qtd, detalhe, ptsFixos) => {
     const r = REGRA[key];
@@ -219,7 +231,7 @@ export function ganhosDoDia({ ctx, user, impacto, agora = new Date() }) {
     if (ag.vencidas >= 3 && ag.concluidas === ag.vencidas) add("agenda_total", 1, "tudo o que venceu até agora foi feito");
   }
   // Recuperação: atrasos que saíram da lista hoje (eventos do Ritmo do dia).
-  const reg = (ctx.ritmo || {})[idRitmo(userId, hoje)];
+  const reg = registroRitmo(ctx.ritmo, userId, hoje);
   // Anti-burla: próxima ação que só foi empurrada pra frente devolve o
   // desconto, mas o BÔNUS só vem com histórico registrado no processo hoje.
   const resolvidos = ((reg && reg.eventos) || []).filter((e) => e.tipo === "atraso_resolvido").filter((e) => {
@@ -277,6 +289,7 @@ export function contextoDesempenho(records, config) {
     config,
     cfgAgenda: agendaCfg(config),
     cfgCI: semInteracaoCfg(config),
+    cfgDesemp: desempenhoCfg(config),
   };
 }
 
@@ -301,6 +314,7 @@ export function indicesOperadores({ records, config, operadores, agora = new Dat
   const cis = todasCIsNormalizadas(tasks, records.corp_ci_historico);
   const ocorrencias = [...(records.corp_oficina_ocorrencias || []), ...(records.corp_seguradora_ocorrencias || []), ...(records.corp_cliente_ocorrencias || [])];
   const ctx = contextoDesempenho(records, config);
+  const indiceP = indiceProcessos({ claims, overrides, historico, templates, atendTemplateCfg });
   const out = {};
   users.forEach((u) => {
     const m = metricas.find((x) => x.usuarioId === u.id);
@@ -308,10 +322,11 @@ export function indicesOperadores({ records, config, operadores, agora = new Dat
     const ci = metricasCIUsuario({ cis, notifs: records.corp_notifs, userId: u.id, deISO: de, ateISO: hoje, config });
     const agenda = temAgendaPropria(u) ? metricasAgenda({ blocos: records.corp_agenda || [], feedbacks: records.corp_agenda_feedback || [], userId: u.id, deISO: de, ateISO: hoje, cfg: cfgAgenda }) : null;
     const conduta = metricasConduta({ registros: records.corp_conduta || [], userId: u.id, deISO: de, ateISO: hoje });
-    const assid = assiduidade({ acessos: records.corp_acessos, userId: u.id, deISO: de, ateISO: hoje, inicioExpediente: cfgCI.horarioInicio || cfgAgenda.inicio || "08:30", agora });
+    const assid = assiduidade({ acessos: records.corp_acessos, userId: u.id, deISO: de, ateISO: hoje, inicioExpediente: cfgCI.horarioInicio || cfgAgenda.inicio || "08:30", toleranciaMin: ctx.cfgDesemp.toleranciaChegadaMin, agora });
+    const en = entregaNoPeriodo({ indice: indiceP, usuario: { id: u.id, nome: u.nome }, deISO: de, ateISO: hoje, agora, cfg: ctx.cfgDesemp, expediente: { inicio: cfgCI.horarioInicio, fim: cfgCI.horarioFim } });
     const impacto = impactoPendencias({ claims, overrides, tasks, blocos: records.corp_agenda, feedbacks: records.corp_agenda_feedback, user: u, atendTemplateCfg, templates, cfgCI, agora });
     const ganhos = ganhosDoDia({ ctx, user: u, impacto, agora });
-    out[u.id] = { u, impacto, ganhos, indice: calcularIndice({ m, ex, ci, agenda, conduta, assid, pesos, impacto, ganhos }) };
+    out[u.id] = { u, impacto, ganhos, indice: calcularIndice({ m, ex, ci, agenda, conduta, assid, pesos, impacto, ganhos, en }) };
   });
   return out;
 }
@@ -322,11 +337,24 @@ export const LIMIAR_PONTOS = 5;
 export const LIMIAR_PILAR = 10;
 export const DIAS_GUARDADOS_RITMO = 60;
 
+// v4: ids novos — abas abertas na versão anterior continuam fotografando
+// com a fórmula antiga; no mesmo registro, a comparação foto a foto
+// alternaria entre as duas fórmulas e notificaria o gestor a cada 15 min.
+export const VERSAO_RITMO = "v4";
 export function idRitmo(userId, data) {
-  return `${userId}_${data}`;
+  return `${VERSAO_RITMO}_${userId}_${data}`;
 }
 export function idFechamento(data) {
-  return `__fechamento_${data}`;
+  return `__fechamento_${VERSAO_RITMO}_${data}`;
+}
+// Leitura pra relatório: dias anteriores à v4 só têm os ids antigos.
+export function registroRitmo(ritmo, userId, data) {
+  const r = ritmo || {};
+  return r[idRitmo(userId, data)] || r[`${userId}_${data}`] || null;
+}
+export function registroFechamento(ritmo, data) {
+  const r = ritmo || {};
+  return r[idFechamento(data)] || r[`__fechamento_${data}`] || null;
 }
 
 export function montarFoto(indice, impacto, agora = new Date(), ganhos = null) {

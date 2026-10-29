@@ -19,17 +19,30 @@ import { dataLocalISO, addDias, hhmmToMin } from "./agenda";
 import { feitoPor, CANAL_IMPORTADO } from "./autoria";
 
 // ---------- pesos e níveis ----------
+// v4 (2026-10-29, estudo a pedido do usuário): a v3 não media produção nem
+// "o que tinha pra fazer × o que foi feito" — quem não tinha carteira
+// ficava só com pilares quase sempre 100 (Agenda/Assiduidade/Conduta) e
+// passava de 95; o desconto por pendência era absoluto (−40 pra quem tem
+// carteira grande, mesmo atuando em 39 processos no dia) e a média simples
+// do pilar Processos escondia 40% da carteira sem atualização. Agora:
+// Entrega e Produção (logic/desempenhoEntrega.js) entram como pilares, a
+// Carteira tem média ponderada e o desconto é proporcional à carteira.
 export const PILARES = [
-  { key: "processos", label: "Processos", icone: "📂", desc: "Carteira em dia: próximas ações no prazo, histórico atualizado, etapas no prazo." },
+  { key: "entrega", label: "Entrega", icone: "🎯", desc: "Da demanda de cada dia (próxima ação vencida/vencendo e processos sem atualização há mais de 3 dias, como estavam no início do dia), quanto o próprio usuário tratou com histórico (sem histórico vale metade). Hoje é cobrado em proporção ao expediente já passado." },
+  { key: "producao", label: "Produção", icone: "⚙️", desc: "Processos diferentes em que atuou por dia (histórico, jornada, próxima ação, qualquer atualização) contra a meta: carteira ÷ 3, com mínimo diário configurável." },
+  { key: "processos", label: "Carteira", icone: "📂", desc: "Estado da carteira agora: histórico atualizado e próximas ações em dia pesam o dobro de ter próxima ação definida e de etapas no prazo." },
   { key: "ci", label: "Comunicação Interna", icone: "📨", desc: "Resposta às CIs: primeira interação no prazo, nenhuma CI ignorada, intervenções respondidas." },
   { key: "agenda", label: "Agenda", icone: "🗓", desc: "Cumprimento do planejamento do dia e pontualidade no início das ações." },
-  { key: "assiduidade", label: "Assiduidade", icone: "⏰", desc: "Presença nos dias úteis e chegada até 15 min após o início do expediente." },
+  { key: "assiduidade", label: "Assiduidade", icone: "⏰", desc: "Presença nos dias úteis e chegada até a tolerância configurada após o início do expediente (1º acesso do dia)." },
   { key: "conduta", label: "Conduta", icone: "🛡", desc: "Sem advertências/falhas/reclamações e com os registros confirmados (ciente)." },
 ];
-export const PESOS_DEFAULT = { processos: 35, ci: 25, agenda: 20, assiduidade: 10, conduta: 10 };
+export const PESOS_DEFAULT = { entrega: 30, producao: 15, processos: 20, ci: 15, agenda: 10, assiduidade: 5, conduta: 5 };
 
+// Pesos salvos antes da v4 (sem `entrega`) foram pensados pra outra
+// fórmula — ficam de lado até alguém salvar os pesos de novo.
 export function pesosDesempenho(config) {
-  return { ...PESOS_DEFAULT, ...((config && config.corp_desempenho_pesos) || {}) };
+  const salvos = (config && config.corp_desempenho_pesos) || {};
+  return salvos.entrega == null ? { ...PESOS_DEFAULT } : { ...PESOS_DEFAULT, ...salvos };
 }
 
 export const NIVEIS = [
@@ -135,7 +148,7 @@ export function metricasExtras({ claims, overrides, historico, userId, userNome,
 // Dias úteis no período (limitado aos dias em que o sistema já registrava
 // acessos — corp_acessos guarda ~30 dias) com acesso e com chegada até o
 // limite (início do expediente + tolerância).
-export function assiduidade({ acessos, userId, deISO, ateISO, inicioExpediente = "08:30", toleranciaMin = 15, agora = new Date() }) {
+export function assiduidade({ acessos, userId, deISO, ateISO, inicioExpediente = "08:30", toleranciaMin = 10, agora = new Date() }) {
   const lista = Object.values(acessos || {}).filter(Boolean);
   if (!lista.length) return { diasUteis: 0, diasComAcesso: 0, diasNoHorario: 0, faltas: 0, chegadaMediaMin: null, pctPresenca: null, pctNoHorario: null };
   const primeiroRegistro = lista.reduce((m, a) => (!m || a.data < m ? a.data : m), null);
@@ -173,7 +186,13 @@ export function assiduidade({ acessos, userId, deISO, ateISO, inicioExpediente =
 
 // ---------- índice ----------
 function razao(bons, total) { return total ? Math.max(0, Math.min(1, bons / total)) : null; }
-function media(vals) { const v = vals.filter((x) => x != null); return v.length ? v.reduce((s, x) => s + x, 0) / v.length : null; }
+// Média dos componentes ponderada por `peso` (padrão 1).
+function mediaComponentes(comps) {
+  let s = 0, p = 0;
+  comps.forEach((c) => { if (c.valor == null) return; const w = c.peso || 1; s += c.valor * w; p += w; });
+  return p ? s / p : null;
+}
+function fmtQtd(n) { return (Math.round(n * 10) / 10).toLocaleString("pt-BR"); }
 
 // Monta os 5 pilares (cada um 0–1, média dos componentes com dado) e o
 // índice 0–100 (média ponderada dos pilares com dado). Pilar sem nenhum
@@ -182,12 +201,19 @@ function media(vals) { const v = vals.filter((x) => x != null); return v.length 
 // pontos tirados por pendências/atrasos de AGORA, descontados do índice
 // dos pilares (scoreBase); `ganhos` (ganhosDoDia, mesmo arquivo) somam o
 // que foi entregue hoje. Índice final sempre entre 0 e 100.
-export function calcularIndice({ m, ex, ci, agenda, conduta, assid, pesos, impacto, ganhos }) {
+// `en` = entregaNoPeriodo (logic/desempenhoEntrega.js).
+export function calcularIndice({ m, ex, ci, agenda, conduta, assid, pesos, impacto, ganhos, en }) {
   const est = m ? m.estoqueAtual : 0;
   const pilares = {
+    entrega: [
+      { label: "Demanda do dia tratada", valor: en ? en.taxaEntrega : null, detalhe: en ? `${en.feitos} com histórico + ${en.parciais} sem histórico (½) de ${en.devidos}${en.esperado < en.devidos ? ` — esperado até agora: ${fmtQtd(en.esperado)}` : ""}${en.porOutro ? ` • ${en.porOutro} tratada(s) por outro usuário (fora da conta)` : ""}` : "" },
+    ],
+    producao: [
+      { label: "Processos atuados × meta", valor: en ? en.taxaProducao : null, detalhe: en ? `${en.atuados} atuação(ões) em processos de ${fmtQtd(en.metaEsperada)} esperada(s) (carteira ÷ 3, mínimo diário)` : "" },
+    ],
     processos: [
-      { label: "Próximas ações em dia", valor: razao(est - (m ? m.atrasadosAtual : 0), est), detalhe: m ? `${m.atrasadosAtual} vencida(s) de ${est}` : "" },
-      { label: "Histórico atualizado (até 3 dias)", valor: razao(est - (m ? m.semAtualizacaoAtual : 0), est), detalhe: m ? `${m.semAtualizacaoAtual} sem atualização` : "" },
+      { label: "Próximas ações em dia", peso: 2, valor: razao(est - (m ? m.atrasadosAtual : 0), est), detalhe: m ? `${m.atrasadosAtual} vencida(s) de ${est}` : "" },
+      { label: "Histórico atualizado (até 3 dias)", peso: 2, valor: razao(est - (m ? m.semAtualizacaoAtual : 0), est), detalhe: m ? `${m.semAtualizacaoAtual} sem atualização` : "" },
       { label: "Com próxima ação definida", valor: ex ? ex.pctComProximaAcao : null, detalhe: ex ? `${ex.semProximaAcao} sem próxima ação` : "" },
       { label: "Etapas dentro do prazo", valor: razao(est - (ex ? ex.etapasForaPrazo : 0), est), detalhe: ex ? `${ex.etapasForaPrazo} com etapa fora do prazo` : "" },
     ],
@@ -213,7 +239,7 @@ export function calcularIndice({ m, ex, ci, agenda, conduta, assid, pesos, impac
   let soma = 0, somaPesos = 0;
   const lista = PILARES.map((p) => {
     const componentes = pilares[p.key];
-    const valor = media(componentes.map((c) => c.valor));
+    const valor = mediaComponentes(componentes);
     const peso = Number(pesos[p.key]) || 0;
     if (valor != null && peso > 0) { soma += valor * peso; somaPesos += peso; }
     return { ...p, valor, peso, componentes };

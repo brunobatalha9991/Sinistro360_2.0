@@ -24,6 +24,10 @@ import { HeroOperador, HojeGrid, FilaDoDiaCard, PilaresCard, TendenciaCard } fro
 import { EquipeView } from "../components/desempenho/EquipeView.jsx";
 import { BalancoCard, RitmoOperadorCard, RitmoEquipe } from "../components/desempenho/RitmoDia.jsx";
 import { impactoPendencias, ganhosDoDia, contextoDesempenho } from "../logic/desempenhoRitmo";
+import { indiceProcessos, entregaNoPeriodo, entregaDoDia, desempenhoCfg } from "../logic/desempenhoEntrega";
+import { atividadesDoUsuario } from "../logic/desempenhoAtividades";
+import { DemandaDiaCard } from "../components/desempenho/DemandaDia.jsx";
+import { AtividadesCard } from "../components/desempenho/AtividadesCard.jsx";
 
 // Desempenho v3 (a pedido do usuário: "visualização de alto impacto",
 // refeito por inteiro). Duas telas:
@@ -90,10 +94,21 @@ function comAgenda(analise, ag) {
   if (ag.pontualidade != null && ag.pontualidade < 0.7) atencao.push(`Pontualidade no início das ações da agenda: ${fmtPct(ag.pontualidade)}.`);
   return { ...analise, pontosFortes: fortes, pontosAtencao: atencao };
 }
-// Soma as métricas novas (carteira, assiduidade, reclamações...) ao feedback.
-function comExtras(analise, ex, as) {
+// Soma as métricas novas (carteira, assiduidade, reclamações, entrega e
+// produção) ao feedback.
+function comExtras(analise, ex, as, en) {
   const fortes = analise.pontosFortes.slice();
   const atencao = analise.pontosAtencao.slice();
+  if (en && en.taxaEntrega != null) {
+    const txt = `${en.feitos} com histórico + ${en.parciais} sem histórico, de ${en.devidos} processo(s) que estavam vencidos/sem atualização`;
+    if (en.taxaEntrega >= 0.85) fortes.push(`Dá conta da demanda do dia: ${fmtPct(en.taxaEntrega)} da entrega esperada (${txt}).`);
+    else if (en.taxaEntrega < 0.6) atencao.push(`Entrega abaixo do esperado: ${fmtPct(en.taxaEntrega)} (${txt}).`);
+    if (en.parciais >= 5 && en.parciais > en.feitos) atencao.push(`${en.parciais} processo(s) da demanda foram mexidos sem registrar histórico — o histórico é o que comprova o atendimento.`);
+  }
+  if (en && en.taxaProducao != null) {
+    if (en.taxaProducao >= 1) fortes.push(`Produção no alvo: atuou em ${en.atuados} processo(s) (meta ${Math.ceil(en.metaEsperada)}).`);
+    else if (en.taxaProducao < 0.6) atencao.push(`Produção baixa: atuou em ${en.atuados} processo(s) de ${Math.ceil(en.metaEsperada)} esperados (carteira ÷ 3, mínimo diário).`);
+  }
   if (ex.proximaVencida) atencao.push(`${ex.proximaVencida} processo(s) com próxima ação vencida — priorize hoje.`);
   if (ex.semProximaAcao) atencao.push(`${ex.semProximaAcao} processo(s) da carteira sem próxima ação definida.`);
   if (ex.etapasForaPrazo) atencao.push(`${ex.etapasForaPrazo} processo(s) com etapa da jornada fora do prazo.`);
@@ -347,10 +362,24 @@ export function Desempenho() {
   const assidPorUsuario = useMemo(() => {
     const ci = semInteracaoCfg(config);
     const out = {};
-    users.forEach((u) => { out[u.id] = assiduidade({ acessos, userId: u.id, deISO: periodoDe || null, ateISO: periodoAte || null, inicioExpediente: ci.horarioInicio || cfgAgenda.inicio || "08:30" }); });
+    users.forEach((u) => { out[u.id] = assiduidade({ acessos, userId: u.id, deISO: periodoDe || null, ateISO: periodoAte || null, inicioExpediente: ci.horarioInicio || cfgAgenda.inicio || "08:30", toleranciaMin: desempenhoCfg(config).toleranciaChegadaMin }); });
     return out;
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [users, acessos, periodoDe, periodoAte, config.corp_ci_sem_interacao, minuto]);
+  }, [users, acessos, periodoDe, periodoAte, config.corp_ci_sem_interacao, config.corp_desempenho_cfg, minuto]);
+
+  // Entrega (demanda do dia × o que foi feito) e Produção — ver
+  // logic/desempenhoEntrega.js.
+  const cfgDesemp = desempenhoCfg(config);
+  const expediente = { inicio: semInteracaoCfg(config).horarioInicio, fim: semInteracaoCfg(config).horarioFim };
+  const indiceP = useMemo(() => indiceProcessos({ claims, overrides, historico, templates, atendTemplateCfg }),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [claims, overrides, historico, templates, atendTemplateCfg]);
+  const entregaPorUsuario = useMemo(() => {
+    const out = {};
+    users.forEach((u) => { out[u.id] = entregaNoPeriodo({ indice: indiceP, usuario: { id: u.id, nome: u.nome }, deISO: periodoDe || null, ateISO: periodoAte || null, agora: new Date(), cfg: cfgDesemp, expediente }); });
+    return out;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [users, indiceP, periodoDe, periodoAte, config.corp_desempenho_cfg, config.corp_ci_sem_interacao, minuto]);
 
   // Contexto pros ganhos do dia (mesmo usado pelo monitor de fotos).
   const ctxGanhos = useMemo(() => contextoDesempenho(records, config),
@@ -366,11 +395,12 @@ export function Desempenho() {
     // Impacto das pendências de AGORA (independe do período escolhido).
     const impacto = impactoPendencias({ claims, overrides, tasks, blocos: blocosAgenda, feedbacks: feedbacksAgenda, user: u, atendTemplateCfg, templates, cfgCI: semInteracaoCfg(config), agora: new Date() });
     const ganhos = ganhosDoDia({ ctx: ctxGanhos, user: u, impacto, agora: new Date() });
-    const indice = calcularIndice({ m, ex, ci, agenda, conduta, assid: as, pesos, impacto, ganhos });
+    const en = entregaPorUsuario[u.id];
+    const indice = calcularIndice({ m, ex, ci, agenda, conduta, assid: as, pesos, impacto, ganhos, en });
     const roteiro = temAgendaPropria(u) ? resumoRoteiro({ blocos: blocosAgenda, feedbacks: feedbacksAgenda, userId: u.id, agora: new Date(), cfg: cfgAgenda }) : null;
-    return { u, m, ex, ci, agenda, conduta, as, indice, roteiro };
+    return { u, m, ex, ci, agenda, conduta, as, en, indice, roteiro };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }), [users, metricas, extrasPorUsuario, ciPorUsuario, agendaPorUsuario, condutaPorUsuario, assidPorUsuario, config.corp_desempenho_pesos, blocosAgenda, feedbacksAgenda, minuto, claims, overrides, tasks, config.corp_ci_sem_interacao, ctxGanhos]);
+  }), [users, metricas, extrasPorUsuario, ciPorUsuario, agendaPorUsuario, condutaPorUsuario, assidPorUsuario, entregaPorUsuario, config.corp_desempenho_pesos, blocosAgenda, feedbacksAgenda, minuto, claims, overrides, tasks, config.corp_ci_sem_interacao, ctxGanhos]);
   const comScore = linhas.filter((l) => l.indice.score != null);
   const mediaEquipe = comScore.length ? Math.round(comScore.reduce((s, l) => s + l.indice.score, 0) / comScore.length) : null;
 
@@ -381,6 +411,19 @@ export function Desempenho() {
   useEffect(() => { if (verRitmoParam) setVerRitmo(true); }, [verRitmoParam]);
   const perfilId = isAdminUser ? (verRitmoParam ? null : param) : currentUser && currentUser.id;
   const linha = perfilId ? linhas.find((l) => l.u.id === perfilId) : null;
+
+  // Painel aberto: demanda de hoje (independe do período) e tudo o que
+  // foi feito no período.
+  const demandaHoje = useMemo(() => {
+    if (!linha) return null;
+    return entregaDoDia({ indice: indiceP, usuario: { id: linha.u.id, nome: linha.u.nome }, data: todayISO(), agora: new Date(), cfg: cfgDesemp, expediente });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [linha && linha.u.id, indiceP, minuto, config.corp_desempenho_cfg]);
+  const atividades = useMemo(() => {
+    if (!linha) return [];
+    return atividadesDoUsuario({ claims, overrides, tasks, feedbacksAgenda: records.corp_agenda_feedback, usuario: { id: linha.u.id, nome: linha.u.nome }, deISO: periodoDe || null, ateISO: periodoAte || null });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [linha && linha.u.id, claims, overrides, tasks, records.corp_agenda_feedback, periodoDe, periodoAte]);
 
   // Evolução semanal (só do painel aberto).
   const series = useMemo(() => {
@@ -414,7 +457,7 @@ export function Desempenho() {
     if (!linha || !linha.m) {
       return <div className="page-enter"><EmptyState>{isAdminUser ? "Usuário não encontrado." : "O Desempenho mostra os indicadores da equipe operacional (Atendentes e Analistas)."}</EmptyState></div>;
     }
-    const { u, m, ex, ci, agenda, conduta, as, indice, roteiro } = linha;
+    const { u, m, ex, ci, agenda, conduta, as, en, indice, roteiro } = linha;
     const proprio = currentUser && currentUser.id === u.id;
     const minhasCIs = tasks.filter((x) => x && (x.destinatarios || []).includes(u.id) && x.origem !== u.id && x.status !== "Concluído" && !x.arquivadoManualmente);
     const ciInfo = {
@@ -424,7 +467,7 @@ export function Desempenho() {
       intervencoes: intervencoesPendentes(tasks, u.id).length,
     };
     const fila = filaDoDia({ claims, overrides, tasks, userId: u.id, atendTemplateCfg, templates, roteiro });
-    const analise = comExtras(comCI(comConduta(comAgenda(gerarFeedbackEPlanoDeAcao(m, metricas), agenda), conduta), ci, fmtPct), ex, as);
+    const analise = comExtras(comCI(comConduta(comAgenda(gerarFeedbackEPlanoDeAcao(m, metricas), agenda), conduta), ci, fmtPct), ex, as, en);
     const alertasCarteira = ex.semProximaAcao + ex.etapasForaPrazo + ex.emailsPendentes;
     return (
       <div className="page-enter desemp">
@@ -438,6 +481,7 @@ export function Desempenho() {
         />
         {periodo}
         <HojeGrid roteiro={roteiro} t={t} ex={ex} ciInfo={ciInfo} alertas={alertasCarteira} navigate={(r) => (r === "sinistros" ? verSinistros(u.id, {}) : navigate(r))} />
+        <DemandaDiaCard dia={demandaHoje} periodo={en} navigate={navigate} />
         <div className="desemp-2col">
           <FilaDoDiaCard itens={fila} navigate={navigate} />
           <FeedbackCard key={periodoLabel} analise={analise} u={u} periodoLabel={periodoLabel} verSinistros={(f) => verSinistros(u.id, f)} />
@@ -455,7 +499,9 @@ export function Desempenho() {
           </div>
         </div>
         {aba === "processos" && <DetalheProcessos m={m} ex={ex} as={as} periodoLabel={periodoLabel} verSinistros={(f) => verSinistros(u.id, f)} />}
+        {aba === "processos" && <AtividadesCard atividades={atividades} periodoLabel={periodoLabel} navigate={navigate} />}
         {aba === "ci" && <CIDesempenhoCard m={ci} periodoLabel={periodoLabel} onVerCIs={() => navigate("tarefas")} />}
+        {aba === "ci" && <AtividadesCard atividades={atividades.filter((a) => a.grupo === "ci")} grupoFixo="ci" titulo={`📨 O que fez nas CIs (${periodoLabel})`} periodoLabel={periodoLabel} navigate={navigate} />}
         {aba === "agenda" && (
           agenda ? (
             <div className="card">

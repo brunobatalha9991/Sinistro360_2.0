@@ -25,12 +25,14 @@ describe("impacto progressivo", () => {
     const base = { claims: [], overrides: {}, blocos: [], feedbacks: [], user: luiz, cfgCI };
     let r = impactoPendencias({ ...base, tasks: [ci()], agora: qua(9, 5) });
     expect(r.itens[0].status).toBe("pendente");
-    expect(r.pontos).toBe(PONTOS_PENDENTE);
+    expect(r.pontosBrutos).toBe(PONTOS_PENDENTE);
     r = impactoPendencias({ ...base, tasks: [ci()], agora: qua(9, 30) });
     expect(r.itens[0].status).toBe("atrasada");
-    expect(r.pontos).toBe(1);
+    expect(r.pontosBrutos).toBe(1);
     r = impactoPendencias({ ...base, tasks: [ci({ urgencia: "Urgente" })], agora: qua(9, 30) });
-    expect(r.pontos).toBe(2);
+    expect(r.pontosBrutos).toBe(2);
+    // v4: desconto proporcional — sem carteira, divide por 20 (mínimo).
+    expect(r.pontos).toBe(1);
     r = impactoPendencias({ ...base, tasks: [ci({ ciente: { luiz: qua(9, 2).toISOString() } })], agora: qua(9, 30) });
     expect(r.itens).toHaveLength(0);
   });
@@ -128,8 +130,8 @@ describe("ganhos do dia", () => {
   it("índice final = pilares − impacto + ganhos, limitado a 0–100", () => {
     const m = { estoqueAtual: 10, atrasadosAtual: 0, semAtualizacaoAtual: 0 };
     const ex = { pctComProximaAcao: 0.8, semProximaAcao: 2, etapasForaPrazo: 0, reclamacoes: 0 };
-    const r = calcularIndice({ m, ex, ci: null, agenda: null, conduta: null, assid: null, pesos: PESOS_DEFAULT, impacto: { pontos: 2, itens: [] }, ganhos: { pontos: 6, itens: [] } });
-    expect(r.score).toBe(r.scoreBase - 2 + 6);
+    const r = calcularIndice({ m, ex, ci: null, agenda: null, conduta: null, assid: null, pesos: PESOS_DEFAULT, impacto: { pontos: 2, itens: [] }, ganhos: { pontos: 1, itens: [] } });
+    expect(r.score).toBe(r.scoreBase - 2 + 1);
     const teto = calcularIndice({ m, ex, ci: null, agenda: null, conduta: null, assid: null, pesos: PESOS_DEFAULT, ganhos: { pontos: 20, itens: [] } });
     expect(teto.score).toBe(100);
   });
