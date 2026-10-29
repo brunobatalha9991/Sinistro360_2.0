@@ -236,11 +236,22 @@ export function calcularIndice({ m, ex, ci, agenda, conduta, assid, pesos, impac
       { label: "Sem reclamações nos processos", valor: ex ? Math.max(0, 1 - 0.25 * ex.reclamacoes) : null, detalhe: ex ? `${ex.reclamacoes} reclamação(ões)` : "" },
     ],
   };
+  // Sem nenhuma demanda vencida/sem atualização no período (carteira
+  // pequena ou vazia), a Entrega não tem o que medir — o peso dela vai pra
+  // Produção, que passa a ser a única medida do trabalho entregue. Sem
+  // isso, quem quase não atua ficava só com pilares "fáceis" (Carteira em
+  // dia, Agenda, Assiduidade, Conduta) e passava de 80.
+  const pesosEf = { ...pesos };
+  if (mediaComponentes(pilares.entrega) == null && mediaComponentes(pilares.producao) != null) {
+    pesosEf.producao = (Number(pesos.producao) || 0) + (Number(pesos.entrega) || 0);
+    pesosEf.entrega = 0;
+    pilares.producao[0].detalhe += " • sem demanda vencida no período: o peso da Entrega passou para a Produção";
+  }
   let soma = 0, somaPesos = 0;
   const lista = PILARES.map((p) => {
     const componentes = pilares[p.key];
     const valor = mediaComponentes(componentes);
-    const peso = Number(pesos[p.key]) || 0;
+    const peso = Number(pesosEf[p.key]) || 0;
     if (valor != null && peso > 0) { soma += valor * peso; somaPesos += peso; }
     return { ...p, valor, peso, componentes };
   });

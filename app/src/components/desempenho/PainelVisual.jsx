@@ -168,7 +168,7 @@ export function PilaresCard({ indice, pesos }) {
           const nv = pct == null ? "sem_dados" : pct >= 85 ? "excelente" : pct >= 70 ? "bom" : pct >= 50 ? "atencao" : "critico";
           return (
             <button key={p.key} type="button" className={"pilar nivel-" + nv + (aberto === p.key ? " aberto" : "")} onClick={() => setAberto(aberto === p.key ? null : p.key)}>
-              <div className="pilar-topo"><span>{p.icone} {p.label}</span><span className="pilar-peso">peso {pesos[p.key]}</span></div>
+              <div className="pilar-topo"><span>{p.icone} {p.label}</span><span className="pilar-peso">peso {p.peso}{p.peso !== Number(pesos[p.key]) ? ` (era ${pesos[p.key]})` : ""}</span></div>
               <div className="pilar-valor">{pct == null ? "—" : pct}<small>{pct == null ? " sem dados" : "/100"}</small></div>
               <div className="pilar-barra"><div style={{ width: `${pct || 0}%` }} /></div>
               {aberto === p.key && (

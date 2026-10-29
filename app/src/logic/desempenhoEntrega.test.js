@@ -91,3 +91,17 @@ describe("atividades do usuário", () => {
     expect(a[0].at >= a[a.length - 1].at).toBe(true);
   });
 });
+
+describe("índice: sem demanda no período", () => {
+  it("o peso da Entrega vai para a Produção", async () => {
+    const { calcularIndice, PESOS_DEFAULT } = await import("./desempenhoPainel");
+    const m = { estoqueAtual: 3, atrasadosAtual: 0, semAtualizacaoAtual: 0 };
+    const ex = { pctComProximaAcao: 1, semProximaAcao: 0, etapasForaPrazo: 0, reclamacoes: 0 };
+    const en = { taxaEntrega: null, taxaProducao: 0.1, devidos: 0, feitos: 0, parciais: 0, porOutro: 0, esperado: 0, atuados: 1, metaEsperada: 10 };
+    const r = calcularIndice({ m, ex, ci: null, agenda: null, conduta: null, assid: null, pesos: PESOS_DEFAULT, en });
+    expect(r.pilares.find((p) => p.key === "producao").peso).toBe(45);
+    expect(r.pilares.find((p) => p.key === "entrega").peso).toBe(0);
+    // Carteira 100 (20) + Produção 10 (45) + Conduta 100 sem registros (5).
+    expect(r.scoreBase).toBe(Math.round(((1 * 20 + 0.1 * 45 + 1 * 5) / 70) * 100));
+  });
+});

@@ -89,7 +89,8 @@ export function atividadesDoUsuario({ claims, overrides, tasks, feedbacksAgenda,
       const acao = String(e.acao || "");
       // Já aparecem pelos comentários/abertura.
       if (/comentou:|^Tarefa criada|^Resposta à intervenção|^Intervenção de/.test(acao)) return;
-      add({ at: e.at, grupo: "ci", icone: /Conclu/.test(acao) ? "✅" : "🔄", titulo: resumo(acao.replace(new RegExp("^" + (usuario.nome || "").replace(/[.*+?^${}()|[\]\\]/g, "\\$&") + "\\s*"), ""), 120) || "Atualizou a CI", detalhe: "", alvo, rota });
+      const sem = resumo(acao.replace(new RegExp("^" + (usuario.nome || "").replace(/[.*+?^${}()|[\]\\]/g, "\\$&") + "\\s*"), ""), 120);
+      add({ at: e.at, grupo: "ci", icone: /Conclu/.test(acao) ? "✅" : "🔄", titulo: sem ? sem.charAt(0).toUpperCase() + sem.slice(1) : "Atualizou a CI", detalhe: "", alvo, rota });
     });
   });
 
