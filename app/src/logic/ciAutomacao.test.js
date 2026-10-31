@@ -148,6 +148,11 @@ describe("CI sem interação dos destinatários", () => {
     expect(verificarAlertasCriador(tasks, us, em(85), cfg).alertas).toHaveLength(0);
     expect(verificarAlertasCriador(tasks, us, em(95), cfg).alertas).toHaveLength(0);
     expect(verificarAlertasCriador(tasks, us, em(100), cfg).alertas).toHaveLength(1);
+    // Período vencido e arquivado (ultimaConsiderada): continua contando do fim dele, sem rajada.
+    const arq = arquivarConsideracoesVencidas(tasks, em(95));
+    expect(arq[0].interacaoConsiderada).toBeUndefined();
+    expect(verificarAlertasCriador(arq, us, em(95), cfg).alertas).toHaveLength(0);
+    expect(verificarAlertasCriador(arq, us, em(100), cfg).alertas).toHaveLength(1);
   });
   it("só conta o horário comercial (08:30–18:00, seg–sex)", () => {
     const local = (d, h, m) => new Date(2026, 9, d, h, m);

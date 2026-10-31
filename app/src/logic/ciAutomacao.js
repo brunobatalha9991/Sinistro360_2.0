@@ -295,7 +295,11 @@ export function verificarAlertasCriador(tasks, users, agora, cfg) {
     const dests = destinatariosOperadoresCI(t, users);
     if (!dests.length) return t;
     const ref = referenciaInteracaoDe(t, dests);
-    const consid = t.interacaoConsiderada && String(t.interacaoConsiderada.ate) > ref ? String(t.interacaoConsiderada.ate) : "";
+    // Vencido o período, `interacaoConsiderada` vira `ultimaConsiderada`
+    // (arquivarConsideracoesVencidas): sem olhar os dois, a contagem
+    // voltaria a partir da última interação antiga e dispararia de uma vez.
+    const fimConsid = (t.interacaoConsiderada || t.ultimaConsiderada || {}).ate;
+    const consid = fimConsid && String(fimConsid) > ref ? String(fimConsid) : "";
     const baseMs = new Date(consid || ref).getTime();
     if (isNaN(baseMs) || t0 - baseMs > JANELA_SEM_INTERACAO_MS) return t;
     const devidos = Math.floor(minutosUteisEntre(baseMs, t0, cfg) / intervalo);

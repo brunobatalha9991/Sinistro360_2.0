@@ -154,8 +154,15 @@ function TelaEscalonamento({ task, n, users, claims, restantes, onIntervir, onCo
           <div style={{ textAlign: "left", marginTop: 16 }}>
             <label style={{ fontSize: 13 }}>Por que não é preciso intervir? (fica na auditoria da CI)</label>
             <textarea autoFocus rows={2} value={texto} onChange={(e) => setTexto(e.target.value)} placeholder={`Escreva pelo menos ${MIN_CHARS} caracteres...`} />
+            <label style={{ fontSize: 13, display: "block", marginTop: 8 }}>Não alertar de novo por</label>
+            <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
+              <input type="number" min="1" style={{ width: 90 }} value={qtd} onChange={(e) => setQtd(e.target.value)} />
+              <select style={{ width: "auto" }} value={unidade} onChange={(e) => setUnidade(e.target.value)}>
+                {UNIDADES.map(([k, label]) => <option key={k} value={k}>{label}</option>)}
+              </select>
+            </div>
             <div className="escalonamento-acoes">
-              <button type="button" className="btn" disabled={!textoOk} onClick={() => onDispensar(texto.trim())}>Confirmar</button>
+              <button type="button" className="btn" disabled={!textoOk || !(minutos > 0)} onClick={() => onDispensar(texto.trim(), minutos)}>Confirmar</button>
               <button type="button" className="btn sec" onClick={() => { setModo(null); setTexto(""); }}>Voltar</button>
             </div>
           </div>
@@ -179,7 +186,7 @@ export function EscalonamentoAlertaModal({ currentUser }) {
       key={n.id} task={task} n={n} users={records.corp_users || []} claims={records.corp_claims || []} restantes={pendentes.length - 1}
       onIntervir={(texto) => { actions.intervir(task, texto, currentUser); actions.avaliarEscalonamento(task, currentUser, "intervencao"); }}
       onConsiderar={(min) => { actions.considerarInteracao(task, min, currentUser); actions.avaliarEscalonamento(task, currentUser, "considerada"); }}
-      onDispensar={(texto) => actions.avaliarEscalonamento(task, currentUser, "dispensada", texto)}
+      onDispensar={(texto, min) => { actions.considerarInteracao(task, min, currentUser); actions.avaliarEscalonamento(task, currentUser, "dispensada", texto); }}
     />,
     document.body,
   );
