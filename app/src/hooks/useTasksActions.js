@@ -2,7 +2,7 @@ import { useData } from "../data/DataProvider.jsx";
 import { useAuth } from "./useAuth";
 import { isAdmin } from "../data/auth";
 import { resumoHistoricoCI } from "../logic/desempenhoCI";
-import { semInteracaoCfg, usuarioEscalonamentoId } from "../logic/ciAutomacao";
+import { semInteracaoCfg, usuarioEscalonamentoId, AUTOR_SISTEMA } from "../logic/ciAutomacao";
 import { aplicarAlertaCI, resolverAlertasCI } from "../logic/notificacoes";
 import { taskParticipants, acompanhantesSemParticipacao, acompanhaTarefa, proximoCI, recorrenciaVencida, recorrenciaEncerrada, gerarOcorrenciaRecorrente } from "../logic/tasks";
 
@@ -132,6 +132,25 @@ export function useTasksActions() {
     resolverAlertasDaCI(task.id, `interação considerada por ${usuario.nome} até ${fmtDataHora(ate)}`);
   }
 
+  // Exclui comentários automáticos do sistema (ex.: "3 alertas seguidos...")
+  // — só eles, nunca comentário de pessoa. `ids` = lista de ids, ou null pra
+  // excluir todos os automáticos da CI. Fica registrado na auditoria.
+  function excluirComentariosAutomaticos(task, ids, usuario) {
+    if (!podeConsiderarInteracao(usuario)) return;
+    const at = new Date().toISOString();
+    saveRecord("corp_tasks", (current) => (current || []).map((t) => {
+      if (t.id !== task.id) return t;
+      const alvo = (c) => c.userId === AUTOR_SISTEMA && c.sistema && (!ids || ids.includes(c.id));
+      const qtd = (t.comments || []).filter(alvo).length;
+      if (!qtd) return t;
+      return {
+        ...t,
+        comments: (t.comments || []).filter((c) => !alvo(c)),
+        log: [...(t.log || []), { at, who: usuario.id, acao: `${usuario.nome} excluiu ${qtd} comentário(s) automático(s)` }],
+      };
+    }));
+  }
+
   // Decisão sobre um pedido de intervenção (tela cheia roxa,
   // EscalonamentoAlertaModal.jsx): marca as notificações dessa CI como
   // avaliadas pra quem decidiu e, na dispensa, registra a justificativa na
@@ -146,8 +165,11 @@ export function useTasksActions() {
     )));
     if (decisao === "dispensada") {
       resolverAlertasDaCI(task.id, `pedido de intervenção avaliado por ${usuario.nome} (sem necessidade de intervir)`);
+      // Sem novo comentário automático até alguém comentar de verdade
+      // (ver verificarAlertasCriador).
       saveRecord("corp_tasks", (current) => (current || []).map((t) => (t.id !== task.id ? t : {
         ...t,
+        escalonamentoCI: { ...(t.escalonamentoCI || {}), semAutomaticoDesde: at },
         log: [...(t.log || []), { at, who: usuario.id, acao: `${usuario.nome} avaliou o pedido de intervenção e dispensou: "${String(justificativa || "").slice(0, 200)}"` }],
       })));
     }
@@ -339,7 +361,7 @@ export function useTasksActions() {
   }
 
   return {
-    pushNotif, saveTask, createTask, taskInteract, alternarAcompanhamento, considerarInteracao, pushAlertaCI, resolverAlertasDaCI, podeConsiderarInteracao, avaliarEscalonamento, cienteRedirecionamento, arquivarManualmente, excluirTarefa, definirOrdemManual,
+    pushNotif, saveTask, createTask, taskInteract, alternarAcompanhamento, considerarInteracao, excluirComentariosAutomaticos, pushAlertaCI, resolverAlertasDaCI, podeConsiderarInteracao, avaliarEscalonamento, cienteRedirecionamento, arquivarManualmente, excluirTarefa, definirOrdemManual,
     markTaskCiente, markNotifRead, marcarNotifTratada, dismissAlarmeMesa, markAllNotifsRead, purgeOldTasks, gerarOcorrenciasRecorrentes,
     intervir, responderIntervencao,
   };

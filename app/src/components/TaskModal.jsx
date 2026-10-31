@@ -441,6 +441,7 @@ function Chat({ task, currentUser, actions, users }) {
   const [text, setText] = useState("");
   const [intervindo, setIntervindo] = useState(false);
   const podeIntervir = isAdmin(currentUser) && task.status !== "Concluído";
+  const podeExcluirAuto = actions.podeConsiderarInteracao(currentUser);
   const boxRef = useRef(null);
   const msgs = task.comments || [];
 
@@ -487,7 +488,12 @@ function Chat({ task, currentUser, actions, users }) {
               {m.intervencaoId && <div className="cm-who" style={{ color: "rgb(var(--danger-rgb))" }}>🚨 Intervenção{mine ? "" : " — " + who.nome}</div>}
               {!mine && !m.intervencaoId && <div className="cm-who">{who.nome}</div>}
               <div style={{ whiteSpace: "pre-wrap" }}>{m.text}</div>
-              <div className="cm-time">{w}</div>
+              <div className="cm-time">{w}
+                {podeExcluirAuto && m.userId === AUTOR_SISTEMA && m.sistema && (
+                  <button type="button" className="btn sec xs" style={{ marginLeft: 8 }} title="Excluir este comentário automático"
+                    onClick={() => actions.excluirComentariosAutomaticos(task, [m.id], currentUser)}>🗑 Excluir</button>
+                )}
+              </div>
             </div>
           );
         })}

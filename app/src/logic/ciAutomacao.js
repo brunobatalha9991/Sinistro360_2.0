@@ -308,11 +308,15 @@ export function verificarAlertasCriador(tasks, users, agora, cfg) {
     if (devidos <= enviados) return t;
 
     const contador = ((t.escalonamentoCI && t.escalonamentoCI.contador) || 0) + 1;
-    const escalar = !!escId && contador >= limiteEsc;
+    // "Não é preciso intervir" (semAutomaticoDesde): sem novo comentário
+    // automático/escalonamento até alguém escrever um comentário de verdade.
+    const desde = t.escalonamentoCI && t.escalonamentoCI.semAutomaticoDesde;
+    const bloqueado = !!desde && !(t.comments || []).some((c) => !c.sistema && c.userId !== AUTOR_SISTEMA && String(c.at) > String(desde));
+    const escalar = !!escId && contador >= limiteEsc && !bloqueado;
     let atualizada = {
       ...t,
       alertaCriador: { chave, enviados: devidos, at },
-      escalonamentoCI: { ...(t.escalonamentoCI || {}), contador: escalar ? 0 : contador, ...(escalar ? { ultimoEm: at, para: escId } : {}) },
+      escalonamentoCI: { ...(t.escalonamentoCI || {}), contador: escalar || bloqueado ? 0 : contador, ...(escalar ? { ultimoEm: at, para: escId } : {}) },
     };
     let adicionado = false;
     if (escalar) {

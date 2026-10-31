@@ -154,6 +154,19 @@ describe("CI sem interação dos destinatários", () => {
     expect(verificarAlertasCriador(arq, us, em(95), cfg).alertas).toHaveLength(0);
     expect(verificarAlertasCriador(arq, us, em(100), cfg).alertas).toHaveLength(1);
   });
+  it("depois de \"Não é preciso intervir\" não escalona nem comenta até haver comentário manual", () => {
+    const us = [...users, { id: "bru", nome: "Bruno Batalha", role: "atendente" }];
+    const base = t({ origem: "ana", destinatarios: ["luiz"], escalonamentoCI: { contador: 2, semAutomaticoDesde: em(5).toISOString() } });
+    // 3º alerta seria o escalonamento, mas está bloqueado: nenhum comentário/destinatário novo.
+    const r = verificarAlertasCriador([base], us, em(10), cfg);
+    expect(r.alertas).toHaveLength(1);
+    expect(r.alertas[0].escalar).toBe(false);
+    expect(r.tasks[0].comments || []).toHaveLength(0);
+    expect(r.tasks[0].destinatarios).not.toContain("bru");
+    // Comentário manual depois da dispensa libera o escalonamento de novo.
+    const liberada = { ...base, comments: [{ id: "c1", userId: "ana", text: "ok", at: em(6).toISOString() }] };
+    expect(verificarAlertasCriador([liberada], us, em(10), cfg).alertas[0].escalar).toBe(true);
+  });
   it("só conta o horário comercial (08:30–18:00, seg–sex)", () => {
     const local = (d, h, m) => new Date(2026, 9, d, h, m);
     // criada quarta 28/10 às 04:00: às 04:09 e 08:35 ainda não estourou; às 08:41 sim

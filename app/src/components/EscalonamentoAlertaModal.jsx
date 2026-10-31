@@ -13,6 +13,8 @@ import { ultimaInteracaoPorDestinatario, AUTOR_SISTEMA, ehUsuarioAdministrador }
 const MIN_CHARS = 5;
 const UNIDADES = [["min", "minuto(s)", 1], ["h", "hora(s)", 60], ["d", "dia(s)", 1440]];
 
+const ehAutomatico = (m) => m.userId === AUTOR_SISTEMA && !!m.sistema;
+
 function fmtDataHora(iso) {
   const d = new Date(iso);
   const p = (n) => String(n).padStart(2, "0");
@@ -36,7 +38,7 @@ function escalonamentosPendentes(notifs, tasks, userId) {
 // Visualização da CI dentro da própria tela cheia (a pedido do usuário) —
 // dá pra avaliar a tarefa inteira sem sair da tela, que continua travada
 // até a decisão.
-function DetalheTarefa({ task, users, claims }) {
+function DetalheTarefa({ task, users, claims, actions, currentUser }) {
   const nomeDe = (id) => (id === AUTOR_SISTEMA ? "Sistema" : (users.find((u) => u.id === id) || { nome: "?" }).nome);
   const proc = task.processo ? (claims || []).find((c) => c.id === task.processo) : null;
   const msgs = task.comments || [];
@@ -58,11 +60,20 @@ function DetalheTarefa({ task, users, claims }) {
       {task.anexo && <div className="escalonamento-detalhe-bloco"><small>Anexo</small><div>{/^https?:\/\//.test(task.anexo) ? <a href={task.anexo} target="_blank" rel="noreferrer">{task.anexo}</a> : task.anexo}</div></div>}
       <div className="escalonamento-detalhe-bloco">
         <small>Histórico da conversa ({msgs.length})</small>
+        {msgs.filter(ehAutomatico).length > 1 && (
+          <button type="button" className="btn sec xs" style={{ marginLeft: 8 }}
+            onClick={() => { if (window.confirm("Excluir todos os comentários automáticos desta CI?")) actions.excluirComentariosAutomaticos(task, null, currentUser); }}
+          >🗑 Excluir todos os automáticos</button>
+        )}
         {!msgs.length ? <div className="muted">Nenhum comentário.</div> : (
           <div className="escalonamento-chat">
             {msgs.map((m) => (
               <div key={m.id || m.at} className={"escalonamento-msg" + (m.userId === AUTOR_SISTEMA ? " sistema" : "") + (m.intervencaoId ? " intervencao" : "")}>
                 <b>{m.intervencaoId ? "🚨 " : ""}{nomeDe(m.userId)}</b> <span className="muted">• {fmtDataHora(m.at)}</span>
+                {ehAutomatico(m) && (
+                  <button type="button" className="btn sec xs" style={{ float: "right" }} title="Excluir este comentário automático"
+                    onClick={() => actions.excluirComentariosAutomaticos(task, [m.id], currentUser)}>🗑 Excluir</button>
+                )}
                 <div style={{ whiteSpace: "pre-wrap" }}>{m.text}</div>
               </div>
             ))}
@@ -73,7 +84,7 @@ function DetalheTarefa({ task, users, claims }) {
   );
 }
 
-function TelaEscalonamento({ task, n, users, claims, restantes, onIntervir, onConsiderar, onDispensar }) {
+function TelaEscalonamento({ task, n, users, claims, actions, currentUser, restantes, onIntervir, onConsiderar, onDispensar }) {
   const [modo, setModo] = useState(null); // intervir | considerar | dispensar
   const [verTarefa, setVerTarefa] = useState(false);
   const [texto, setTexto] = useState("");
@@ -112,7 +123,7 @@ function TelaEscalonamento({ task, n, users, claims, restantes, onIntervir, onCo
             {verTarefa ? "▲ Ocultar tarefa" : "👁 Visualizar tarefa"}
           </button>
         </div>
-        {verTarefa && <DetalheTarefa task={task} users={users} claims={claims} />}
+        {verTarefa && <DetalheTarefa task={task} users={users} claims={claims} actions={actions} currentUser={currentUser} />}
 
         {!modo && (
           <div className="escalonamento-acoes">
@@ -183,7 +194,7 @@ export function EscalonamentoAlertaModal({ currentUser }) {
   const { task, n } = pendentes[0];
   return createPortal(
     <TelaEscalonamento
-      key={n.id} task={task} n={n} users={records.corp_users || []} claims={records.corp_claims || []} restantes={pendentes.length - 1}
+      key={n.id} task={task} n={n} users={records.corp_users || []} claims={records.corp_claims || []} actions={actions} currentUser={currentUser} restantes={pendentes.length - 1}
       onIntervir={(texto) => { actions.intervir(task, texto, currentUser); actions.avaliarEscalonamento(task, currentUser, "intervencao"); }}
       onConsiderar={(min) => { actions.considerarInteracao(task, min, currentUser); actions.avaliarEscalonamento(task, currentUser, "considerada"); }}
       onDispensar={(texto, min) => { actions.considerarInteracao(task, min, currentUser); actions.avaliarEscalonamento(task, currentUser, "dispensada", texto); }}
