@@ -324,3 +324,17 @@ export function semanasRecentes(n = 8, agora = new Date()) {
   }
   return out;
 }
+
+// Período só com dias sem expediente (sábado/domingo, segunda a sexta é o
+// expediente): não há o que medir — o índice não deve contar pendências de
+// agora nem ganhos como se fosse dia de trabalho. Período aberto ("Tudo")
+// nunca é "sem expediente".
+export function periodoSemExpediente(deISO, ateISO) {
+  if (!deISO || !ateISO || deISO > ateISO) return false;
+  let d = deISO;
+  for (let i = 0; d <= ateISO && i < 400; i++, d = addDias(d, 1)) {
+    const w = new Date(d + "T12:00:00").getDay();
+    if (w !== 0 && w !== 6) return false;
+  }
+  return true;
+}

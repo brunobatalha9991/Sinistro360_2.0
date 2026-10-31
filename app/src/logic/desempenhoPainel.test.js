@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { calcularIndice, nivelDoScore, assiduidade, filaDoDia, semanasRecentes, PESOS_DEFAULT } from "./desempenhoPainel";
+import { calcularIndice, nivelDoScore, assiduidade, filaDoDia, semanasRecentes, periodoSemExpediente, PESOS_DEFAULT } from "./desempenhoPainel";
 
 describe("índice de desempenho", () => {
   const m = { estoqueAtual: 10, atrasadosAtual: 2, semAtualizacaoAtual: 1 };
@@ -85,5 +85,15 @@ describe("semanas", () => {
     expect(s).toHaveLength(8);
     expect(s[7].de).toBe("2026-10-26");
     expect(s[7].ate).toBe("2026-11-01");
+  });
+});
+
+describe("periodoSemExpediente", () => {
+  it("sábado e domingo não têm expediente; período com dia útil ou aberto, sim", () => {
+    expect(periodoSemExpediente("2026-10-31", "2026-10-31")).toBe(true); // sábado
+    expect(periodoSemExpediente("2026-10-31", "2026-11-01")).toBe(true); // sáb–dom
+    expect(periodoSemExpediente("2026-10-30", "2026-10-31")).toBe(false); // sex–sáb
+    expect(periodoSemExpediente("2026-11-02", "2026-11-02")).toBe(false); // segunda
+    expect(periodoSemExpediente("", "")).toBe(false);
   });
 });

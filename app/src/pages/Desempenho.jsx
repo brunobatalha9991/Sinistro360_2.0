@@ -19,7 +19,7 @@ import { CIDesempenhoCard } from "../components/desempenho/CIDesempenhoCard.jsx"
 import { semInteracaoCfg } from "../logic/ciAutomacao";
 import { resumoRoteiro } from "../logic/roteiroDia";
 import { intervencoesPendentes } from "../logic/tasks";
-import { metricasExtras, assiduidade, calcularIndice, filaDoDia, semanasRecentes, pesosDesempenho } from "../logic/desempenhoPainel";
+import { metricasExtras, assiduidade, calcularIndice, filaDoDia, semanasRecentes, pesosDesempenho, periodoSemExpediente } from "../logic/desempenhoPainel";
 import { HeroOperador, HojeGrid, FilaDoDiaCard, PilaresCard, TendenciaCard } from "../components/desempenho/PainelVisual.jsx";
 import { EquipeView } from "../components/desempenho/EquipeView.jsx";
 import { BalancoCard, RitmoOperadorCard, RitmoEquipe } from "../components/desempenho/RitmoDia.jsx";
@@ -453,10 +453,19 @@ export function Desempenho() {
   );
   const periodo = <PeriodoChips periodoDe={periodoDe} periodoAte={periodoAte} setPeriodoDe={setPeriodoDe} setPeriodoAte={setPeriodoAte} />;
 
+  // Sábado/domingo (expediente é de segunda a sexta): sem resultado a mostrar.
+  const semExpediente = periodoSemExpediente(periodoDe, periodoAte);
+  const avisoSemExpediente = (
+    <div className="card"><EmptyState>
+      {periodoDe === periodoAte ? "Esse dia" : "Esse período"} não tem expediente (segunda a sexta, {semInteracaoCfg(config).horarioInicio || "08:30"} às {semInteracaoCfg(config).horarioFim || "18:00"}) — não há resultado de desempenho para exibir. Escolha um período com dias úteis.
+    </EmptyState></div>
+  );
+
   if (perfilId) {
     if (!linha || !linha.m) {
       return <div className="page-enter"><EmptyState>{isAdminUser ? "Usuário não encontrado." : "O Desempenho mostra os indicadores da equipe operacional (Atendentes e Analistas)."}</EmptyState></div>;
     }
+    if (semExpediente) return <div className="page-enter desemp">{periodo}{avisoSemExpediente}</div>;
     const { u, m, ex, ci, agenda, conduta, as, en, indice, roteiro } = linha;
     const proprio = currentUser && currentUser.id === u.id;
     const minhasCIs = tasks.filter((x) => x && (x.destinatarios || []).includes(u.id) && x.origem !== u.id && x.status !== "Concluído" && !x.arquivadoManualmente);
@@ -527,7 +536,7 @@ export function Desempenho() {
         </div>
       </div>
       {isAdminUser && verRitmo && <RitmoEquipe ritmo={records.corp_desempenho_ritmo} operadores={users} navigate={navigate} />}
-      {!linhas.length ? <div className="card"><EmptyState>Nenhum Atendente/Analista cadastrado.</EmptyState></div> : (
+      {semExpediente ? avisoSemExpediente : !linhas.length ? <div className="card"><EmptyState>Nenhum Atendente/Analista cadastrado.</EmptyState></div> : (
         <EquipeView linhas={linhas} t={t} navigate={navigate} periodoLabel={periodoLabel} />
       )}
       {modalRegistro}
