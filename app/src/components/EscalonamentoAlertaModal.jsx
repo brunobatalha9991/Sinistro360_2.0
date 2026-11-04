@@ -1,8 +1,8 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
 import { useData } from "../data/DataProvider.jsx";
 import { useTasksActions } from "../hooks/useTasksActions";
-import { ultimaInteracaoPorDestinatario, AUTOR_SISTEMA, ehUsuarioAdministrador } from "../logic/ciAutomacao";
+import { ultimaInteracaoPorDestinatario, AUTOR_SISTEMA, ehUsuarioAdministrador, interacaoConsideradaAtiva } from "../logic/ciAutomacao";
 
 // Pedido de intervenção (escalonamento da CI sem interação — ver
 // verificarAlertasCriador em logic/ciAutomacao.js). A pedido do usuário:
@@ -14,6 +14,20 @@ const MIN_CHARS = 5;
 const UNIDADES = [["min", "minuto(s)", 1], ["h", "hora(s)", 60], ["d", "dia(s)", 1440]];
 
 const ehAutomatico = (m) => m.userId === AUTOR_SISTEMA && !!m.sistema;
+
+// Soneca: esconde TODOS os pedidos em aberto por um tempo (a pedido do
+// usuário — às vezes ele precisa usar o sistema e a tela trava). É só uma
+// conveniência deste navegador, guardada por usuário; não decide nada.
+const SONECA_OPCOES = [[5, "5 min"], [15, "15 min"], [30, "30 min"], [60, "1 hora"]];
+const chaveSoneca = (userId) => "sinistro360:soneca-escalonamento:" + userId;
+function lerSoneca(userId) {
+  try { return Number(localStorage.getItem(chaveSoneca(userId))) || 0; } catch { return 0; }
+}
+function gravarSoneca(userId, minutos) {
+  const ate = Date.now() + minutos * 60000;
+  try { localStorage.setItem(chaveSoneca(userId), String(ate)); } catch { /* sem armazenamento: vale só nesta sessão */ }
+  return ate;
+}
 
 function fmtDataHora(iso) {
   const d = new Date(iso);
@@ -27,6 +41,7 @@ function escalonamentosPendentes(notifs, tasks, userId) {
     if (n.userId !== userId || n.tipo !== "escalonamento_ci" || n.avaliadoEm) return;
     const t = (tasks || []).find((x) => x.id === n.taskId);
     if (!t || t.status === "Concluído" || t.arquivadoManualmente) return;
+    if (interacaoConsideradaAtiva(t)) return; // pausa vigente: nenhum pedido aparece
     const consid = t.interacaoConsiderada || t.ultimaConsiderada;
     if (consid && String(consid.at) >= String(n.at)) return;
     if ((t.intervencoes || []).some((iv) => iv.autorId === userId && String(iv.at) >= String(n.at))) return;
@@ -84,7 +99,7 @@ function DetalheTarefa({ task, users, claims, actions, currentUser }) {
   );
 }
 
-function TelaEscalonamento({ task, n, users, claims, actions, currentUser, restantes, onIntervir, onConsiderar, onDispensar }) {
+function TelaEscalonamento({ task, n, users, claims, actions, currentUser, restantes, onIntervir, onConsiderar, onDispensar, onSoneca }) {
   const [modo, setModo] = useState(null); // intervir | considerar | dispensar
   const [verTarefa, setVerTarefa] = useState(false);
   const [texto, setTexto] = useState("");
@@ -130,6 +145,20 @@ function TelaEscalonamento({ task, n, users, claims, actions, currentUser, resta
             <button type="button" className="btn danger" onClick={() => setModo("intervir")}>🚨 Intervir</button>
             <button type="button" className="btn ok" onClick={() => setModo("considerar")}>✓ Considerar</button>
             <button type="button" className="btn sec" onClick={() => setModo("dispensar")}>Não é preciso intervir</button>
+            <button type="button" className="btn sec" title="Esconde TODOS os pedidos de intervenção por um tempo, sem decidir" onClick={() => setModo("soneca")}>💤 Soneca</button>
+          </div>
+        )}
+
+        {modo === "soneca" && (
+          <div style={{ textAlign: "left", marginTop: 16 }}>
+            <label style={{ fontSize: 13 }}>Esconder todos os pedidos de intervenção em aberto por</label>
+            <div className="escalonamento-acoes" style={{ justifyContent: "flex-start" }}>
+              {SONECA_OPCOES.map(([min, rotulo]) => (
+                <button key={min} type="button" className="btn sec" onClick={() => onSoneca(min)}>{rotulo}</button>
+              ))}
+              <button type="button" className="btn sec" onClick={() => setModo(null)}>Voltar</button>
+            </div>
+            <p className="muted" style={{ fontSize: 12 }}>Nada é decidido: depois do tempo escolhido, os pedidos que continuarem em aberto voltam a aparecer aqui.</p>
           </div>
         )}
 
@@ -188,9 +217,20 @@ function TelaEscalonamento({ task, n, users, claims, actions, currentUser, resta
 export function EscalonamentoAlertaModal({ currentUser }) {
   const { records } = useData();
   const actions = useTasksActions();
+  const userId = currentUser && currentUser.id;
+  const [sonecaAte, setSonecaAte] = useState(() => lerSoneca(userId));
+  // Quando a soneca acaba, os pedidos ainda abertos voltam sozinhos.
+  useEffect(() => {
+    if (!sonecaAte) return undefined;
+    const falta = sonecaAte - Date.now();
+    if (falta <= 0) { setSonecaAte(0); return undefined; }
+    const timer = setTimeout(() => setSonecaAte(0), falta + 200);
+    return () => clearTimeout(timer);
+  }, [sonecaAte]);
   if (!currentUser) return null;
   const pendentes = escalonamentosPendentes(records.corp_notifs, records.corp_tasks, currentUser.id);
   if (!pendentes.length) return null;
+  if (sonecaAte > Date.now()) return null;
   const { task, n } = pendentes[0];
   return createPortal(
     <TelaEscalonamento
@@ -198,6 +238,7 @@ export function EscalonamentoAlertaModal({ currentUser }) {
       onIntervir={(texto) => { actions.intervir(task, texto, currentUser); actions.avaliarEscalonamento(task, currentUser, "intervencao"); }}
       onConsiderar={(min) => { actions.considerarInteracao(task, min, currentUser); actions.avaliarEscalonamento(task, currentUser, "considerada"); }}
       onDispensar={(texto, min) => { actions.considerarInteracao(task, min, currentUser); actions.avaliarEscalonamento(task, currentUser, "dispensada", texto); }}
+      onSoneca={(min) => setSonecaAte(gravarSoneca(userId, min))}
     />,
     document.body,
   );

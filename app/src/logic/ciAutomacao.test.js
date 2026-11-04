@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { destinatariosAutomaticos, generalizarPorAusencia, blindarAusenciaAdministrador, usuariosAusentes, idAcesso, AUSENCIA_CFG_DEFAULT, AUTOR_SISTEMA, verificarSemInteracao, referenciaInteracao, SEM_INTERACAO_CFG_DEFAULT, minutosUteisEntre, interacaoConsideradaAtiva, verificarAlertasCriador, usuarioEscalonamentoId, arquivarConsideracoesVencidas } from "./ciAutomacao";
+import { destinatariosAutomaticos, generalizarPorAusencia, blindarAusenciaAdministrador, usuariosAusentes, idAcesso, AUSENCIA_CFG_DEFAULT, AUTOR_SISTEMA, verificarSemInteracao, referenciaInteracao, SEM_INTERACAO_CFG_DEFAULT, minutosUteisEntre, interacaoConsideradaAtiva, verificarAlertasCriador, usuarioEscalonamentoId, arquivarConsideracoesVencidas, preservarAutomacaoCI } from "./ciAutomacao";
 
 const users = [
   { id: "adm", nome: "Admin", role: "admin" },
@@ -154,9 +154,33 @@ describe("CI sem interação dos destinatários", () => {
     expect(verificarAlertasCriador(arq, us, em(95), cfg).alertas).toHaveLength(0);
     expect(verificarAlertasCriador(arq, us, em(100), cfg).alertas).toHaveLength(1);
   });
+  it("uma interação dos destinatários interrompe a sequência de alertas seguidos", () => {
+    const us = [...users, { id: "bru", nome: "Bruno Batalha", role: "atendente" }];
+    // 2 alertas já contados na sequência da última interação (ref = criação).
+    const antes = t({ origem: "ana", destinatarios: ["luiz"], escalonamentoCI: { contador: 2, ref: "2026-10-28T12:00:00.000Z" }, alertaCriador: { chave: "2026-10-28T12:00:00.000Z", enviados: 2 } });
+    expect(verificarAlertasCriador([antes], us, em(30), cfg).alertas[0].escalar).toBe(true);
+    // O destinatário interage em em(25): a contagem recomeça — o 1º alerta depois dela não escalona.
+    const interagiu = { ...antes, ciente: { luiz: em(25).toISOString() } };
+    const r = verificarAlertasCriador([interagiu], us, em(35), cfg);
+    expect(r.alertas).toHaveLength(1);
+    expect(r.alertas[0].escalar).toBe(false);
+    expect(r.tasks[0].escalonamentoCI.contador).toBe(1);
+  });
+  it("preservarAutomacaoCI não deixa uma cópia antiga apagar o Considerar mais novo", () => {
+    const pausa = { ate: em(90).toISOString(), at: em(10).toISOString(), por: "bru" };
+    const atual = t({ interacaoConsiderada: pausa, escalonamentoCI: { semAutomaticoDesde: em(12).toISOString() } });
+    const antiga = t({ titulo: "editada" });
+    const r = preservarAutomacaoCI(atual, antiga);
+    expect(r.titulo).toBe("editada");
+    expect(r.interacaoConsiderada).toEqual(pausa);
+    expect(r.escalonamentoCI.semAutomaticoDesde).toBe(em(12).toISOString());
+    // Cópia mais nova do mesmo campo prevalece.
+    const nova = t({ interacaoConsiderada: { ...pausa, at: em(20).toISOString(), ate: em(200).toISOString() } });
+    expect(preservarAutomacaoCI(atual, nova).interacaoConsiderada.ate).toBe(em(200).toISOString());
+  });
   it("depois de \"Não é preciso intervir\" não escalona nem comenta até haver comentário manual", () => {
     const us = [...users, { id: "bru", nome: "Bruno Batalha", role: "atendente" }];
-    const base = t({ origem: "ana", destinatarios: ["luiz"], escalonamentoCI: { contador: 2, semAutomaticoDesde: em(5).toISOString() } });
+    const base = t({ origem: "ana", destinatarios: ["luiz"], escalonamentoCI: { contador: 2, ref: "2026-10-28T12:00:00.000Z", semAutomaticoDesde: em(5).toISOString() } });
     // 3º alerta seria o escalonamento, mas está bloqueado: nenhum comentário/destinatário novo.
     const r = verificarAlertasCriador([base], us, em(10), cfg);
     expect(r.alertas).toHaveLength(1);

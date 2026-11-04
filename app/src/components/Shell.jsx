@@ -9,6 +9,7 @@ import { NotificacaoObrigatoria } from "./NotificacaoObrigatoria.jsx";
 import { CondutaAlertaModal } from "./CondutaAlertaModal.jsx";
 import { IntervencaoAlertaModal } from "./IntervencaoAlertaModal.jsx";
 import { EscalonamentoAlertaModal } from "./EscalonamentoAlertaModal.jsx";
+import { AtualizacaoDisponivel } from "./AtualizacaoDisponivel.jsx";
 import { PausaRedirecionamentoModal } from "./PausaRedirecionamentoModal.jsx";
 import { RoteiroWidget } from "./RoteiroWidget.jsx";
 import { ROLE_LABELS, userModulos, isAdmin } from "../data/auth";
@@ -213,6 +214,7 @@ export function Shell({ route, param, crumb, currentUser, currentRole, onNavigat
       <EscalonamentoAlertaModal currentUser={currentUser} />
       <PausaRedirecionamentoModal currentUser={currentUser} />
       <NotificacaoObrigatoria currentUser={currentUser} />
+      <AtualizacaoDisponivel />
     </div>
   );
 }

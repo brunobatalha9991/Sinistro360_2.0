@@ -2,7 +2,7 @@ import { useData } from "../data/DataProvider.jsx";
 import { useAuth } from "./useAuth";
 import { isAdmin } from "../data/auth";
 import { resumoHistoricoCI } from "../logic/desempenhoCI";
-import { semInteracaoCfg, usuarioEscalonamentoId, AUTOR_SISTEMA } from "../logic/ciAutomacao";
+import { semInteracaoCfg, usuarioEscalonamentoId, AUTOR_SISTEMA, preservarAutomacaoCI } from "../logic/ciAutomacao";
 import { aplicarAlertaCI, resolverAlertasCI } from "../logic/notificacoes";
 import { taskParticipants, acompanhantesSemParticipacao, acompanhaTarefa, proximoCI, recorrenciaVencida, recorrenciaEncerrada, gerarOcorrenciaRecorrente } from "../logic/tasks";
 
@@ -70,7 +70,9 @@ export function useTasksActions() {
   }
 
   function saveTask(task) {
-    saveRecord("corp_tasks", (current) => (current || []).map((x) => (x.id === task.id ? task : x)));
+    // Não deixa uma cópia desatualizada apagar a pausa (Considerar) gravada
+    // por outra pessoa — ver preservarAutomacaoCI.
+    saveRecord("corp_tasks", (current) => (current || []).map((x) => (x.id === task.id ? preservarAutomacaoCI(x, task) : x)));
   }
   function createTask(task) {
     saveRecord("corp_tasks", (current) => [...(current || []), task]);
@@ -130,6 +132,16 @@ export function useTasksActions() {
     })));
     // O Considerar prevalece: os alertas já abertos desta CI ficam resolvidos pra todos.
     resolverAlertasDaCI(task.id, `interação considerada por ${usuario.nome} até ${fmtDataHora(ate)}`);
+    // Rede de segurança: outro navegador gravando a mesma CI no mesmo
+    // instante pode sobrescrever a pausa. Confere e regrava se sumiu.
+    const pausa = { ate, at: agora.toISOString(), por: usuario.id, minutos };
+    [2000, 6000, 15000].forEach((ms) => setTimeout(() => {
+      saveRecord("corp_tasks", (current) => (current || []).map((t) => (
+        t.id !== task.id || (t.interacaoConsiderada && String(t.interacaoConsiderada.at) >= pausa.at) || (t.ultimaConsiderada && String(t.ultimaConsiderada.at) >= pausa.at)
+          ? t
+          : { ...t, interacaoConsiderada: pausa, escalonamentoCI: { ...(t.escalonamentoCI || {}), contador: 0 } }
+      )));
+    }, ms));
   }
 
   // Exclui comentários automáticos do sistema (ex.: "3 alertas seguidos...")

@@ -1,4 +1,4 @@
-import { referenciaInteracao } from "./ciAutomacao";
+import { referenciaInteracao, interacaoConsideradaAtiva } from "./ciAutomacao";
 
 // Categoria de cada notificação — usada pelo filtro do módulo Notificações.
 export const CATEGORIAS_NOTIF = [
@@ -97,6 +97,8 @@ export function resolverAlertasSuperados(notifs, tasks, at) {
     if (!t || t.arquivadoManualmente) motivo = "a CI foi arquivada ou removida";
     else if (t.status === "Concluído") motivo = "a CI foi concluída";
     else if (String(referenciaInteracao(t)) > String(n.at)) motivo = "um destinatário interagiu na CI";
+    // Alerta aberto durante um "Considerar" ativo não deve aparecer pra ninguém.
+    else if (interacaoConsideradaAtiva(t, new Date(at))) motivo = "interação considerada até " + String(t.interacaoConsiderada.ate).slice(0, 16).replace("T", " ");
     if (!motivo) return n;
     mudou = true;
     return { ...n, read: true, tratadaEm: at, resolvidaMotivo: motivo };

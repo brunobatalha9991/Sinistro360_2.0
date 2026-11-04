@@ -239,6 +239,22 @@ export function ultimaInteracaoPorDestinatario(t) {
 // última interação vale por um período escolhido à mão — enquanto
 // `t.interacaoConsiderada.ate` não passa, a CI não alerta; depois dele, se
 // ainda não houve interação, o alerta volta.
+// Gravar uma tarefa inteira a partir de uma cópia desatualizada (cada
+// documento é regravado por inteiro; vários navegadores abertos) apagaria o
+// "Considerar"/"Não é preciso intervir" recém-gravado e os alertas voltariam.
+// Devolve `nova` com a versão mais recente desses campos entre as duas.
+export function preservarAutomacaoCI(atual, nova) {
+  if (!atual || !nova) return nova;
+  let out = nova;
+  ["interacaoConsiderada", "ultimaConsiderada"].forEach((campo) => {
+    if (atual[campo] && (!out[campo] || String(atual[campo].at) > String(out[campo].at))) out = { ...out, [campo]: atual[campo] };
+  });
+  const dA = atual.escalonamentoCI && atual.escalonamentoCI.semAutomaticoDesde;
+  const dN = out.escalonamentoCI && out.escalonamentoCI.semAutomaticoDesde;
+  if (dA && (!dN || String(dA) > String(dN))) out = { ...out, escalonamentoCI: { ...(out.escalonamentoCI || {}), semAutomaticoDesde: dA } };
+  return out;
+}
+
 export function interacaoConsideradaAtiva(t, agora) {
   const ate = t && t.interacaoConsiderada && new Date(t.interacaoConsiderada.ate).getTime();
   return !!ate && !isNaN(ate) && (agora || new Date()).getTime() < ate;
@@ -307,7 +323,10 @@ export function verificarAlertasCriador(tasks, users, agora, cfg) {
     const enviados = t.alertaCriador && t.alertaCriador.chave === chave ? t.alertaCriador.enviados || 0 : 0;
     if (devidos <= enviados) return t;
 
-    const contador = ((t.escalonamentoCI && t.escalonamentoCI.contador) || 0) + 1;
+    // "Seguidos": uma interação dos destinatários interrompe a sequência —
+    // a contagem só segue enquanto a última interação (ref) for a mesma.
+    const mesmaSequencia = !!t.escalonamentoCI && t.escalonamentoCI.ref === ref;
+    const contador = (mesmaSequencia ? t.escalonamentoCI.contador || 0 : 0) + 1;
     // "Não é preciso intervir" (semAutomaticoDesde): sem novo comentário
     // automático/escalonamento até alguém escrever um comentário de verdade.
     const desde = t.escalonamentoCI && t.escalonamentoCI.semAutomaticoDesde;
@@ -316,7 +335,7 @@ export function verificarAlertasCriador(tasks, users, agora, cfg) {
     let atualizada = {
       ...t,
       alertaCriador: { chave, enviados: devidos, at },
-      escalonamentoCI: { ...(t.escalonamentoCI || {}), contador: escalar || bloqueado ? 0 : contador, ...(escalar ? { ultimoEm: at, para: escId } : {}) },
+      escalonamentoCI: { ...(t.escalonamentoCI || {}), ref, contador: escalar || bloqueado ? 0 : contador, ...(escalar ? { ultimoEm: at, para: escId } : {}) },
     };
     let adicionado = false;
     if (escalar) {

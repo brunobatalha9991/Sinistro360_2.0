@@ -49,6 +49,12 @@ describe("família de alertas de CI parada", () => {
     const lista = [n];
     expect(resolverAlertasSuperados(lista, [task], at(1))).toBe(lista);
   });
+  it("alerta aberto durante um Considerar ativo é resolvido; depois do prazo, não", () => {
+    const n = { id: "a", taskId: "t1", userId: "bru", tipo: "escalonamento_ci", at: at(0) };
+    const task = { id: "t1", origem: "ana", destinatarios: ["luiz"], status: "Pendente", createdAt: at(-30), comments: [], log: [], ciente: {}, interacaoConsiderada: { ate: at(60), at: at(-1), por: "bru" } };
+    expect(resolverAlertasSuperados([n], [task], at(10))[0].resolvidaMotivo).toContain("considerada");
+    expect(resolverAlertasSuperados([n], [task], at(61))[0].tratadaEm).toBeUndefined();
+  });
   it("reconhece o alerta antigo pelo ⏱ no texto", () => {
     expect(tipoAlertaCI({ text: "⏱ CI-1 sem interação" })).toBe("sem_interacao");
     expect(tipoAlertaCI({ tipo: "agenda_feedback" })).toBeNull();
