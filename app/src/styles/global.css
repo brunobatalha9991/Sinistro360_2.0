@@ -902,6 +902,53 @@ tr:hover td{background:var(--surface-2)}
   .rel-acomp-print tr{break-inside:avoid;page-break-inside:avoid}
 }
 
+/* Relatório de Sinistros (components/relatorios/RelatorioSinistros.jsx):
+   modelo "edição da noite" — faixas pretas de seção, tabelas com borda e
+   selos de termômetro/prazo. A mesma página vai pro PDF. */
+.rs-acoes{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin:-4px 0 12px}
+.rs-relatorio{background:var(--card-solid);border:1px solid var(--border);border-radius:14px;padding:18px;color:var(--ink)}
+.rs-cabecalho h2{margin:0;font-size:22px;font-family:var(--font-display)}
+.rs-sub{font-size:11.5px;color:var(--muted)}
+.rs-cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(110px,1fr));gap:8px;margin:14px 0}
+.rs-card{border:1px solid var(--border);border-radius:6px;padding:8px 10px;display:flex;flex-direction:column}
+.rs-card b{font-size:22px;line-height:1.1}
+.rs-card span{font-size:10.5px;text-transform:uppercase;color:var(--muted);letter-spacing:.03em}
+.rs-destaque{border-left:4px solid rgb(var(--danger-rgb));background:rgba(var(--danger-rgb),.07);padding:8px 12px;border-radius:4px;font-size:12.5px;margin:10px 0}
+.rs-secao{margin-top:18px}
+.rs-sec-titulo{background:#111;color:#fff;margin:0 0 10px;padding:7px 12px;font-size:13.5px;text-transform:uppercase;letter-spacing:.02em}
+.rs-subtitulo{margin:14px 0 6px;font-size:13px}
+.rs-nota{font-size:11.5px;color:var(--muted);margin:6px 0}
+.rs-vazio{font-size:12.5px;padding:6px 0}
+.rs-tab{width:100%;border-collapse:collapse;font-size:12px;margin-bottom:4px}
+.rs-tab th{background:var(--surface-2);text-transform:uppercase;font-size:10.5px;text-align:left;padding:5px 7px;border:1px solid var(--border)}
+.rs-tab td{padding:5px 7px;border:1px solid var(--border-soft);vertical-align:top}
+.rs-tab td.num{text-align:right;white-space:nowrap}
+.rs-tab td.nowrap{white-space:nowrap}
+.rs-tab tr.rs-total td{background:var(--surface-2);font-weight:700}
+.rs-contagem td{text-align:right;font-weight:700}
+.rs-demanda .rs-hist{min-width:260px;white-space:pre-wrap}
+.rs-indic td:nth-child(odd){width:22%}
+.rs-termo,.rs-prazo{display:inline-block;padding:1px 7px;border-radius:4px;font-size:10.5px;font-weight:700;color:#fff;white-space:nowrap}
+.rs-termo.grave{background:#dc2626}.rs-termo.atencao{background:#ea580c}.rs-termo.moderado{background:#ca8a04}
+.rs-termo.tranquilo{background:#15803d}.rs-termo.sem{background:#64748b}
+.rs-prazo.atrasado{background:#dc2626}.rs-prazo.hoje{background:#ea580c}.rs-prazo.noprazo{background:#15803d}.rs-prazo.sem{background:#64748b}
+.rs-pior{color:rgb(var(--danger-rgb));font-weight:700}
+.rs-melhor{color:#15803d;font-weight:700}
+.rs-rodape{margin-top:16px;font-size:10.5px;color:var(--muted);text-align:center}
+@media print{
+  .rs-acoes,.rs-imprimindo .page-head{display:none!important}
+  .rs-relatorio{border:0;padding:0;border-radius:0}
+  .rs-sec-titulo{background:#111!important;color:#fff!important;break-after:avoid;page-break-after:avoid}
+  .rs-subtitulo{break-after:avoid;page-break-after:avoid}
+  .rs-tab{font-size:9px}
+  .rs-tab th{font-size:8px;padding:3px 5px;background:#e2e8f0!important}
+  .rs-tab td{padding:3px 5px;border-color:#cbd5e1}
+  .rs-tab thead{display:table-header-group}
+  .rs-tab tr{break-inside:avoid;page-break-inside:avoid}
+  .rs-demanda .rs-hist{min-width:0}
+  .rs-cards{grid-template-columns:repeat(8,1fr)}
+}
+
 /* Alertas neon de tempo no topo do processo (DetailHeader.jsx): dias em
    aberto e dias na etapa atual da jornada. Cor via --neon-rgb, brilho da
    .neon-alert. */

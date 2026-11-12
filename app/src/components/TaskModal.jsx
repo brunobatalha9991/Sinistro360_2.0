@@ -12,7 +12,8 @@ import { listaOficinas, oficinaIdFromNome } from "../logic/oficinas";
 import { listaSeguradoras, seguradoraIdFromNome } from "../logic/seguradoras";
 import { txt, todayISO } from "../logic/format";
 import { isAdmin, canEdit } from "../data/auth";
-import { partesComMencoes, mencoesNoTexto, mencaoEmDigitacao, sugestoesMencao, inserirMencao } from "../logic/mencoes";
+import { partesComMencoes, mencoesNoTexto } from "../logic/mencoes";
+import { CampoMencao } from "./CampoMencao.jsx";
 import { regrasDestAuto, destinatariosAutomaticos, AUTOR_SISTEMA, interacaoConsideradaAtiva, ehUsuarioIA, semUsuariosIA } from "../logic/ciAutomacao";
 import { descreverAlteracoesTarefa, TASK_FLAGS_DEFAULT, proximoCI, RECORRENCIA_UNIDADES, resumoRecorrencia, taskCienteByMe, acompanhaTarefa } from "../logic/tasks";
 import { getChecklistEfetivo, checklistProgresso, checklistVazio, sincronizarComFormulario } from "../logic/checklistMesaAtendimento";
@@ -325,7 +326,7 @@ function IntervencaoForm({ task, currentUser, actions, users, onFechar }) {
   return (
     <div className="intervencao-form">
       <label>🚨 Comentário da intervenção (obrigatório)</label>
-      <textarea autoFocus rows={3} value={texto} onChange={(e) => setTexto(e.target.value)} placeholder="Ex.: Preciso de um retorno sobre esta CI agora — qual é a situação?" />
+      <CampoMencao autoFocus rows={3} value={texto} onChange={setTexto} users={users} currentUser={currentUser} placeholder="Ex.: Preciso de um retorno sobre esta CI agora — qual é a situação? (use @ para marcar alguém)" />
       <div className="muted" style={{ fontSize: 11.5, margin: "6px 0" }}>
         A tela de cada destinatário ({alvos.length}) fica travada até ele responder com um comentário.
       </div>
@@ -453,11 +454,6 @@ function TextoComMencoes({ texto, users, currentUser }) {
 function Chat({ task, currentUser, actions, users }) {
   const [text, setText] = useState("");
   const [intervindo, setIntervindo] = useState(false);
-  // Marcação "@" em digitação: { inicio, termo } + item destacado na lista.
-  const [mencao, setMencao] = useState(null);
-  const [mencaoIdx, setMencaoIdx] = useState(0);
-  const inputRef = useRef(null);
-  const sugestoes = mencao ? sugestoesMencao(mencao.termo, users, currentUser.id) : [];
   // Usuário "IA" também pode solicitar intervenção (a pedido do usuário).
   const podeIntervir = (isAdmin(currentUser) || ehUsuarioIA(currentUser)) && task.status !== "Concluído";
   const podeExcluirAuto = actions.podeConsiderarInteracao(currentUser);
@@ -483,27 +479,10 @@ function Chat({ task, currentUser, actions, users }) {
     // Quem foi marcado recebe só a notificação de marcação (não a de "comentou").
     actions.taskInteract(next, `${currentUser.nome} comentou: ${t.slice(0, 40)}`, currentUser.id, false, undefined, mencoes);
     if (mencoes.length) actions.notificarMencoes(next, mencoes, currentUser, t);
-    setText(""); setMencao(null);
+    setText("");
   }
 
-  function atualizarMencao(valor, cursor) {
-    const m = mencaoEmDigitacao(valor, cursor);
-    setMencao(m && sugestoesMencao(m.termo, users, currentUser.id).length ? m : null);
-    setMencaoIdx(0);
-  }
-  function escolherMencao(u) {
-    const el = inputRef.current;
-    const r = inserirMencao(text, el ? el.selectionStart : text.length, mencao, u);
-    setText(r.texto); setMencao(null);
-    requestAnimationFrame(() => { if (el) { el.focus(); el.setSelectionRange(r.cursor, r.cursor); } });
-  }
   function teclaComentario(e) {
-    if (mencao && sugestoes.length) {
-      if (e.key === "ArrowDown") { e.preventDefault(); setMencaoIdx((i) => (i + 1) % sugestoes.length); return; }
-      if (e.key === "ArrowUp") { e.preventDefault(); setMencaoIdx((i) => (i - 1 + sugestoes.length) % sugestoes.length); return; }
-      if (e.key === "Enter" || e.key === "Tab") { e.preventDefault(); escolherMencao(sugestoes[Math.min(mencaoIdx, sugestoes.length - 1)]); return; }
-      if (e.key === "Escape") { e.preventDefault(); e.stopPropagation(); setMencao(null); return; }
-    }
     if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); send(); }
   }
 
@@ -545,24 +524,8 @@ function Chat({ task, currentUser, actions, users }) {
         })}
       </div>
       <div style={{ display: "flex", gap: 8, marginTop: 8, alignItems: "flex-end" }}>
-        <div className="mencao-campo">
-          <textarea ref={inputRef} rows={2} placeholder="Escreva um comentário... (use @ para marcar alguém)" style={{ width: "100%" }} value={text}
-            onChange={(e) => { setText(e.target.value); atualizarMencao(e.target.value, e.target.selectionStart); }}
-            onKeyDown={teclaComentario}
-            onClick={(e) => atualizarMencao(e.target.value, e.target.selectionStart)}
-            onBlur={() => setTimeout(() => setMencao(null), 150)}
-          />
-          {mencao && sugestoes.length > 0 && (
-            <div className="mencao-lista" role="listbox">
-              {sugestoes.map((u, i) => (
-                <div key={u.id} role="option" aria-selected={i === mencaoIdx} className={"mencao-op" + (i === mencaoIdx ? " ativo" : "")}
-                  onMouseDown={(e) => { e.preventDefault(); escolherMencao(u); }}
-                  onMouseEnter={() => setMencaoIdx(i)}
-                >@{u.nome}</div>
-              ))}
-            </div>
-          )}
-        </div>
+        <CampoMencao value={text} onChange={setText} users={users} currentUser={currentUser} onKeyDown={teclaComentario}
+          placeholder="Escreva um comentário... (use @ para marcar alguém)" />
         <button className="btn" style={{ whiteSpace: "nowrap" }} onClick={send}>Enviar</button>
       </div>
     </div>

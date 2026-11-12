@@ -2,11 +2,17 @@ import { useHashRoute } from "../hooks/useHashRoute";
 import { RelatorioAcompanhamento } from "../components/relatorios/RelatorioAcompanhamento.jsx";
 import { RelatorioComunicacaoInterna } from "../components/relatorios/RelatorioComunicacaoInterna.jsx";
 import { RelatorioResumo } from "../components/relatorios/RelatorioResumo.jsx";
+import { RelatorioSinistros } from "../components/relatorios/RelatorioSinistros.jsx";
 
 // Catálogo de relatórios (a pedido do usuário): a página abre numa lista de
 // opções e cada relatório tem a sua própria tela em #/relatorios/<id>.
 // Relatório novo = um item aqui + o componente em components/relatorios/.
 const RELATORIOS = [
+  {
+    id: "sinistros", icone: "🗂", titulo: "Relatório de Sinistros (fim do dia)", grupo: "Processos",
+    descricao: "Em aberto, atrasados e termômetro; demanda de cada operador; alertas; CIs em aberto; comparação com a última leitura e o previsto para o próximo dia útil.",
+    formatos: "Tela • PDF", Componente: RelatorioSinistros,
+  },
   {
     id: "acompanhamento", icone: "📋", titulo: "Acompanhamento de processos", grupo: "Processos",
     descricao: "Tipo, responsável, cliente, último histórico e próxima ação de cada processo.",

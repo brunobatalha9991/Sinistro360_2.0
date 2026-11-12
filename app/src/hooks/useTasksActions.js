@@ -5,7 +5,7 @@ import { resumoHistoricoCI } from "../logic/desempenhoCI";
 import { semInteracaoCfg, usuarioEscalonamentoId, AUTOR_SISTEMA, preservarAutomacaoCI, semUsuariosIA } from "../logic/ciAutomacao";
 import { aplicarAlertaCI, resolverAlertasCI } from "../logic/notificacoes";
 import { mencoesNoTexto } from "../logic/mencoes";
-import { taskParticipants, acompanhantesSemParticipacao, acompanhaTarefa, proximoCI, recorrenciaVencida, recorrenciaEncerrada, gerarOcorrenciaRecorrente } from "../logic/tasks";
+import { descreverAlteracoesTarefa, taskParticipants, acompanhantesSemParticipacao, acompanhaTarefa, proximoCI, recorrenciaVencida, recorrenciaEncerrada, gerarOcorrenciaRecorrente } from "../logic/tasks";
 
 export function rotuloDuracao(minutos) {
   if (minutos % 1440 === 0) return `${minutos / 1440} dia(s)`;
@@ -376,15 +376,19 @@ export function useTasksActions() {
     const at = new Date().toISOString();
     // Usuário "IA" não recebe intervenção pra responder (ver ehUsuarioIA).
     const alvos = semUsuariosIA((task.destinatarios || []).filter((id) => id && id !== autor.id), records.corp_users || []);
+    // Marcações "@" no texto: quem não é alvo recebe a notificação de marcação.
+    const mencoes = mencoesNoTexto(texto, records.corp_users || []).filter((id) => id !== autor.id);
     const iv = { id: "itv_" + Math.random().toString(36).slice(2, 9), autorId: autor.id, texto, at, alvos, respostas: {} };
     saveRecord("corp_tasks", (current) => (current || []).map((t) => (t.id !== task.id ? t : {
       ...t,
       updatedAt: at,
       intervencoes: [...(t.intervencoes || []), iv],
-      comments: [...(t.comments || []), { id: "cmt_" + Math.random().toString(36).slice(2, 9), userId: autor.id, text: texto, at, intervencaoId: iv.id }],
+      comments: [...(t.comments || []), { id: "cmt_" + Math.random().toString(36).slice(2, 9), userId: autor.id, text: texto, at, intervencaoId: iv.id, ...(mencoes.length ? { mencoes } : {}) }],
       log: [...(t.log || []), { at, who: autor.id, acao: `Intervenção de ${autor.nome}: "${texto.slice(0, 200)}"` }],
     })));
     pushNotif(task.id, alvos, `🚨 Intervenção de ${autor.nome} na ${task.ci || "CI"} — resposta obrigatória: ${texto.slice(0, 60)}`, autor.id);
+    const soMarcados = mencoes.filter((id) => !alvos.includes(id));
+    if (soMarcados.length) notificarMencoes(task, soMarcados, autor, texto);
     resolverAlertasDaCI(task.id, `intervenção de ${autor.nome}`);
     notificarAcompanhantes(task, `🚨 Intervenção de ${autor.nome} na ${task.ci || "CI"}: ${texto.slice(0, 60)}`, autor.id);
   }
@@ -422,6 +426,50 @@ export function useTasksActions() {
     }));
   }
 
+  // Admin/VIP/IA editam a CI a partir do pedido de intervenção (a pedido do
+  // usuário): destinatários, status, data da próxima ação e sinalizadores.
+  // Mesma auditoria campo a campo da tela da CI (descreverAlteracoesTarefa)
+  // e mesmas notificações; quem entra como destinatário recebe um aviso
+  // próprio. Concluir exige comentário de conclusão (vira o feedback), igual
+  // ao TaskModal. Usuário IA nunca entra como destinatário (ver ehUsuarioIA).
+  function editarCIPeloPedido(task, campos, usuario) {
+    if (!usuario || !(isAdmin(usuario) || usuario.ia)) return false;
+    const users = records.corp_users || [];
+    const atual = (records.corp_tasks || []).find((x) => x.id === task.id) || task;
+    const antesDest = atual.destinatarios || [];
+    const iaIds = new Set(users.filter((u) => u.ia).map((u) => u.id));
+    const destinatarios = campos.destinatarios
+      ? [...new Set(campos.destinatarios)].filter((id) => !iaIds.has(id) || antesDest.includes(id))
+      : antesDest;
+    if (!destinatarios.length) return false;
+    const at = new Date().toISOString();
+    const concluindo = campos.status === "Concluído" && atual.status !== "Concluído";
+    const comentario = String(campos.comentarioConclusao || "").trim();
+    if (concluindo && !comentario) return false;
+    const next = {
+      ...atual,
+      destinatarios,
+      status: campos.status || atual.status,
+      proximaAcaoData: campos.proximaAcaoData != null ? campos.proximaAcaoData : atual.proximaAcaoData,
+      flags: campos.flags || atual.flags || [],
+      ...(concluindo ? {
+        concludedAt: at,
+        comments: [...(atual.comments || []), { id: "cmt_" + Math.random().toString(36).slice(2, 9), userId: usuario.id, text: comentario, at }],
+      } : {}),
+    };
+    const mudancas = descreverAlteracoesTarefa(atual, next, { users, claims: records.corp_claims || [] });
+    if (concluindo) mudancas.push(`Comentário de conclusão: "${comentario.slice(0, 200)}"`);
+    if (!mudancas.length) return true;
+    const entraram = destinatarios.filter((id) => !antesDest.includes(id));
+    saveTask(next);
+    const notifTexto = concluindo
+      ? `Tarefa concluída por ${usuario.nome}: "${comentario.slice(0, 80)}"`
+      : `Tarefa atualizada por ${usuario.nome}` + (mudancas.length > 1 ? ` (${mudancas.length} alterações)` : "");
+    taskInteract(next, mudancas, usuario.id, false, notifTexto, entraram);
+    if (entraram.length) pushNotif(task.id, entraram, `${usuario.nome} incluiu você como destinatário(a) na ${task.ci || "CI"}: ${task.titulo || ""}`.trim(), usuario.id);
+    return true;
+  }
+
   // Comentário comum na CI fora do modal da tarefa (ex.: na tela de pedido
   // de intervenção) — mesmo efeito do chat da CI, inclusive marcações "@".
   function comentarCI(task, texto, autor) {
@@ -437,7 +485,7 @@ export function useTasksActions() {
 
   return {
     pushNotif, saveTask, createTask, taskInteract, alternarAcompanhamento, considerarInteracao, excluirComentariosAutomaticos, pushAlertaCI, resolverAlertasDaCI, podeConsiderarInteracao, avaliarEscalonamento, cienteRedirecionamento, arquivarManualmente, excluirTarefa, definirOrdemManual,
-    markTaskCiente, markNotifRead, marcarNotifTratada, dismissAlarmeMesa, markAllNotifsRead, notificarMencoes, dispensarIntervencao, comentarCI, marcarNotifsLidas, apagarNotifs, purgeOldTasks, gerarOcorrenciasRecorrentes,
+    markTaskCiente, markNotifRead, marcarNotifTratada, dismissAlarmeMesa, markAllNotifsRead, notificarMencoes, dispensarIntervencao, comentarCI, editarCIPeloPedido, marcarNotifsLidas, apagarNotifs, purgeOldTasks, gerarOcorrenciasRecorrentes,
     intervir, responderIntervencao,
   };
 }

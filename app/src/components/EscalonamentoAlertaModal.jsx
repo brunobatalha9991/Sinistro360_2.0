@@ -2,6 +2,9 @@ import { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
 import { useData } from "../data/DataProvider.jsx";
 import { useTasksActions } from "../hooks/useTasksActions";
+import { isAdmin } from "../data/auth";
+import { CampoMencao } from "./CampoMencao.jsx";
+import { TASK_FLAGS_DEFAULT } from "../logic/tasks";
 import { ultimaInteracaoPorDestinatario, AUTOR_SISTEMA, ehUsuarioAdministrador, interacaoConsideradaAtiva } from "../logic/ciAutomacao";
 
 // Pedido de intervenção (escalonamento da CI sem interação — ver
@@ -99,9 +102,73 @@ function DetalheTarefa({ task, users, claims, actions, currentUser }) {
   );
 }
 
-function TelaEscalonamento({ task, n, users, claims, actions, currentUser, restantes, onIntervir, onConsiderar, onDispensar, onSoneca, onComentar }) {
-  const [modo, setModo] = useState(null); // intervir | considerar | dispensar | comentar | soneca
+// Editar a CI sem sair do pedido de intervenção (Admin/VIP/IA, a pedido do
+// usuário): destinatários, status, data da próxima ação e sinalizadores.
+// Usuário IA não aparece como destinatário, salvo se já estiver na CI (pra
+// poder tirar). Concluir pede o comentário de conclusão, igual à tela da CI.
+const STATUS_CI = ["Pendente", "Em andamento", "Concluído"];
+
+function EditarCI({ task, users, flagsDisponiveis, onSalvar, onVoltar }) {
+  const [sel, setSel] = useState(() => new Set(task.destinatarios || []));
+  const [status, setStatus] = useState(task.status || "Pendente");
+  const [proxima, setProxima] = useState(task.proximaAcaoData || "");
+  const [flags, setFlags] = useState(() => new Set(task.flags || []));
+  const [conclusao, setConclusao] = useState("");
+  const concluindo = status === "Concluído" && task.status !== "Concluído";
+  const lista = users.filter((u) => !u.ia || (task.destinatarios || []).includes(u.id))
+    .sort((a, b) => String(a.nome).localeCompare(String(b.nome), "pt-BR"));
+  const todasFlags = [...new Set([...(flagsDisponiveis || []), ...(task.flags || [])])];
+  const alternar = (setter) => (id) => setter((s) => { const nx = new Set(s); if (nx.has(id)) nx.delete(id); else nx.add(id); return nx; });
+  const podeSalvar = sel.size > 0 && (!concluindo || conclusao.trim().length >= MIN_CHARS);
+  return (
+    <div style={{ textAlign: "left", marginTop: 16 }}>
+      <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
+        <div style={{ flex: "1 1 160px" }}>
+          <label style={{ fontSize: 13 }}>Status</label>
+          <select value={status} onChange={(e) => setStatus(e.target.value)}>
+            {STATUS_CI.map((s) => <option key={s} value={s}>{s}</option>)}
+          </select>
+        </div>
+        <div style={{ flex: "1 1 160px" }}>
+          <label style={{ fontSize: 13 }}>Data da próxima ação</label>
+          <input type="date" value={proxima} onChange={(e) => setProxima(e.target.value)} />
+        </div>
+      </div>
+      {concluindo && (
+        <div style={{ marginTop: 10 }}>
+          <label style={{ fontSize: 13 }}>Comentário de conclusão (obrigatório — vira o feedback para todos os envolvidos)</label>
+          <textarea rows={2} value={conclusao} onChange={(e) => setConclusao(e.target.value)} placeholder={`Escreva pelo menos ${MIN_CHARS} caracteres...`} />
+        </div>
+      )}
+      <label style={{ fontSize: 13, display: "block", marginTop: 10 }}>Sinalizadores</label>
+      <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginTop: 4 }}>
+        {todasFlags.map((f) => (
+          <label key={f} className={"chip-btn" + (flags.has(f) ? " active" : "")} style={{ cursor: "pointer" }} onClick={() => alternar(setFlags)(f)}>{f}</label>
+        ))}
+      </div>
+      <label style={{ fontSize: 13, display: "block", marginTop: 10 }}>Destinatários — clique para incluir ou remover</label>
+      <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginTop: 4 }}>
+        {lista.map((u) => (
+          <label key={u.id} className={"chip-btn" + (sel.has(u.id) ? " active" : "")} style={{ cursor: "pointer" }} onClick={() => alternar(setSel)(u.id)}>
+            {u.nome}{u.ia ? " 🤖" : ""}
+          </label>
+        ))}
+      </div>
+      <p className="muted" style={{ fontSize: 12 }}>As alterações ficam na auditoria da CI e notificam os envolvidos; quem for incluído recebe um aviso próprio. O pedido continua aberto até você decidir.</p>
+      <div className="escalonamento-acoes">
+        <button type="button" className="btn" disabled={!podeSalvar}
+          onClick={() => onSalvar({ destinatarios: [...sel], status, proximaAcaoData: proxima, flags: todasFlags.filter((f) => flags.has(f)), comentarioConclusao: conclusao.trim() })}
+        >Salvar alterações</button>
+        <button type="button" className="btn sec" onClick={onVoltar}>Voltar</button>
+      </div>
+    </div>
+  );
+}
+
+function TelaEscalonamento({ task, n, users, claims, actions, currentUser, restantes, onIntervir, onConsiderar, onDispensar, onSoneca, onComentar, onEditar, flagsDisponiveis }) {
+  const [modo, setModo] = useState(null); // intervir | considerar | dispensar | comentar | editar | soneca
   const [comentados, setComentados] = useState(0);
+  const [editado, setEditado] = useState(false);
   const [verTarefa, setVerTarefa] = useState(false);
   const [texto, setTexto] = useState("");
   const [qtd, setQtd] = useState("1");
@@ -144,9 +211,19 @@ function TelaEscalonamento({ task, n, users, claims, actions, currentUser, resta
         {!modo && comentados > 0 && (
           <p className="muted" style={{ fontSize: 12.5, marginTop: 12, marginBottom: 0 }}>✓ Comentário enviado para a CI. Agora decida o pedido de intervenção.</p>
         )}
+        {!modo && editado && (
+          <p className="muted" style={{ fontSize: 12.5, marginTop: 12, marginBottom: 0 }}>✓ CI atualizada. Agora decida o pedido de intervenção.</p>
+        )}
+        {modo === "editar" && (
+          <EditarCI task={task} users={users} flagsDisponiveis={flagsDisponiveis} onVoltar={() => setModo(null)}
+            onSalvar={(campos) => { if (onEditar(campos) !== false) { setEditado(true); setModo(null); } }} />
+        )}
         {!modo && (
           <div className="escalonamento-acoes">
             <button type="button" className="btn sec" title="Deixar uma orientação no chat da CI antes de decidir" onClick={() => { setTexto(""); setModo("comentar"); }}>💬 Comentar</button>
+            {onEditar && (
+              <button type="button" className="btn sec" title="Alterar destinatários, status, próxima ação e sinalizadores" onClick={() => setModo("editar")}>✏️ Editar CI</button>
+            )}
             <button type="button" className="btn danger" onClick={() => setModo("intervir")}>🚨 Intervir</button>
             <button type="button" className="btn ok" onClick={() => setModo("considerar")}>✓ Considerar</button>
             <button type="button" className="btn sec" onClick={() => setModo("dispensar")}>Não é preciso intervir</button>
@@ -170,7 +247,7 @@ function TelaEscalonamento({ task, n, users, claims, actions, currentUser, resta
         {modo === "comentar" && (
           <div style={{ textAlign: "left", marginTop: 16 }}>
             <label style={{ fontSize: 13 }}>Comentário comum (vai para o chat da CI, sem resposta obrigatória — use @ para marcar alguém)</label>
-            <textarea autoFocus rows={3} value={texto} onChange={(e) => setTexto(e.target.value)} placeholder="Ex.: Maria, responda o Evanio no WhatsApp e registre aqui." />
+            <CampoMencao autoFocus rows={3} value={texto} onChange={setTexto} users={users} currentUser={currentUser} placeholder="Ex.: @Maria Luiza, responda o cliente no WhatsApp e registre aqui." />
             <p className="muted" style={{ fontSize: 12 }}>Depois de comentar, este pedido continua aberto até você decidir (Intervir, Considerar, Não é preciso intervir ou Soneca).</p>
             <div className="escalonamento-acoes">
               <button type="button" className="btn" disabled={!texto.trim()} onClick={() => { onComentar(texto.trim()); setTexto(""); setComentados((c) => c + 1); setModo(null); }}>Enviar comentário</button>
@@ -181,8 +258,8 @@ function TelaEscalonamento({ task, n, users, claims, actions, currentUser, resta
 
         {modo === "intervir" && (
           <div style={{ textAlign: "left", marginTop: 16 }}>
-            <label style={{ fontSize: 13 }}>Intervenção (os destinatários terão que responder em tela cheia)</label>
-            <textarea autoFocus rows={3} value={texto} onChange={(e) => setTexto(e.target.value)} placeholder={`Escreva pelo menos ${MIN_CHARS} caracteres...`} />
+            <label style={{ fontSize: 13 }}>Intervenção (os destinatários terão que responder em tela cheia — use @ para marcar alguém)</label>
+            <CampoMencao autoFocus rows={3} value={texto} onChange={setTexto} users={users} currentUser={currentUser} placeholder={`Escreva pelo menos ${MIN_CHARS} caracteres... (use @ para marcar alguém)`} />
             <div className="escalonamento-acoes">
               <button type="button" className="btn danger" disabled={!textoOk} onClick={() => onIntervir(texto.trim())}>Enviar intervenção</button>
               <button type="button" className="btn sec" onClick={() => { setModo(null); setTexto(""); }}>Voltar</button>
@@ -232,7 +309,7 @@ function TelaEscalonamento({ task, n, users, claims, actions, currentUser, resta
 }
 
 export function EscalonamentoAlertaModal({ currentUser }) {
-  const { records } = useData();
+  const { records, config } = useData();
   const actions = useTasksActions();
   const userId = currentUser && currentUser.id;
   const [sonecaAte, setSonecaAte] = useState(() => lerSoneca(userId));
@@ -257,6 +334,8 @@ export function EscalonamentoAlertaModal({ currentUser }) {
       onDispensar={(texto, min) => { actions.considerarInteracao(task, min, currentUser); actions.avaliarEscalonamento(task, currentUser, "dispensada", texto); }}
       onSoneca={(min) => setSonecaAte(gravarSoneca(userId, min))}
       onComentar={(texto) => actions.comentarCI(task, texto, currentUser)}
+      onEditar={isAdmin(currentUser) || currentUser.ia ? (campos) => actions.editarCIPeloPedido(task, campos, currentUser) : null}
+      flagsDisponiveis={config.corp_task_flags && config.corp_task_flags.length ? config.corp_task_flags : TASK_FLAGS_DEFAULT}
     />,
     document.body,
   );
