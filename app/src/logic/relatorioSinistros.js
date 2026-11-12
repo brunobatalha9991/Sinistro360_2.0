@@ -1,9 +1,10 @@
 import {
-  campoEfetivo, getResponsavel, getNextAction, getSitAtend, getTemp, loadComms,
+  campoEfetivo, getResponsavel, getNextAction, getSitAtend, getTemp, loadComms, loadAudit,
   situacaoEfetiva, currentStage, diasEmAberto, tempoNaEtapaAtual,
 } from "./claims";
 import { ultimoHistorico } from "./relatorioAcompanhamento";
-import { atividadesDoUsuario, GRUPOS_ATIVIDADE } from "./desempenhoAtividades";
+import { atividadesDoUsuario } from "./desempenhoAtividades";
+import { responsavelVigenteEm } from "./responsabilidade";
 
 // Relatório de Sinistros (a pedido do usuário, modelo do PDF "edição da
 // noite" de 12/11/2026): fotografia dos processos em aberto com prazos,
@@ -216,29 +217,189 @@ export function comparativo(rel, anterior) {
 
 // Desempenho do agente de IA no dia (a pedido do usuário, fim do
 // relatório): para cada usuário com o botão "IA" (Configurações →
-// Usuários, u.ia), o que ele fez hoje — CIs abertas/concluídas/em aberto,
-// intervenções solicitadas, atividades por tipo e as últimas ações. Usa a
+// Usuários, u.ia), o que ele fez hoje AGRUPADO por processo e por CI —
+// nada de ação por ação. Em cada processo: quem era o responsável quando o
+// agente atuou, como estava (próxima ação atrasada? quantos dias sem
+// histórico?), o que o agente fez e como ficou agora (regularizou ou segue
+// atrasado). Em cada CI: o papel do agente, o que fez e se os
+// destinatários responderam depois. Mais um quadro por responsável. Usa a
 // mesma linha do tempo do módulo Desempenho (atividadesDoUsuario). Não
 // depende dos filtros do relatório.
-const MAX_ACOES_IA = 30;
-export function desempenhoAgentesIA({ claims, overrides, tasks, users, feedbacksAgenda, hojeISO }) {
+const DIAS_PARADO = 3;
+
+// Prazo da próxima ação vigente num instante, pela auditoria ("Próxima
+// ação definida — prazo dd/mm/aaaa" / "concluída/removida"). Sem registro
+// antes do instante: o valor atual (se nunca foi trocado) ou "sem".
+function prazoVigenteEm(overrides, claimId, instanteISO) {
+  const eventos = loadAudit(overrides, claimId)
+    .filter((a) => a && a.at && (a.acao === "Próxima ação definida" || a.acao === "Próxima ação concluída/removida"))
+    .map((a) => {
+      const m = String(a.detalhe || "").match(/prazo (\d{2})\/(\d{2})\/(\d{4})/);
+      return { at: String(a.at), prazo: a.acao === "Próxima ação definida" && m ? `${m[3]}-${m[2]}-${m[1]}` : null };
+    });
+  const antes = eventos.filter((e) => e.at < instanteISO).sort((a, b) => a.at.localeCompare(b.at)).pop();
+  if (antes) return antes.prazo;
+  if (eventos.length) return null;
+  const na = getNextAction(overrides, claimId);
+  return (na && na.date) || null;
+}
+function situacaoPrazo(prazoISO, diaISO) {
+  if (!prazoISO) return { prazo: "semprazo", dias: null };
+  const dif = diasEntreISO(prazoISO, diaISO);
+  if (dif > 0) return { prazo: "atrasado", dias: dif };
+  return { prazo: dif === 0 ? "hoje" : "noprazo", dias: null };
+}
+// Último histórico registrado ANTES do instante (de qualquer pessoa).
+function ultimoHistoricoAntes(overrides, claimId, instanteISO) {
+  let ult = "";
+  loadComms(overrides, claimId).forEach((m) => {
+    const at = m.at || (m.date ? m.date + "T12:00:00" : "");
+    if (at && String(at) < instanteISO && String(at) > ult) ult = String(at);
+  });
+  return ult;
+}
+
+const ROTULO_GRUPO = {
+  historico: ["histórico", "históricos"], jornada: ["jornada", "jornada"],
+  proxima_acao: ["próxima ação", "próximas ações"], processo: ["outra atualização", "outras atualizações"],
+};
+function resumoFeito(acoes) {
+  const cont = {};
+  acoes.forEach((a) => { cont[a.grupo] = (cont[a.grupo] || 0) + 1; });
+  const partes = ["historico", "jornada", "proxima_acao", "processo"].filter((g) => cont[g])
+    .map((g) => `${cont[g]} ${cont[g] === 1 ? ROTULO_GRUPO[g][0] : ROTULO_GRUPO[g][1]}`);
+  const jornada = [...new Set(acoes.filter((a) => a.grupo === "jornada").map((a) => String(a.titulo).replace(/^Jornada:\s*/, "")))].slice(0, 2);
+  return { texto: partes.join(", ") || "—", jornada };
+}
+
+function horaDe(iso) {
+  const d = new Date(iso);
+  return isNaN(d) ? "" : `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
+}
+
+export function desempenhoAgentesIA({ claims, overrides = {}, tasks, users, feedbacksAgenda, historicoResp, hojeISO, agora = new Date() }) {
+  const nomeUser = (id) => ((users || []).find((u) => u.id === id) || {}).nome || null;
+  const claimPorId = {};
+  (claims || []).forEach((c) => { claimPorId[c.id] = c; });
+  const taskPorId = {};
+  (tasks || []).forEach((t) => { if (t) taskPorId[t.id] = t; });
+
   return (users || []).filter((u) => u && u.ia).map((u) => {
     const atividades = atividadesDoUsuario({ claims, overrides, tasks, feedbacksAgenda, usuario: { id: u.id, nome: u.nome }, deISO: hojeISO, ateISO: hojeISO });
     const doDia = (iso) => !!iso && dataLocalISO(new Date(iso)) === hojeISO;
+
+    // ---------- processos ----------
+    const porProc = {};
+    atividades.forEach((a) => { if (a.rota && a.rota[0] === "sinistro") (porProc[a.rota[1]] = porProc[a.rota[1]] || []).push(a); });
+    const processos = Object.keys(porProc).map((id) => {
+      const c = claimPorId[id];
+      const acoes = porProc[id].slice().sort((a, b) => String(a.at).localeCompare(String(b.at)));
+      const primeira = String(acoes[0].at);
+      const ultima = String(acoes[acoes.length - 1].at);
+      const respAtual = getResponsavel(overrides, id);
+      const vig = responsavelVigenteEm(historicoResp, id, primeira);
+      const respNaHora = (vig && (nomeUser(vig.usuarioResponsavelId) || vig.usuarioResponsavelNome)) || (respAtual && respAtual.nome) || SEM_RESPONSAVEL;
+      const antes = situacaoPrazo(prazoVigenteEm(overrides, id, primeira), hojeISO);
+      const ultHist = ultimoHistoricoAntes(overrides, id, primeira);
+      const diasSemHist = ultHist ? Math.max(0, diasEntreISO(dataLocalISO(new Date(ultHist)), hojeISO)) : null;
+      const naAgora = getNextAction(overrides, id);
+      const depois = situacaoPrazo((naAgora && naAgora.date) || null, hojeISO);
+      const estavaAtrasado = antes.prazo === "atrasado";
+      let resultado = "ok";
+      if (depois.prazo === "atrasado") resultado = "segue_atrasado";
+      else if (depois.prazo === "semprazo") resultado = "sem_proxima";
+      else if (estavaAtrasado) resultado = "regularizado";
+      return {
+        id,
+        numero: c ? campoEfetivo(overrides, c, "numsin") || (c.nosnum ? "#" + c.nosnum : "—") : "—",
+        segurado: c ? campoEfetivo(overrides, c, "segurado") || "—" : (acoes[0].alvo || "—"),
+        seguradora: c ? grupoSeguradora(campoEfetivo(overrides, c, "cia")) : "—",
+        respNaHora, respAtual: (respAtual && respAtual.nome) || SEM_RESPONSAVEL,
+        antes, diasSemHist, parado: diasSemHist == null || diasSemHist > DIAS_PARADO,
+        feito: resumoFeito(acoes), qtdAcoes: acoes.length,
+        depois, prazoAgora: (naAgora && naAgora.date) || "", proxTitulo: (naAgora && naAgora.title) || "",
+        termometro: termometroKey(getTemp(overrides, id)),
+        resultado, horario: horaDe(primeira) + (ultima !== primeira ? "–" + horaDe(ultima) : ""),
+      };
+    }).sort((a, b) => (b.antes.prazo === "atrasado") - (a.antes.prazo === "atrasado") || (b.antes.dias || 0) - (a.antes.dias || 0) || a.respNaHora.localeCompare(b.respNaHora, "pt-BR"));
+
+    // Quadro por responsável (de quem eram os processos em que o agente atuou).
+    const porResp = {};
+    processos.forEach((p) => {
+      const r = (porResp[p.respNaHora] = porResp[p.respNaHora] || { nome: p.respNaHora, processos: 0, atrasados: 0, parados: 0, regularizados: 0, seguemAtrasados: 0 });
+      r.processos++;
+      if (p.antes.prazo === "atrasado") r.atrasados++;
+      if (p.parado) r.parados++;
+      if (p.resultado === "regularizado") r.regularizados++;
+      if (p.resultado === "segue_atrasado") r.seguemAtrasados++;
+    });
+    const porResponsavel = Object.values(porResp).sort((a, b) => b.processos - a.processos || a.nome.localeCompare(b.nome, "pt-BR"));
+
+    // ---------- CIs ----------
+    const porCI = {};
+    atividades.forEach((a) => {
+      if (a.rota && a.rota[0] === "tarefas") {
+        const id = String(a.rota[1]).replace(/^open-/, "");
+        (porCI[id] = porCI[id] || []).push(a);
+      }
+    });
+    // Intervenções do agente hoje também contam como atuação na CI.
+    (tasks || []).forEach((t) => {
+      if (t && (t.intervencoes || []).some((iv) => iv.autorId === u.id && doDia(iv.at)) && !porCI[t.id]) porCI[t.id] = [];
+    });
+    const cis = Object.keys(porCI).map((id) => {
+      const t = taskPorId[id] || {};
+      const acoes = porCI[id];
+      const abriu = t.origem === u.id && doDia(t.createdAt);
+      const comentarios = acoes.filter((a) => a.titulo === "Comentou na CI").length;
+      const intervencoes = (t.intervencoes || []).filter((iv) => iv.autorId === u.id && doDia(iv.at));
+      const outras = acoes.filter((a) => !["Comentou na CI", "Abriu a CI", "Fez uma intervenção"].includes(a.titulo)).length;
+      const feito = [
+        abriu && "abriu",
+        comentarios && `${comentarios} comentário(s)`,
+        intervencoes.length && `${intervencoes.length} intervenção(ões)`,
+        outras && `${outras} alteração(ões)`,
+      ].filter(Boolean).join(", ") || "—";
+      const ultimaDoAgente = [...acoes.map((a) => String(a.at)), ...intervencoes.map((iv) => String(iv.at))].sort().pop() || "";
+      // Resposta dos destinatários depois da última atuação do agente.
+      const dests = (t.destinatarios || []).filter((x) => x && x !== u.id);
+      const respostas = (t.comments || []).filter((cm) => cm && dests.includes(cm.userId) && String(cm.at) > ultimaDoAgente)
+        .sort((a, b) => String(a.at).localeCompare(String(b.at)));
+      const horasSem = ultimaDoAgente ? Math.floor((agora.getTime() - new Date(ultimaDoAgente).getTime()) / 3600000) : null;
+      const pendIv = intervencoes.reduce((s, iv) => s + (iv.alvos || [])
+        .filter((x) => !(iv.respostas && iv.respostas[x]) && !(iv.dispensas && iv.dispensas[x])).length, 0);
+      let resposta;
+      if (t.status === "Concluído") resposta = { tipo: "concluida", texto: `Concluída${t.concludedAt ? " às " + horaDe(t.concludedAt) : ""}` };
+      else if (respostas.length) resposta = { tipo: "respondeu", texto: `${nomeUser(respostas[0].userId) || "?"} respondeu às ${horaDe(respostas[0].at)}` };
+      else resposta = { tipo: "sem_resposta", texto: horasSem == null ? "Sem resposta" : `Sem resposta há ${horasSem} h` };
+      return {
+        id, ci: t.ci || "—", assunto: t.titulo || "", status: t.status || "—",
+        papel: abriu ? "Abriu" : t.origem === u.id ? "Origem" : (t.destinatarios || []).includes(u.id) ? "Destinatário" : "Atuou",
+        destinatarios: dests.map((x) => nomeUser(x) || "?").join(", ") || "—",
+        feito, resposta, intervencoesPendentes: pendIv, ultimaDoAgente,
+        intervencoesHoje: intervencoes.length,
+      };
+    }).sort((a, b) => (a.resposta.tipo === "sem_resposta" ? 0 : 1) - (b.resposta.tipo === "sem_resposta" ? 0 : 1)
+      || String(b.ultimaDoAgente).localeCompare(String(a.ultimaDoAgente)));
+
     const criadas = (tasks || []).filter((t) => t && t.origem === u.id);
-    const porGrupo = GRUPOS_ATIVIDADE.map((g) => ({ ...g, qtd: atividades.filter((a) => a.grupo === g.key).length }));
-    const processos = new Set(atividades.filter((a) => a.rota && a.rota[0] === "sinistro").map((a) => a.rota[1])).size;
     return {
       id: u.id, nome: u.nome,
-      cisAbertasHoje: criadas.filter((t) => doDia(t.createdAt)).length,
-      cisConcluidasHoje: criadas.filter((t) => t.status === "Concluído" && doDia(t.concludedAt)).length,
-      cisEmAberto: criadas.filter((t) => t.status !== "Concluído" && !t.arquivadoManualmente).length,
-      intervencoesHoje: (tasks || []).reduce((s, t) => s + ((t && t.intervencoes) || []).filter((iv) => iv.autorId === u.id && doDia(iv.at)).length, 0),
-      comentariosHoje: atividades.filter((a) => a.grupo === "ci" && a.titulo === "Comentou na CI").length,
-      totalAcoes: atividades.length,
-      processosTocados: processos,
-      porGrupo,
-      ultimas: atividades.slice(0, MAX_ACOES_IA),
+      resumo: {
+        processos: processos.length,
+        atrasadosAoAtuar: processos.filter((p) => p.antes.prazo === "atrasado").length,
+        paradosAoAtuar: processos.filter((p) => p.parado).length,
+        regularizados: processos.filter((p) => p.resultado === "regularizado").length,
+        seguemAtrasados: processos.filter((p) => p.resultado === "segue_atrasado").length,
+        semProxima: processos.filter((p) => p.resultado === "sem_proxima").length,
+        cis: cis.length,
+        cisAbertasHoje: criadas.filter((t) => doDia(t.createdAt)).length,
+        cisConcluidasHoje: criadas.filter((t) => t.status === "Concluído" && doDia(t.concludedAt)).length,
+        cisEmAberto: criadas.filter((t) => t.status !== "Concluído" && !t.arquivadoManualmente).length,
+        cisSemResposta: cis.filter((c) => c.resposta.tipo === "sem_resposta").length,
+        intervencoes: cis.reduce((s, c) => s + c.intervencoesHoje, 0),
+      },
+      processos, porResponsavel, cis,
     };
   });
 }
@@ -251,7 +412,7 @@ export function filtrosAtivos(f) {
   return !!f && (ativo(f.responsavel) || ativo(f.seguradora) || ativo(f.tipo));
 }
 
-export function montarRelatorioSinistros({ claims, overrides = {}, tasks, users, atendTemplate, templates = {}, agora = new Date(), leituras, filtros, feedbacksAgenda, claimsTodos }) {
+export function montarRelatorioSinistros({ claims, overrides = {}, tasks, users, atendTemplate, templates = {}, agora = new Date(), leituras, filtros, feedbacksAgenda, claimsTodos, historicoResp }) {
   const hojeISO = dataLocalISO(agora);
   const abertos = (claims || []).filter((c) => processoEmAberto(overrides, c, atendTemplate, templates));
   const todasLinhas = abertos.map((c) => linhaProcesso({ overrides, c, atendTemplate, templates, hojeISO, agora }));
@@ -316,7 +477,7 @@ export function montarRelatorioSinistros({ claims, overrides = {}, tasks, users,
     alertas: { graves, emAtencao, atrasados30 },
     cis, cisPorResponsavel,
     previsto: { data: amanha, linhas: previstos, porOperador: previstoPorOperador },
-    agentesIA: desempenhoAgentesIA({ claims: claimsTodos || claims, overrides, tasks, users, feedbacksAgenda, hojeISO }),
+    agentesIA: desempenhoAgentesIA({ claims: claimsTodos || claims, overrides, tasks, users, feedbacksAgenda, historicoResp, hojeISO, agora }),
   };
   // A leitura gravada é sempre a global. Global: compara tudo. Só operador
   // escolhido: compara os atrasados dele. Outros recortes não têm base.

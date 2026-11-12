@@ -17,7 +17,8 @@ function lerPermissao() {
 
 export function NotificacaoObrigatoria({ currentUser }) {
   const [perm, setPerm] = useState(lerPermissao);
-  const exigir = temAgendaPropria(currentUser) && perm !== "granted" && perm !== "unsupported";
+  // Usuário "IA" (Configurações → Usuários) nunca é travado por esta tela.
+  const exigir = temAgendaPropria(currentUser) && !(currentUser && currentUser.ia) && perm !== "granted" && perm !== "unsupported";
 
   useEffect(() => {
     if (!exigir) return undefined;

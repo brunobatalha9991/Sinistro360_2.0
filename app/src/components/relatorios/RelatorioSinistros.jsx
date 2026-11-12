@@ -81,6 +81,105 @@ function TabelaDemanda({ linhas }) {
   );
 }
 
+// Desempenho do agente de IA — agrupado por processo e por CI (ver
+// desempenhoAgentesIA em logic/relatorioSinistros.js).
+function PrazoAntes({ s, data }) {
+  if (s.prazo === "semprazo") return <span className="rs-prazo sem">Sem próx. ação</span>;
+  const rot = s.prazo === "atrasado" ? `Atrasado ${s.dias} d` : s.prazo === "hoje" ? "Vence hoje" : "No prazo";
+  return <><span className={"rs-prazo " + s.prazo}>{rot}</span>{data && <div className="rs-sub">{fmtDateBR(data)}</div>}</>;
+}
+const RESULTADO_IA = {
+  regularizado: ["✅ Regularizou o prazo", "rs-melhor"],
+  segue_atrasado: ["⚠ Segue atrasado", "rs-pior"],
+  sem_proxima: ["⚠ Ficou sem próxima ação", "rs-pior"],
+  ok: ["✓ Em dia", ""],
+};
+const RESPOSTA_CI = { respondeu: "rs-melhor", concluida: "rs-melhor", sem_resposta: "rs-pior" };
+
+function AgenteIA({ a }) {
+  const r = a.resumo;
+  const cards = [
+    [r.processos, "Processos atuados"], [r.atrasadosAoAtuar, "Estavam atrasados"], [r.paradosAoAtuar, "Estavam parados (+3 d sem histórico)"],
+    [r.regularizados, "Prazos regularizados"], [r.seguemAtrasados + r.semProxima, "Seguem com pendência"],
+    [r.cis, "CIs atuadas"], [r.cisAbertasHoje, "CIs abertas hoje"], [r.cisConcluidasHoje, "CIs dele concluídas hoje"],
+    [r.cisSemResposta, "CIs sem resposta"], [r.intervencoes, "Intervenções solicitadas"],
+  ];
+  const pctAtrasados = r.processos ? Math.round((r.atrasadosAoAtuar / r.processos) * 100) : 0;
+  return (
+    <div className="rs-operador">
+      <h4 className="rs-subtitulo">🤖 {a.nome}</h4>
+      <div className="rs-cards">{cards.map(([v, l]) => <div key={l} className="rs-card"><b>{v}</b><span>{l}</span></div>)}</div>
+      {r.processos > 0 && (
+        <div className="rs-destaque">
+          <b>Leitura:</b> o agente atuou em {r.processos} processo(s) hoje; {r.atrasadosAoAtuar} ({pctAtrasados}%) estavam com a próxima ação atrasada quando ele chegou
+          {r.regularizados ? ` e ${r.regularizados} ficaram com prazo em dia depois da atuação` : ""}.
+          {r.seguemAtrasados + r.semProxima ? ` ${r.seguemAtrasados + r.semProxima} seguem com pendência (atrasado ou sem próxima ação).` : ""}
+          {r.cisSemResposta ? ` ${r.cisSemResposta} CI(s) ainda sem resposta dos destinatários depois da atuação.` : ""}
+        </div>
+      )}
+
+      <h4 className="rs-subtitulo">Por responsável (de quem eram os processos)</h4>
+      {a.porResponsavel.length ? (
+        <table className="rs-tab">
+          <thead><tr><th>Responsável</th><th>Processos atuados</th><th>Estavam atrasados</th><th>Estavam parados</th><th>Regularizados</th><th>Seguem atrasados</th></tr></thead>
+          <tbody>
+            {a.porResponsavel.map((p) => (
+              <tr key={p.nome}><td><b>{p.nome}</b></td><td className="num">{p.processos}</td><td className="num">{p.atrasados}</td><td className="num">{p.parados}</td><td className="num">{p.regularizados}</td><td className="num">{p.seguemAtrasados}</td></tr>
+            ))}
+          </tbody>
+        </table>
+      ) : <div className="muted rs-vazio">Nenhum processo atuado hoje.</div>}
+
+      <h4 className="rs-subtitulo">Processos ({a.processos.length})</h4>
+      {a.processos.length ? (
+        <table className="rs-tab">
+          <thead><tr><th>Nº</th><th>Segurado</th><th>Seg.</th><th>Responsável</th><th>Antes: próx. ação</th><th>Antes: sem histórico</th><th>O que o agente fez</th><th>Agora: próx. ação</th><th>Termôm.</th><th>Resultado</th><th>Horário</th></tr></thead>
+          <tbody>
+            {a.processos.map((p) => {
+              const [rot, cls] = RESULTADO_IA[p.resultado] || RESULTADO_IA.ok;
+              return (
+                <tr key={p.id}>
+                  <td className="mono">{p.numero}</td>
+                  <td>{p.segurado}</td>
+                  <td>{p.seguradora}</td>
+                  <td>{p.respNaHora}{p.respAtual !== p.respNaHora && <div className="rs-sub">agora: {p.respAtual}</div>}</td>
+                  <td className="nowrap"><PrazoAntes s={p.antes} /></td>
+                  <td className="num">{p.diasSemHist == null ? <span className="rs-pior">nunca teve</span> : <span className={p.parado ? "rs-pior" : ""}>{p.diasSemHist} d</span>}</td>
+                  <td>{p.feito.texto}{p.feito.jornada.length > 0 && <div className="rs-sub">{p.feito.jornada.join(" • ")}</div>}</td>
+                  <td className="nowrap"><PrazoAntes s={p.depois} data={p.prazoAgora} />{p.proxTitulo && <div className="rs-sub">{p.proxTitulo}</div>}</td>
+                  <td><Termo k={p.termometro} /></td>
+                  <td className={cls}>{rot}</td>
+                  <td className="nowrap mono">{p.horario}</td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      ) : <div className="muted rs-vazio">Nenhum processo atuado hoje.</div>}
+
+      <h4 className="rs-subtitulo">CIs ({a.cis.length})</h4>
+      {a.cis.length ? (
+        <table className="rs-tab">
+          <thead><tr><th>CI</th><th>Assunto</th><th>Papel do agente</th><th>Destinatários</th><th>O que o agente fez</th><th>Status</th><th>Depois da atuação</th></tr></thead>
+          <tbody>
+            {a.cis.map((c) => (
+              <tr key={c.id}>
+                <td className="mono nowrap">{c.ci}</td>
+                <td>{c.assunto || "—"}</td>
+                <td>{c.papel}</td>
+                <td>{c.destinatarios}</td>
+                <td>{c.feito}{c.intervencoesPendentes > 0 && <div className="rs-sub rs-pior">{c.intervencoesPendentes} resposta(s) de intervenção pendente(s)</div>}</td>
+                <td>{c.status}</td>
+                <td className={RESPOSTA_CI[c.resposta.tipo] || ""}>{c.resposta.texto}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      ) : <div className="muted rs-vazio">Nenhuma CI atuada hoje.</div>}
+    </div>
+  );
+}
+
 export function RelatorioSinistros({ onVoltar }) {
   const { records, config, saveConfig } = useData();
   const { currentUser } = useAuth();
@@ -99,7 +198,8 @@ export function RelatorioSinistros({ onVoltar }) {
     atendTemplate: config.corp_atendimento_template, templates: config.corp_journey_templates || {},
     agora, leituras, filtros,
     feedbacksAgenda: records.corp_agenda_feedback, claimsTodos: records.corp_claims,
-  }), [records.corp_claims, records.corp_tasks, records.corp_users, records.corp_agenda_feedback, overrides, currentUser, config.corp_atendimento_template, config.corp_journey_templates, agora, leituras, filtros]);
+    historicoResp: records.corp_responsabilidade_historico,
+  }), [records.corp_claims, records.corp_tasks, records.corp_users, records.corp_agenda_feedback, records.corp_responsabilidade_historico, overrides, currentUser, config.corp_atendimento_template, config.corp_journey_templates, agora, leituras, filtros]);
 
   const recorte = [
     filtros.responsavel !== "todos" ? filtros.responsavel : null,
@@ -307,34 +407,11 @@ export function RelatorioSinistros({ onVoltar }) {
         <Secao titulo={`Desempenho do agente de IA — ${hojeBR}`}>
           {!rel.agentesIA.length ? (
             <div className="muted rs-vazio">Nenhum usuário marcado como IA. Marque o agente em Configurações → Usuários → "Conceder IA" para ele aparecer aqui.</div>
-          ) : rel.agentesIA.map((a) => (
-            <div key={a.id} className="rs-operador">
-              <h4 className="rs-subtitulo">🤖 {a.nome}: {a.totalAcoes} ação(ões) hoje em {a.processosTocados} processo(s)</h4>
-              <div className="rs-cards">
-                {[[a.cisAbertasHoje, "CIs abertas hoje"], [a.cisConcluidasHoje, "CIs dele concluídas hoje"], [a.cisEmAberto, "CIs dele em aberto"],
-                  [a.intervencoesHoje, "Intervenções solicitadas"], [a.comentariosHoje, "Comentários em CIs"]]
-                  .map(([v, l]) => <div key={l} className="rs-card"><b>{v}</b><span>{l}</span></div>)}
-              </div>
-              <Contagens itens={a.porGrupo.map((g) => [`${g.icone} ${g.label}`, g.qtd])} />
-              <h4 className="rs-subtitulo">Últimas ações ({Math.min(a.ultimas.length, a.totalAcoes)} de {a.totalAcoes})</h4>
-              {a.ultimas.length ? (
-                <table className="rs-tab">
-                  <thead><tr><th>Hora</th><th>Ação</th><th>Onde</th><th>Detalhe</th></tr></thead>
-                  <tbody>
-                    {a.ultimas.map((x, i) => (
-                      <tr key={i}>
-                        <td className="nowrap mono">{fmtDateHoraBR(x.at)}</td>
-                        <td>{x.icone} {x.titulo}</td>
-                        <td>{x.alvo || "—"}</td>
-                        <td className="rs-hist">{x.detalhe || "—"}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              ) : <div className="muted rs-vazio">Nenhuma ação registrada hoje.</div>}
-            </div>
-          ))}
-          <p className="rs-nota">Esta seção é sempre global (não segue os filtros acima). Mesma fonte do módulo Desempenho: históricos, jornada, próxima ação e demais atualizações nos processos, e abertura, comentários e mudanças nas CIs.</p>
+          ) : rel.agentesIA.map((a) => <AgenteIA key={a.id} a={a} />)}
+          <p className="rs-nota">
+            Agrupado por processo e por CI. "Antes" é a situação no momento da primeira atuação do agente no dia (prazo da próxima ação vigente naquele instante, pela auditoria, e dias desde o último histórico).
+            "Responsável" é quem respondia pelo processo naquele momento. Esta seção é sempre global (não segue os filtros acima).
+          </p>
         </Secao>
 
         <footer className="rs-rodape">Sinistro360 • Relatório de Sinistros • gerado em {fmtDateHoraBR(rel.geradoEm)}</footer>

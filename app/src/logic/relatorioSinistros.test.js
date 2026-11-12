@@ -96,12 +96,54 @@ describe("relatorioSinistros", () => {
     const rel = montarRelatorioSinistros({ claims: [], tasks, users, agora });
     expect(rel.agentesIA).toHaveLength(1);
     const a = rel.agentesIA[0];
-    expect(a.cisAbertasHoje).toBe(2);
-    expect(a.cisConcluidasHoje).toBe(1);
-    expect(a.cisEmAberto).toBe(1);
-    expect(a.intervencoesHoje).toBe(1);
-    expect(a.comentariosHoje).toBe(1);
+    expect(a.resumo.cisAbertasHoje).toBe(2);
+    expect(a.resumo.cisConcluidasHoje).toBe(1);
+    expect(a.resumo.cisEmAberto).toBe(1);
+    expect(a.resumo.intervencoes).toBe(1);
+    // Uma linha por CI, não por ação.
+    const ci1 = a.cis.find((c) => c.ci === "CI-1");
+    expect(ci1.papel).toBe("Abriu");
+    expect(ci1.feito).toContain("1 comentário(s)");
+    expect(ci1.resposta.tipo).toBe("sem_resposta");
+    expect(ci1.intervencoesPendentes).toBe(1);
+    expect(a.cis.find((c) => c.ci === "CI-2").resposta.tipo).toBe("concluida");
     expect(montarRelatorioSinistros({ claims: [], tasks, users: [{ id: "m", nome: "Maria" }], agora }).agentesIA).toEqual([]);
+  });
+
+  it("agente de IA: processo atrasado quando atuou e regularizado depois, com o responsável da época", () => {
+    const hoje = (h) => new Date(2026, 10, 12, h, 0).toISOString();
+    const claims = [claim("p1")];
+    const overrides = {
+      p1: {
+        responsavelUser: { id: "g", nome: "George" },
+        nextAction: { date: "2026-11-14", title: "Retorno" },
+        comms: [
+          { at: "2026-11-05T12:00:00.000Z", date: "2026-11-05", text: "antigo", who: "Maria", whoId: "m" },
+          { at: hoje(10), date: "2026-11-12", text: "cobrado", who: "Agente IA", whoId: "ia" },
+        ],
+        audit: [
+          { at: "2026-10-20T12:00:00.000Z", acao: "Próxima ação definida", detalhe: "Retorno — prazo 01/11/2026", who: "Maria", whoId: "m" },
+          { at: hoje(10), acao: "Próxima ação definida", detalhe: "Retorno — prazo 14/11/2026", who: "Agente IA", whoId: "ia" },
+        ],
+      },
+    };
+    const historicoResp = [
+      { claimId: "p1", usuarioResponsavelId: "m", inicioResponsabilidadeEm: "2026-10-01T00:00:00.000Z", fimResponsabilidadeEm: hoje(15) },
+      { claimId: "p1", usuarioResponsavelId: "g", inicioResponsabilidadeEm: hoje(15), fimResponsabilidadeEm: null },
+    ];
+    const users = [{ id: "ia", nome: "Agente IA", ia: true }, { id: "m", nome: "Maria" }, { id: "g", nome: "George" }];
+    const rel = montarRelatorioSinistros({ claims, overrides, tasks: [], users, agora, historicoResp });
+    const a = rel.agentesIA[0];
+    expect(a.processos).toHaveLength(1);
+    const p = a.processos[0];
+    expect(p.respNaHora).toBe("Maria");
+    expect(p.respAtual).toBe("George");
+    expect(p.antes).toEqual({ prazo: "atrasado", dias: 11 });
+    expect(p.diasSemHist).toBe(7);
+    expect(p.parado).toBe(true);
+    expect(p.resultado).toBe("regularizado");
+    expect(p.feito.texto).toBe("1 histórico, 1 próxima ação");
+    expect(a.porResponsavel).toEqual([{ nome: "Maria", processos: 1, atrasados: 1, parados: 1, regularizados: 1, seguemAtrasados: 0 }]);
   });
 
   it("grava a leitura do dia e compara com a anterior", () => {
