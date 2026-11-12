@@ -12,7 +12,7 @@ import { listaOficinas, oficinaIdFromNome } from "../logic/oficinas";
 import { listaSeguradoras, seguradoraIdFromNome } from "../logic/seguradoras";
 import { txt, todayISO } from "../logic/format";
 import { isAdmin, canEdit } from "../data/auth";
-import { regrasDestAuto, destinatariosAutomaticos, AUTOR_SISTEMA, interacaoConsideradaAtiva } from "../logic/ciAutomacao";
+import { regrasDestAuto, destinatariosAutomaticos, AUTOR_SISTEMA, interacaoConsideradaAtiva, ehUsuarioIA, semUsuariosIA } from "../logic/ciAutomacao";
 import { descreverAlteracoesTarefa, TASK_FLAGS_DEFAULT, proximoCI, RECORRENCIA_UNIDADES, resumoRecorrencia, taskCienteByMe, acompanhaTarefa } from "../logic/tasks";
 import { getChecklistEfetivo, checklistProgresso, checklistVazio, sincronizarComFormulario } from "../logic/checklistMesaAtendimento";
 import { getFormularioEfetivo, formularioDisponivel, caminhoPastaSolicitacao, secaoRepetivel } from "../logic/solicitacaoAtendimento";
@@ -311,9 +311,9 @@ function RecorrenciaFields({ recorrencia, onChange }) {
 
 // Intervenção (Admin/VIP): comentário obrigatório que trava a tela de cada
 // destinatário até ele responder (IntervencaoAlertaModal.jsx).
-function IntervencaoForm({ task, currentUser, actions, onFechar }) {
+function IntervencaoForm({ task, currentUser, actions, users, onFechar }) {
   const [texto, setTexto] = useState("");
-  const alvos = (task.destinatarios || []).filter((id) => id !== currentUser.id);
+  const alvos = semUsuariosIA((task.destinatarios || []).filter((id) => id !== currentUser.id), users);
   function enviar() {
     const t = texto.trim();
     if (!t) { alert("Escreva o comentário da intervenção — ele é enviado aos destinatários."); return; }
@@ -440,7 +440,8 @@ function AcoesRapidasCI({ task, currentUser, actions }) {
 function Chat({ task, currentUser, actions, users }) {
   const [text, setText] = useState("");
   const [intervindo, setIntervindo] = useState(false);
-  const podeIntervir = isAdmin(currentUser) && task.status !== "Concluído";
+  // Usuário "IA" também pode solicitar intervenção (a pedido do usuário).
+  const podeIntervir = (isAdmin(currentUser) || ehUsuarioIA(currentUser)) && task.status !== "Concluído";
   const podeExcluirAuto = actions.podeConsiderarInteracao(currentUser);
   const boxRef = useRef(null);
   const msgs = task.comments || [];
@@ -475,7 +476,7 @@ function Chat({ task, currentUser, actions, users }) {
           )}
         </div>
       </div>
-      {intervindo && <IntervencaoForm task={task} currentUser={currentUser} actions={actions} onFechar={() => setIntervindo(false)} />}
+      {intervindo && <IntervencaoForm task={task} currentUser={currentUser} actions={actions} users={users} onFechar={() => setIntervindo(false)} />}
       <IntervencoesStatus task={task} users={users} />
       <div className="chat-box" ref={boxRef}>
         {!msgs.length ? <div className="chat-empty">Nenhum comentário ainda. Inicie a conversa abaixo.</div> : msgs.map((m) => {
@@ -674,7 +675,7 @@ export function TaskModal() {
     if (!open || !(currentUser && currentUser.role === "consulta") || tipo !== "Mesa de Atendimento") return;
     setDestSel((s) => {
       const next = { ...s };
-      (records.corp_users || []).forEach((u) => { if (u.role !== "consulta") next[u.id] = true; });
+      (records.corp_users || []).forEach((u) => { if (u.role !== "consulta" && !ehUsuarioIA(u)) next[u.id] = true; });
       return next;
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -937,7 +938,9 @@ export function TaskModal() {
         <div className="field">
           <label>Destinatário(s) — pode selecionar vários</label>
           <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
-            {users.map((u) => (
+            {/* Usuário "IA" não aparece como destinatário — só continua
+                visível numa CI antiga que já o tinha, pra poder desmarcar. */}
+            {users.filter((u) => !ehUsuarioIA(u) || destSel[u.id]).map((u) => (
               <label key={u.id} className={"chip-btn" + (destSel[u.id] ? " active" : "")} style={{ cursor: bloqueada ? "default" : "pointer" }}
                 onClick={() => { if (!bloqueada) setDestSel((s) => ({ ...s, [u.id]: !s[u.id] })); }}
               >{u.nome}</label>

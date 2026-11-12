@@ -133,6 +133,7 @@ export function UsersCard({ users, currentUser, saveRecord, agentesDisponiveis, 
   const [senha, setSenha] = useState("");
   const [role, setRole] = useState("atendente");
   const [vip, setVip] = useState(false);
+  const [ia, setIa] = useState(false);
   const [modSel, setModSel] = useState(() => {
     const sel = {};
     MODULOS_DISPONIVEIS.forEach((m) => { sel[m[0]] = true; });
@@ -152,8 +153,8 @@ export function UsersCard({ users, currentUser, saveRecord, agentesDisponiveis, 
     if (findByEmail(users, e)) { alert("Já existe um usuário com este e-mail."); return; }
     const modulos = MODULOS_DISPONIVEIS.map((m) => m[0]).filter((k) => modSel[k]);
     const { senhaSalt, senhaHash } = await hashNewPassword(s);
-    saveUsers((current) => [...(current || []), { id: uid("usr"), nome: n, email: e, senhaSalt, senhaHash, role, modulos, ...(vip ? { vip: true } : {}) }]);
-    setNome(""); setEmail(""); setSenha(""); setVip(false);
+    saveUsers((current) => [...(current || []), { id: uid("usr"), nome: n, email: e, senhaSalt, senhaHash, role, modulos, ...(vip ? { vip: true } : {}), ...(ia ? { ia: true } : {}) }]);
+    setNome(""); setEmail(""); setSenha(""); setVip(false); setIa(false);
   }
 
   // VIP (a pedido do usuário): mantém a função exibida (Atendente/Analista/
@@ -162,6 +163,14 @@ export function UsersCard({ users, currentUser, saveRecord, agentesDisponiveis, 
   function toggleVip(u) {
     if (u.role === "admin") { alert("Administrador já tem acesso total — VIP não se aplica."); return; }
     saveUsers((current) => (current || []).map((x) => (x.id === u.id ? { ...x, vip: !x.vip } : x)));
+  }
+
+  // IA (a pedido do usuário): o usuário some da lista de destinatários das
+  // CIs (nunca recebe direcionamento de atendimento) e não recebe o alerta
+  // para responder intervenções — mas pode solicitar intervenção. Ver
+  // ehUsuarioIA em logic/ciAutomacao.js. Guardado em u.ia.
+  function toggleIa(u) {
+    saveUsers((current) => (current || []).map((x) => (x.id === u.id ? { ...x, ia: !x.ia } : x)));
   }
 
   function abrirModulos(u) {
@@ -287,6 +296,10 @@ export function UsersCard({ users, currentUser, saveRecord, agentesDisponiveis, 
         <input type="checkbox" checked={vip} onChange={(e) => setVip(e.target.checked)} />
         <span>★ Acesso VIP — mantém a função escolhida acima, mas passa a ter todos os acessos de um Administrador</span>
       </label>
+      <label style={{ display: "flex", alignItems: "center", gap: 8, cursor: "pointer", marginBottom: 10 }}>
+        <input type="checkbox" checked={ia} onChange={(e) => setIa(e.target.checked)} />
+        <span>🤖 IA — não aparece como destinatário das CIs (nunca recebe direcionamento de atendimento) e não recebe alerta para responder intervenções; pode solicitar intervenção</span>
+      </label>
 
       <div className="field">
         <label>Módulos que este usuário pode acessar (Admin/VIP sempre vê tudo)</label>
@@ -318,6 +331,7 @@ export function UsersCard({ users, currentUser, saveRecord, agentesDisponiveis, 
                 <td>
                   <span className={"badge " + (u.role === "admin" ? "purple" : u.role === "consulta" ? "gray" : "blue")}>{ROLE_LABELS[u.role]}</span>
                   {u.vip && <span className="badge amber" style={{ marginLeft: 4 }} title="Acesso VIP: permissões de Administrador mantendo a função">★ VIP</span>}
+                  {u.ia && <span className="badge purple" style={{ marginLeft: 4 }} title="IA: fora dos destinatários das CIs e sem alerta para responder intervenções">🤖 IA</span>}
                 </td>
                 <td>
                   <button className="btn ghost xs" style={{ marginRight: 6 }} onClick={() => abrirModulos(u)}>Módulos</button>
@@ -329,6 +343,9 @@ export function UsersCard({ users, currentUser, saveRecord, agentesDisponiveis, 
                   {u.role !== "admin" && (
                     <button className="btn ghost xs" style={{ marginRight: 6 }} onClick={() => toggleVip(u)}>{u.vip ? "Remover VIP" : "Conceder VIP"}</button>
                   )}
+                  <button className="btn ghost xs" style={{ marginRight: 6 }} onClick={() => toggleIa(u)}
+                    title="IA: não aparece como destinatário das CIs e não recebe alerta para responder intervenções (pode solicitar intervenção)"
+                  >{u.ia ? "Remover IA" : "Conceder IA"}</button>
                   <button className="btn sec xs" onClick={() => editar(u)}>Editar</button>
                   <button className="btn danger xs" style={{ marginLeft: 6 }} onClick={() => remover(u)}>Remover</button>
                 </td>

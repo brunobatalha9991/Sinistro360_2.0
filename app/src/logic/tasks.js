@@ -282,8 +282,11 @@ export function demandaUnreadCount(demandas) {
 // Fica em t.intervencoes = [{ id, autorId, texto, at, alvos, respostas }],
 // com respostas[userId] = { texto, at }. Pendentes = intervenções em que o
 // usuário é alvo e ainda não respondeu (mais antigas primeiro).
-export function intervencoesPendentes(tasks, userId) {
+// `opts.ia` = o usuário tem o botão "IA" (ver ehUsuarioIA em
+// logic/ciAutomacao.js): nunca tem intervenção pendente pra responder.
+export function intervencoesPendentes(tasks, userId, opts) {
   const out = [];
+  if (opts && opts.ia) return out;
   (tasks || []).forEach((t) => {
     if (!t || t.arquivadoManualmente) return;
     (t.intervencoes || []).forEach((iv) => {

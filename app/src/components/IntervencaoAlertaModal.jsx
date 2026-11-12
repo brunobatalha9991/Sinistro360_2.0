@@ -50,7 +50,7 @@ export function IntervencaoAlertaModal({ currentUser }) {
   const { records } = useData();
   const actions = useTasksActions();
   const notificados = useRef(new Set());
-  const pendentes = currentUser ? intervencoesPendentes(records.corp_tasks, currentUser.id) : [];
+  const pendentes = currentUser ? intervencoesPendentes(records.corp_tasks, currentUser.id, { ia: !!currentUser.ia }) : [];
 
   const chaves = pendentes.map((p) => p.iv.id).join(",");
   useEffect(() => {

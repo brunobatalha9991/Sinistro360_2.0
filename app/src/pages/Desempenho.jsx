@@ -473,7 +473,7 @@ export function Desempenho() {
       abertas: minhasCIs.length,
       urgentes: minhasCIs.filter((x) => x.urgencia === "Urgente").length,
       semInteracao: minhasCIs.filter((x) => !(x.ciente && x.ciente[u.id]) && !(x.comments || []).some((c) => c.userId === u.id)).length,
-      intervencoes: intervencoesPendentes(tasks, u.id).length,
+      intervencoes: intervencoesPendentes(tasks, u.id, { ia: !!u.ia }).length,
     };
     const fila = filaDoDia({ claims, overrides, tasks, userId: u.id, atendTemplateCfg, templates, roteiro });
     const analise = comExtras(comCI(comConduta(comAgenda(gerarFeedbackEPlanoDeAcao(m, metricas), agenda), conduta), ci, fmtPct), ex, as, en);

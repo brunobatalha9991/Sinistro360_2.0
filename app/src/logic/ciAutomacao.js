@@ -31,8 +31,24 @@ export function ausenciaCfg(config) {
   return { ...AUSENCIA_CFG_DEFAULT, ...((config && config.corp_ci_ausencia) || {}) };
 }
 
+// "IA" (a pedido do usuário, concedido em Configurações → Usuários, guardado
+// em u.ia): o usuário nunca é destinatário de CI — não aparece na lista de
+// destinatários, não entra pelas regras automáticas, generalização,
+// redirecionamento de pausa nem escalonamento — e não recebe o alerta para
+// responder intervenções (mas pode solicitar intervenção).
+export function ehUsuarioIA(u) {
+  return !!(u && u.ia);
+}
+
+// Tira os usuários IA de uma lista de ids de destinatários.
+export function semUsuariosIA(ids, users) {
+  const ia = new Set((users || []).filter(ehUsuarioIA).map((u) => u.id));
+  if (!ia.size) return ids || [];
+  return (ids || []).filter((id) => !ia.has(id));
+}
+
 function naoConsulta(users) {
-  return (users || []).filter((u) => u && u.role !== "consulta").map((u) => u.id);
+  return (users || []).filter((u) => u && u.role !== "consulta" && !ehUsuarioIA(u)).map((u) => u.id);
 }
 
 export function regraAplica(regra, tipo, tipoAtendimento) {
@@ -43,7 +59,7 @@ export function regraAplica(regra, tipo, tipoAtendimento) {
 // Ids que as regras mandam marcar para este tipo/subtipo de CI (sem repetir,
 // só usuários que ainda existem).
 export function destinatariosAutomaticos(regras, users, tipo, tipoAtendimento) {
-  const existentes = new Set((users || []).map((u) => u.id));
+  const existentes = new Set((users || []).filter((u) => u && !ehUsuarioIA(u)).map((u) => u.id));
   const out = new Set();
   (regras || []).forEach((r) => {
     if (!regraAplica(r, tipo, tipoAtendimento)) return;
@@ -85,7 +101,7 @@ export function ehUsuarioAdministrador(u) {
   return !!u && (u.role === "admin" || nomeNormalizado(u) === "administrador");
 }
 function ehOperador(u) {
-  return !!u && u.role !== "consulta" && !ehUsuarioAdministrador(u);
+  return !!u && u.role !== "consulta" && !ehUsuarioAdministrador(u) && !ehUsuarioIA(u);
 }
 
 // "Vacina" contra versões antigas abertas (abas sem F5): elas ainda contam
@@ -292,8 +308,8 @@ function semAcento(s) {
 // primeiro usuário chamado "Bruno".
 export function usuarioEscalonamentoId(cfg, users) {
   const lista = users || [];
-  if (cfg && cfg.escalonarPara && lista.some((u) => u.id === cfg.escalonarPara)) return cfg.escalonarPara;
-  const bruno = lista.find((u) => u && u.role !== "consulta" && semAcento(u.nome).split(/\s+/)[0] === "bruno");
+  if (cfg && cfg.escalonarPara && lista.some((u) => u.id === cfg.escalonarPara && !ehUsuarioIA(u))) return cfg.escalonarPara;
+  const bruno = lista.find((u) => u && u.role !== "consulta" && !ehUsuarioIA(u) && semAcento(u.nome).split(/\s+/)[0] === "bruno");
   return bruno ? bruno.id : null;
 }
 

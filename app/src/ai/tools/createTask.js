@@ -43,7 +43,8 @@ export const createTaskTool = {
 
     let destinatario = null;
     const dn = String(args.destinatarioNome || "").trim().toLowerCase();
-    if (dn) destinatario = users.find((u) => String(u.nome || "").toLowerCase().indexOf(dn) >= 0) || null;
+    // Usuário "IA" nunca é destinatário de CI (ver ehUsuarioIA).
+    if (dn) destinatario = users.find((u) => !u.ia && String(u.nome || "").toLowerCase().indexOf(dn) >= 0) || null;
     if (!destinatario) destinatario = currentUser;
 
     const novaTarefa = {

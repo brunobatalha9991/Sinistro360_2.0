@@ -283,7 +283,7 @@ export function RoteiroWidget({ currentUser, navigate }) {
   const ciInfo = useMemo(() => {
     if (!pessoal) return { abertas: 0, urgentes: 0, intervencoes: 0 };
     const minhas = (tasks || []).filter((x) => x && (x.destinatarios || []).includes(currentUser.id) && x.origem !== currentUser.id && x.status !== "Concluído" && !x.arquivadoManualmente);
-    return { abertas: minhas.length, urgentes: minhas.filter((x) => x.urgencia === "Urgente").length, intervencoes: intervencoesPendentes(tasks, currentUser.id).length };
+    return { abertas: minhas.length, urgentes: minhas.filter((x) => x.urgencia === "Urgente").length, intervencoes: intervencoesPendentes(tasks, currentUser.id, { ia: !!currentUser.ia }).length };
   }, [pessoal, tasks, currentUser]);
 
   // Contagem regressiva no título da aba — ajuda quando o sistema está em

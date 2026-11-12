@@ -2,7 +2,7 @@ import { useData } from "../data/DataProvider.jsx";
 import { useAuth } from "./useAuth";
 import { isAdmin } from "../data/auth";
 import { resumoHistoricoCI } from "../logic/desempenhoCI";
-import { semInteracaoCfg, usuarioEscalonamentoId, AUTOR_SISTEMA, preservarAutomacaoCI } from "../logic/ciAutomacao";
+import { semInteracaoCfg, usuarioEscalonamentoId, AUTOR_SISTEMA, preservarAutomacaoCI, semUsuariosIA } from "../logic/ciAutomacao";
 import { aplicarAlertaCI, resolverAlertasCI } from "../logic/notificacoes";
 import { taskParticipants, acompanhantesSemParticipacao, acompanhaTarefa, proximoCI, recorrenciaVencida, recorrenciaEncerrada, gerarOcorrenciaRecorrente } from "../logic/tasks";
 
@@ -341,7 +341,8 @@ export function useTasksActions() {
   // resposta obrigatória (IntervencaoAlertaModal.jsx).
   function intervir(task, texto, autor) {
     const at = new Date().toISOString();
-    const alvos = (task.destinatarios || []).filter((id) => id && id !== autor.id);
+    // Usuário "IA" não recebe intervenção pra responder (ver ehUsuarioIA).
+    const alvos = semUsuariosIA((task.destinatarios || []).filter((id) => id && id !== autor.id), records.corp_users || []);
     const iv = { id: "itv_" + Math.random().toString(36).slice(2, 9), autorId: autor.id, texto, at, alvos, respostas: {} };
     saveRecord("corp_tasks", (current) => (current || []).map((t) => (t.id !== task.id ? t : {
       ...t,

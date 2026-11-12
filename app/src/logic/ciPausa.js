@@ -15,7 +15,7 @@
 // motivos: { userId: { tipo, desde } }, alvosCiente, cientes: { userId: at },
 // encerradoEm }. Campo novo: versões antigas do app só o preservam.
 import { ocorrenciasDoDia, indexarFeedbacks, instante, dataLocalISO, temAgendaPropria } from "./agenda";
-import { AUTOR_SISTEMA, ehUsuarioAdministrador } from "./ciAutomacao";
+import { AUTOR_SISTEMA, ehUsuarioAdministrador, ehUsuarioIA } from "./ciAutomacao";
 
 export const TIPOS_PAUSA = {
   almoco: { label: "almoço", icone: "🍽️" },
@@ -83,7 +83,7 @@ export function ciEmergencial(t) {
 // muda, e os eventos pra notificar ({ tipo: "redirecionada"|"devolvida", task, ... }).
 export function processarPausasCI(tasks, users, blocos, feedbacks, agora = new Date()) {
   const at = agora.toISOString();
-  const operadores = (users || []).filter((u) => u && u.role !== "consulta" && !ehUsuarioAdministrador(u)).map((u) => u.id);
+  const operadores = (users || []).filter((u) => u && u.role !== "consulta" && !ehUsuarioAdministrador(u) && !ehUsuarioIA(u)).map((u) => u.id);
   const cachePausa = {};
   const pausaDe = (id) => {
     if (!(id in cachePausa)) cachePausa[id] = pausaAtual(blocos, feedbacks, (users || []).find((u) => u.id === id), agora);
