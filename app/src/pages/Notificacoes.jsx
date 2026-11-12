@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useData } from "../data/DataProvider.jsx";
 import { useAuth } from "../hooks/useAuth";
 import { useTasksActions } from "../hooks/useTasksActions";
@@ -6,6 +6,8 @@ import { myNotifs } from "../logic/tasks";
 import { EmptyState } from "../components/EmptyState.jsx";
 import { NotifLista } from "../components/NotifBell.jsx";
 import { CATEGORIAS_NOTIF, categoriaNotif } from "../logic/notificacoes";
+import { TaskModal } from "../components/TaskModal.jsx";
+import { closeTaskModal } from "../state/taskModal";
 
 const LEITURA_CHIPS = [["todas", "Todas"], ["nao_lidas", "Não lidas"], ["lidas", "Lidas"]];
 const PASSO = 50;
@@ -28,6 +30,10 @@ export function Notificacoes() {
   const [q, setQ] = useState("");
   const [limite, setLimite] = useState(PASSO);
   const [selecao, setSelecao] = useState(() => new Set());
+
+  // A CI aberta daqui (modal por cima da lista) fecha ao sair do módulo —
+  // senão reapareceria sozinha na próxima tela que monta o TaskModal.
+  useEffect(() => () => closeTaskModal(), []);
 
   const todas = myNotifs(records.corp_notifs || [], currentUser);
   const naoLidas = todas.filter((n) => !n.read).length;
@@ -104,7 +110,7 @@ export function Notificacoes() {
 
       <div className="card notif-pagina">
         {!visiveis.length ? <EmptyState>Nenhuma notificação neste filtro.</EmptyState> : (
-          <NotifLista list={visiveis} selecao={selecao} onAlternarSelecao={alternarSelecao} />
+          <NotifLista list={visiveis} selecao={selecao} onAlternarSelecao={alternarSelecao} abrirCINoLugar />
         )}
         {filtradas.length > visiveis.length && (
           <div style={{ textAlign: "center", marginTop: 10 }}>
@@ -114,6 +120,9 @@ export function Notificacoes() {
           </div>
         )}
       </div>
+
+      {/* CI aberta a partir de uma notificação: por cima da lista, sem sair do módulo. */}
+      <TaskModal />
     </div>
   );
 }

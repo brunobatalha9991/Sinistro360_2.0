@@ -6,6 +6,7 @@ import { useStore } from "../hooks/useStore";
 import { useTasksActions } from "../hooks/useTasksActions";
 import { useAgendaActions } from "../hooks/useAgendaActions";
 import { notifPanelStore } from "../state/notifPanel";
+import { openTaskModal } from "../state/taskModal";
 import { myNotifs, myUnreadCount } from "../logic/tasks";
 import { EmptyState } from "./EmptyState.jsx";
 import { ComentariosFeedback } from "./agenda/FeedbacksPanel.jsx";
@@ -97,7 +98,9 @@ function fmtTratada(iso) {
 // item (o sino usa pra se fechar).
 // `selecao` (Set de ids) + `onAlternarSelecao` ligam a caixa de seleção de
 // cada card — só o módulo Notificações usa; o sino não passa.
-export function NotifLista({ list, onAbrir, selecao, onAlternarSelecao }) {
+// `abrirCINoLugar`: abre a CI em modal por cima da página atual (módulo
+// Notificações monta o <TaskModal />) em vez de ir pra Comunicação.
+export function NotifLista({ list, onAbrir, selecao, onAlternarSelecao, abrirCINoLugar }) {
   const { records } = useData();
   const { currentUser } = useAuth();
   const { navigate } = useHashRoute();
@@ -120,7 +123,17 @@ export function NotifLista({ list, onAbrir, selecao, onAlternarSelecao }) {
     if (n.tipo === "conduta_resposta") { navigate("desempenho", n.alvoId); return; }
     if (n.taskId === "__demanda__") { navigate("demandas"); return; }
     const t = tasks.find((x) => x.id === n.taskId);
-    if (t) navigate("tarefas", "open-" + t.id);
+    if (!t) return;
+    // No módulo Notificações (abrirCINoLugar): a CI abre por cima da lista,
+    // sem sair da página — fechando, o usuário continua onde estava. Marca
+    // como lidas as notificações dessa CI, igual ao abrir pela Comunicação.
+    if (abrirCINoLugar) {
+      (records.corp_notifs || []).filter((x) => x.taskId === t.id && x.userId === currentUser.id && !x.read && x.id !== n.id)
+        .forEach((x) => actions.markNotifRead(x.id));
+      openTaskModal(t.id);
+      return;
+    }
+    navigate("tarefas", "open-" + t.id);
   }
 
   return list.map((n) => {
