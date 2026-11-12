@@ -6,7 +6,7 @@ import { LinkAcompanhamentoModal } from "./LinkAcompanhamentoModal.jsx";
 import { usePublicTrackingSync } from "../../hooks/usePublicTrackingSync";
 import { useData } from "../../data/DataProvider.jsx";
 import { podeSerResponsavel } from "../../data/auth";
-import { setDemandaPrefill } from "../../state/taskModal";
+import { useAbrirCI } from "../../hooks/useAbrirCI";
 import { tarefasAbertasDoProcesso } from "../../logic/tasks";
 import { setComsPrefill } from "../../state/comsPrefill";
 import { setAberturaPrefill } from "../../state/aberturaPrefill";
@@ -150,6 +150,7 @@ function ObservacoesBox({ c, overrides, actions, canEdit }) {
 
 export function DetailHeader({ c, sit, rel, claims, allClaimsRaw, overrides, users, currentUser, isAdminUser, canEdit, actions, navigate, setDetailTab }) {
   const { config, saveConfig, records } = useData();
+  const { abrirCI, novaCI } = useAbrirCI();
   const comunicacoesAbertas = tarefasAbertasDoProcesso(records.corp_tasks, c.id);
   const tempOpts = config.corp_temp_options && config.corp_temp_options.length ? config.corp_temp_options : DEFAULT_TEMP_OPTIONS;
   const sitOpts = config.corp_sit_options && config.corp_sit_options.length ? config.corp_sit_options : DEFAULT_SIT_OPTIONS;
@@ -320,8 +321,7 @@ export function DetailHeader({ c, sit, rel, claims, allClaimsRaw, overrides, use
         <button
           className="btn sec xs" style={{ width: "100%", flex: 1 }}
           onClick={() => {
-            setDemandaPrefill({ titulo: `Processo ${numsinEf || "#" + c.nosnum} — ${txt(seguradoEf)}`, descricao: "", processoId: c.id });
-            navigate("tarefas", "newfromdemanda");
+            novaCI({ titulo: `Processo ${numsinEf || "#" + c.nosnum} — ${txt(seguradoEf)}`, descricao: "", processoId: c.id });
           }}
         >
           + Criar tarefa vinculada a este processo
@@ -333,7 +333,7 @@ export function DetailHeader({ c, sit, rel, claims, allClaimsRaw, overrides, use
           <a
             className="badge purple" style={{ cursor: "pointer", justifyContent: "center" }}
             title="Ver as comunicações internas vinculadas a este processo"
-            onClick={() => (comunicacoesAbertas.length === 1 ? navigate("tarefas", "open-" + comunicacoesAbertas[0].id) : setDetailTab("comunicacao"))}
+            onClick={() => (comunicacoesAbertas.length === 1 ? abrirCI(comunicacoesAbertas[0].id) : setDetailTab("comunicacao"))}
           >
             💬 {comunicacoesAbertas.length === 1 ? "1 comunicação interna em aberto" : `${comunicacoesAbertas.length} comunicações internas em aberto`} →
           </a>

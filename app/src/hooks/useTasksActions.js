@@ -83,15 +83,26 @@ export function useTasksActions() {
   // visível só pro admin (ver TaskAuditPanel em TaskModal.jsx). A
   // notificação enviada aos participantes usa `notifTexto` se informado,
   // senão cai pro primeiro item da lista.
-  function taskInteract(task, acoes, exceptUserId, emergencia, notifTexto) {
+  // `semNotificar`: ids que não recebem a notificação genérica (ex.: quem foi
+  // marcado com "@" recebe só a notificação de marcação).
+  function taskInteract(task, acoes, exceptUserId, emergencia, notifTexto, semNotificar) {
     const lista = Array.isArray(acoes) ? acoes : [acoes];
     const updatedAt = new Date().toISOString();
     const novasEntradas = lista.map((acao) => ({ at: updatedAt, who: exceptUserId, acao }));
     const next = { ...task, updatedAt, log: [...(task.log || []), ...novasEntradas] };
     saveTask(next);
-    pushNotif(task.id, taskParticipants(task), notifTexto || lista[0], exceptUserId, emergencia);
-    notificarAcompanhantes(task, notifTexto || lista[0], exceptUserId, emergencia);
+    const pular = new Set(semNotificar || []);
+    pushNotif(task.id, taskParticipants(task).filter((id) => !pular.has(id)), notifTexto || lista[0], exceptUserId, emergencia);
+    notificarAcompanhantes({ ...task, acompanhantes: (task.acompanhantes || []).filter((id) => !pular.has(id)) }, notifTexto || lista[0], exceptUserId, emergencia);
     return next;
+  }
+
+  // Marcação "@" num comentário da CI (ver logic/mencoes.js): cada marcado
+  // recebe uma notificação própria (tipo "mencao", destaque no sino).
+  function notificarMencoes(task, userIds, autor, texto) {
+    const alvos = (userIds || []).filter((id) => id && id !== autor.id);
+    if (!alvos.length) return;
+    pushNotif(task.id, alvos, `@ ${autor.nome} marcou você na ${task.ci || "CI"}: ${String(texto || "").slice(0, 80)}`, autor.id, false, false, false, { tipo: "mencao" });
   }
 
   // Liga/desliga o "Acompanhar" do usuário (Admin/VIP) nesta CI — fica na
@@ -396,7 +407,7 @@ export function useTasksActions() {
 
   return {
     pushNotif, saveTask, createTask, taskInteract, alternarAcompanhamento, considerarInteracao, excluirComentariosAutomaticos, pushAlertaCI, resolverAlertasDaCI, podeConsiderarInteracao, avaliarEscalonamento, cienteRedirecionamento, arquivarManualmente, excluirTarefa, definirOrdemManual,
-    markTaskCiente, markNotifRead, marcarNotifTratada, dismissAlarmeMesa, markAllNotifsRead, marcarNotifsLidas, apagarNotifs, purgeOldTasks, gerarOcorrenciasRecorrentes,
+    markTaskCiente, markNotifRead, marcarNotifTratada, dismissAlarmeMesa, markAllNotifsRead, notificarMencoes, marcarNotifsLidas, apagarNotifs, purgeOldTasks, gerarOcorrenciasRecorrentes,
     intervir, responderIntervencao,
   };
 }

@@ -182,6 +182,24 @@ h1,h2,h3,h4{font-family:var(--font-display);letter-spacing:-.01em;color:var(--in
 .notif-item .nt-sel{width:16px;height:16px;flex-shrink:0;margin:2px 0 0;cursor:pointer;accent-color:var(--brand)}
 .notif-item.selecionada{outline:2px solid rgba(var(--brand-rgb),.55);outline-offset:-2px}
 .notif-acoes-lote{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+/* Marcação "@" — notificação, comentário e lista de sugestões (amarelo). */
+.notif-item.mencao{background:rgba(var(--warn-rgb),.08);border-color:rgba(var(--warn-rgb),.3)}
+.notif-item.mencao.unread{background:rgba(var(--warn-rgb),.16);border-color:rgba(var(--warn-rgb),.6)}
+.notif-item.mencao:hover{background:rgba(var(--warn-rgb),.22)}
+.notif-item.mencao .nt-dot{background:var(--warn);box-shadow:0 0 8px rgba(var(--warn-rgb),.8)}
+.notif-item.mencao.read .nt-dot{background:rgba(var(--warn-rgb),.4);box-shadow:none}
+.chat-msg.mencao{box-shadow:0 0 0 2px rgba(var(--warn-rgb),.55)}
+.chat-msg.theirs.mencao{background:rgba(var(--warn-rgb),.12);border-color:rgba(var(--warn-rgb),.6)}
+.chat-msg.mencao-eu{box-shadow:0 0 0 2px rgb(var(--warn-rgb)),0 0 12px rgba(var(--warn-rgb),.45)}
+.chat-msg.theirs.mencao-eu{background:rgba(var(--warn-rgb),.22)}
+.mencao-chip{font-weight:700;border-radius:4px;padding:0 3px;background:rgba(var(--warn-rgb),.25)}
+.mencao-chip.eu{background:rgb(var(--warn-rgb));color:#1a1300}
+.chat-msg.mine .mencao-chip{background:rgba(255,255,255,.25);color:#fff}
+.chat-msg.mine .mencao-chip.eu{background:rgb(var(--warn-rgb));color:#1a1300}
+.mencao-campo{position:relative;flex:1;min-width:0}
+.mencao-lista{position:absolute;left:0;bottom:calc(100% + 4px);z-index:5;min-width:220px;max-width:100%;max-height:220px;overflow:auto;background:var(--card-solid);border:1px solid var(--border);border-radius:10px;box-shadow:var(--shadow-lg);padding:4px}
+.mencao-op{padding:6px 10px;border-radius:7px;font-size:13px;cursor:pointer;color:var(--ink)}
+.mencao-op.ativo{background:rgba(var(--warn-rgb),.2)}
 /* Versões do sistema (Configurações) */
 .versao-form{border:1px solid var(--border);border-radius:12px;padding:14px;background:var(--surface-2);margin-bottom:12px}
 .versao-itens{display:flex;flex-direction:column;gap:6px}

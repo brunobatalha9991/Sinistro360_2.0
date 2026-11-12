@@ -18,6 +18,8 @@ import { AnexosPanel } from "../components/detail/AnexosPanel.jsx";
 import { PesquisaSatisfacaoPanel } from "../components/detail/PesquisaSatisfacaoPanel.jsx";
 import { ComunicacaoInternaPanel } from "../components/detail/ComunicacaoInternaPanel.jsx";
 import { tarefasAbertasDoProcesso } from "../logic/tasks";
+import { TaskModal } from "../components/TaskModal.jsx";
+import { closeTaskModal } from "../state/taskModal";
 import { visibleClaims, relatedClaims } from "../logic/claims";
 import { mapSituacao } from "../logic/situacao";
 import { isAdmin, canEdit as canEditRole } from "../data/auth";
@@ -81,6 +83,9 @@ export function Sinistro() {
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [c && c.id]);
+  // CI aberta/criada por cima do processo (TaskModal montado aqui embaixo):
+  // fecha ao sair da página, pra não reaparecer sozinha em outra tela.
+  useEffect(() => () => closeTaskModal(), []);
   if (!c) {
     return (
       <div className="page-enter">
@@ -151,6 +156,8 @@ export function Sinistro() {
         ))}
       </div>
       <div id="panel">{renderPanel()}</div>
+      {/* Criar/abrir CI do processo sem sair da página (a pedido do usuário). */}
+      <TaskModal />
     </div>
   );
 }

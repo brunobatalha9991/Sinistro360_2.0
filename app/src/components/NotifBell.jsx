@@ -155,7 +155,7 @@ export function NotifLista({ list, onAbrir, selecao, onAlternarSelecao, abrirCIN
     return (
       <div
         key={n.id}
-        className={"notif-item " + (n.read ? "read" : "unread") + (isAgenda ? " agenda" : "") + (n.acompanhamento ? " acompanhamento" : "") + (n.tipo === "escalonamento_ci" ? " escalonamento" : "") + (isDesempenho ? " desempenho" : "") + (n.tratadaEm ? " tratada" : "") + (selecao && selecao.has(n.id) ? " selecionada" : "") + (n.emergencia ? " neon-alert" : "")}
+        className={"notif-item " + (n.read ? "read" : "unread") + (isAgenda ? " agenda" : "") + (n.acompanhamento ? " acompanhamento" : "") + (n.tipo === "escalonamento_ci" ? " escalonamento" : "") + (n.tipo === "mencao" ? " mencao" : "") + (isDesempenho ? " desempenho" : "") + (n.tratadaEm ? " tratada" : "") + (selecao && selecao.has(n.id) ? " selecionada" : "") + (n.emergencia ? " neon-alert" : "")}
         style={n.emergencia ? { "--neon-rgb": "var(--danger-rgb)" } : undefined}
         onClick={() => openItem(n)}
       >
@@ -170,6 +170,7 @@ export function NotifLista({ list, onAbrir, selecao, onAlternarSelecao, abrirCIN
             {n.emergencia && <span className="badge red" style={{ marginRight: 6, fontWeight: 700 }}>EMERGÊNCIA</span>}
             {n.acompanhamento && <span className="badge orange" style={{ marginRight: 6 }}>👁 Acompanhamento</span>}
             {n.tipo === "escalonamento_ci" && <span className="badge purple" style={{ marginRight: 6 }}>Pedido de intervenção</span>}
+            {n.tipo === "mencao" && <span className="badge amber" style={{ marginRight: 6 }}>@ Marcação</span>}
             {titulo}
           </div>
           <div className="nt-sub">{n.text} • {w}</div>

@@ -1,6 +1,6 @@
 import { useData } from "../../data/DataProvider.jsx";
 import { EmptyState } from "../EmptyState.jsx";
-import { setDemandaPrefill } from "../../state/taskModal";
+import { useAbrirCI } from "../../hooks/useAbrirCI";
 import { fmtDateBR, fmtDateHoraBR, txt } from "../../logic/format";
 import { compararTarefasAuto, isTarefaEmergencia, tarefasDoProcesso } from "../../logic/tasks";
 import { labelTipoAtendimento } from "../../logic/solicitacaoPdf";
@@ -9,25 +9,25 @@ import { labelTipoAtendimento } from "../../logic/solicitacaoPdf";
 // a este processo — a pedido do usuário: o vínculo já existia no sentido
 // tarefa → processo (t.processo, com o atalho "🔗 nº do sinistro" no card
 // da tarefa); aqui ele aparece também dentro do processo, pra abrir a
-// comunicação sem precisar procurá-la na lista de Tarefas. "Abrir" leva
-// pro módulo Tarefas com a rota "open-<id>", que abre o modal da tarefa
-// (o TaskModal só é montado lá — ver pages/Tarefas.jsx).
+// comunicação sem precisar procurá-la na lista de Tarefas. "Abrir" e
+// "+ Criar" abrem o modal da CI por cima do processo, sem sair da página
+// (o TaskModal é montado em pages/Sinistro.jsx — ver hooks/useAbrirCI.js).
 function statusCor(s) {
   if (s === "Concluído") return "green";
   if (s === "Em andamento") return "amber";
   return "blue";
 }
 
-export function ComunicacaoInternaPanel({ c, users, navigate, canCriar }) {
+export function ComunicacaoInternaPanel({ c, users, canCriar }) {
   const { records } = useData();
+  const { abrirCI, novaCI } = useAbrirCI();
   const tarefas = tarefasDoProcesso(records.corp_tasks, c.id);
   const abertas = tarefas.filter((t) => t.status !== "Concluído").sort(compararTarefasAuto);
   const concluidas = tarefas.filter((t) => t.status === "Concluído").sort((a, b) => String(b.concludedAt || b.updatedAt || "").localeCompare(String(a.concludedAt || a.updatedAt || "")));
   const nomeUser = (id) => (users || []).find((u) => u.id === id)?.nome || "—";
 
   function criar() {
-    setDemandaPrefill({ titulo: `Processo ${c.numsin || "#" + c.nosnum} — ${txt(c.segurado)}`, descricao: "", processoId: c.id });
-    navigate("tarefas", "newfromdemanda");
+    novaCI({ titulo: `Processo ${c.numsin || "#" + c.nosnum} — ${txt(c.segurado)}`, descricao: "", processoId: c.id });
   }
 
   function Card({ t }) {
@@ -37,7 +37,7 @@ export function ComunicacaoInternaPanel({ c, users, navigate, canCriar }) {
       <div
         className={"task-card " + (t.urgencia || "").toLowerCase() + (emergencia ? " neon-alert" : "")}
         style={{ marginBottom: 0, cursor: "pointer", ...(emergencia ? { "--neon-rgb": "var(--danger-rgb)" } : {}) }}
-        onClick={() => navigate("tarefas", "open-" + t.id)}
+        onClick={() => abrirCI(t.id)}
         title="Abrir esta comunicação interna"
       >
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 8, flexWrap: "wrap" }}>
@@ -61,7 +61,7 @@ export function ComunicacaoInternaPanel({ c, users, navigate, canCriar }) {
               {t.concludedAt && <> • Concluída em {fmtDateHoraBR(t.concludedAt)}</>}
             </div>
           </div>
-          <button className="btn sec xs" onClick={(e) => { e.stopPropagation(); navigate("tarefas", "open-" + t.id); }}>Abrir →</button>
+          <button className="btn sec xs" onClick={(e) => { e.stopPropagation(); abrirCI(t.id); }}>Abrir →</button>
         </div>
       </div>
     );
