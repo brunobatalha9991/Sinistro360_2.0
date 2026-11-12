@@ -154,6 +154,22 @@ describe("CI sem interação dos destinatários", () => {
     expect(verificarAlertasCriador(arq, us, em(95), cfg).alertas).toHaveLength(0);
     expect(verificarAlertasCriador(arq, us, em(100), cfg).alertas).toHaveLength(1);
   });
+  it("mantém um comentário só de escalonamento, com o total de alertas e acionamentos", () => {
+    const us = [...users, { id: "bru", nome: "Bruno Batalha", role: "atendente" }];
+    // CI antiga com 2 comentários de escalonamento já gravados (sem marca).
+    const velho = (min) => ({ id: "c" + min, userId: AUTOR_SISTEMA, sistema: true, at: em(min).toISOString(), text: "⚠️ Comentário automático: 3 alertas seguidos sem interação dos destinatários — Bruno Batalha foi acionado(a) para avaliar um pedido de intervenção." });
+    let tasks = [t({ origem: "ana", destinatarios: ["luiz", "bru"], comments: [velho(1), velho(2), { id: "h", userId: "ana", text: "oi", at: em(0).toISOString() }] })];
+    tasks = verificarAlertasCriador(tasks, us, em(10), cfg).tasks;
+    tasks = verificarAlertasCriador(tasks, us, em(20), cfg).tasks;
+    const r = verificarAlertasCriador(tasks, us, em(30), cfg);
+    expect(r.alertas[0].escalar).toBe(true);
+    const auto = r.tasks[0].comments.filter((c) => c.userId === AUTOR_SISTEMA);
+    expect(auto).toHaveLength(1);
+    expect(auto[0].text).toContain("9 alerta(s)");
+    expect(auto[0].text).toContain("3 acionamento(s)");
+    // O comentário de pessoa continua lá.
+    expect(r.tasks[0].comments.some((c) => c.id === "h")).toBe(true);
+  });
   it("uma interação dos destinatários interrompe a sequência de alertas seguidos", () => {
     const us = [...users, { id: "bru", nome: "Bruno Batalha", role: "atendente" }];
     // 2 alertas já contados na sequência da última interação (ref = criação).

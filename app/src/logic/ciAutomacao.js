@@ -313,6 +313,12 @@ export function usuarioEscalonamentoId(cfg, users) {
   return bruno ? bruno.id : null;
 }
 
+// Comentário automático de escalonamento — os novos levam a marca
+// `automatico: "escalonamento"`; os antigos são reconhecidos pelo texto.
+export function ehComentarioEscalonamento(c) {
+  return !!c && c.userId === AUTOR_SISTEMA && (c.automatico === "escalonamento" || /alertas seguidos sem interação dos destinatários/.test(String(c.text || "")));
+}
+
 export function verificarAlertasCriador(tasks, users, agora, cfg) {
   if (!cfg.ativo) return { tasks, alertas: [] };
   const intervalo = Number(cfg.minutosCriador) || 10;
@@ -348,22 +354,33 @@ export function verificarAlertasCriador(tasks, users, agora, cfg) {
     const desde = t.escalonamentoCI && t.escalonamentoCI.semAutomaticoDesde;
     const bloqueado = !!desde && !(t.comments || []).some((c) => !c.sistema && c.userId !== AUTOR_SISTEMA && String(c.at) > String(desde));
     const escalar = !!escId && contador >= limiteEsc && !bloqueado;
+    // Totais da CI (a pedido do usuário, pro comentário único abaixo): CIs
+    // de antes disso partem do que os comentários antigos já registravam.
+    const antigos = (t.comments || []).filter(ehComentarioEscalonamento);
+    const esc0 = t.escalonamentoCI || {};
+    const totalAlertas = (esc0.totalAlertas != null ? esc0.totalAlertas : antigos.length * limiteEsc) + (devidos - enviados);
+    const acionamentos = (esc0.acionamentos != null ? esc0.acionamentos : antigos.length) + (escalar ? 1 : 0);
     let atualizada = {
       ...t,
       alertaCriador: { chave, enviados: devidos, at },
-      escalonamentoCI: { ...(t.escalonamentoCI || {}), ref, contador: escalar || bloqueado ? 0 : contador, ...(escalar ? { ultimoEm: at, para: escId } : {}) },
+      escalonamentoCI: { ...esc0, ref, contador: escalar || bloqueado ? 0 : contador, totalAlertas, acionamentos, ...(escalar ? { ultimoEm: at, para: escId } : {}) },
     };
     let adicionado = false;
     if (escalar) {
       const nomeEsc = ((users || []).find((u) => u.id === escId) || { nome: "?" }).nome;
       adicionado = !(t.destinatarios || []).includes(escId);
-      const texto = `⚠️ Comentário automático: ${limiteEsc} alertas seguidos sem interação dos destinatários — ${nomeEsc} ${adicionado ? "foi incluído(a) como destinatário(a)" : "foi acionado(a)"} para avaliar um pedido de intervenção.`;
+      const hhmm = `${String(agora.getHours()).padStart(2, "0")}:${String(agora.getMinutes()).padStart(2, "0")}`;
+      const texto = `⚠️ Comentário automático: ${limiteEsc} alertas seguidos sem interação dos destinatários — ${nomeEsc} ${adicionado ? "foi incluído(a) como destinatário(a)" : "foi acionado(a)"} para avaliar um pedido de intervenção.`
+        + `\n📊 Até agora: ${totalAlertas} alerta(s) sem interação nesta CI e ${acionamentos} acionamento(s) para intervenção (último às ${hhmm}).`;
+      // Um comentário só (a pedido do usuário, "fica cheio destes
+      // comentários"): apaga os de escalonamento anteriores e grava o novo
+      // com o total acumulado.
       atualizada = {
         ...atualizada,
         destinatarios: adicionado ? [...(t.destinatarios || []), escId] : (t.destinatarios || []),
         updatedAt: at,
-        comments: [...(t.comments || []), { id: "cmt_" + Math.random().toString(36).slice(2, 9), userId: AUTOR_SISTEMA, sistema: true, text: texto, at }],
-        log: [...(t.log || []), { at, who: null, acao: `Escalonada para ${nomeEsc} após ${limiteEsc} alertas sem interação` }],
+        comments: [...(t.comments || []).filter((c) => !ehComentarioEscalonamento(c)), { id: "cmt_" + Math.random().toString(36).slice(2, 9), userId: AUTOR_SISTEMA, sistema: true, automatico: "escalonamento", text: texto, at }],
+        log: [...(t.log || []), { at, who: null, acao: `Escalonada para ${nomeEsc} após ${limiteEsc} alertas sem interação (${acionamentos}º acionamento, ${totalAlertas} alertas no total)` }],
       };
     }
     alertas.push({ task: atualizada, minutos: devidos * intervalo, ausentes: dests, escalar, escalonadoPara: escalar ? escId : null, adicionado });
