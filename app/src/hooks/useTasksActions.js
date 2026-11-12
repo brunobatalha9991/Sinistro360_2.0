@@ -272,6 +272,27 @@ export function useTasksActions() {
     if (!currentUser) return;
     saveRecord("corp_notifs", (current) => (current || []).map((n) => (n.userId === currentUser.id ? { ...n, read: true } : n)));
   }
+  // Ações em lote do módulo Notificações (a pedido do usuário) — só nas
+  // notificações marcadas, e só nas do próprio usuário.
+  function marcarNotifsLidas(ids, lida) {
+    if (!currentUser || !ids || !ids.length) return;
+    const sel = new Set(ids);
+    saveRecord("corp_notifs", (current) => (current || []).map((n) => (
+      sel.has(n.id) && n.userId === currentUser.id ? { ...n, read: !!lida } : n
+    )));
+  }
+  // "Apagar" esconde da lista (apagadaEm) em vez de remover o registro:
+  // dicas do dia, fechamento do desempenho, alertas de CI e o relatório de
+  // leitura da Comunicação usam as notificações como "já avisei" — remover
+  // de verdade faria esses avisos voltarem.
+  function apagarNotifs(ids) {
+    if (!currentUser || !ids || !ids.length) return;
+    const sel = new Set(ids);
+    const at = new Date().toISOString();
+    saveRecord("corp_notifs", (current) => (current || []).map((n) => (
+      sel.has(n.id) && n.userId === currentUser.id ? { ...n, read: true, apagadaEm: at } : n
+    )));
+  }
 
   // Apaga tarefas concluídas há mais de 15 dias — porte 1:1 de purgeOldTasks().
   function purgeOldTasks() {
@@ -375,7 +396,7 @@ export function useTasksActions() {
 
   return {
     pushNotif, saveTask, createTask, taskInteract, alternarAcompanhamento, considerarInteracao, excluirComentariosAutomaticos, pushAlertaCI, resolverAlertasDaCI, podeConsiderarInteracao, avaliarEscalonamento, cienteRedirecionamento, arquivarManualmente, excluirTarefa, definirOrdemManual,
-    markTaskCiente, markNotifRead, marcarNotifTratada, dismissAlarmeMesa, markAllNotifsRead, purgeOldTasks, gerarOcorrenciasRecorrentes,
+    markTaskCiente, markNotifRead, marcarNotifTratada, dismissAlarmeMesa, markAllNotifsRead, marcarNotifsLidas, apagarNotifs, purgeOldTasks, gerarOcorrenciasRecorrentes,
     intervir, responderIntervencao,
   };
 }

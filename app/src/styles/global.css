@@ -178,6 +178,10 @@ h1,h2,h3,h4{font-family:var(--font-display);letter-spacing:-.01em;color:var(--in
 .notif-item .nt-dot{width:9px;height:9px;border-radius:50%;background:var(--danger);flex-shrink:0;margin-top:5px;box-shadow:0 0 8px rgba(var(--danger-rgb),.8)}
 .notif-item.read .nt-dot{background:var(--muted-soft);box-shadow:none}
 .notif-item .nt-body{flex:1;min-width:0}
+/* Seleção em lote (módulo Notificações). */
+.notif-item .nt-sel{width:16px;height:16px;flex-shrink:0;margin:2px 0 0;cursor:pointer;accent-color:var(--brand)}
+.notif-item.selecionada{outline:2px solid rgba(var(--brand-rgb),.55);outline-offset:-2px}
+.notif-acoes-lote{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
 /* Versões do sistema (Configurações) */
 .versao-form{border:1px solid var(--border);border-radius:12px;padding:14px;background:var(--surface-2);margin-bottom:12px}
 .versao-itens{display:flex;flex-direction:column;gap:6px}

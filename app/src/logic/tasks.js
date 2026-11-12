@@ -267,7 +267,9 @@ export function taskIsStale(t, currentUser) {
 
 export function myNotifs(notifs, currentUser) {
   if (!currentUser) return [];
-  return (notifs || []).filter((n) => n.userId === currentUser.id).sort((a, b) => String(b.at).localeCompare(String(a.at)));
+  // `apagadaEm`: apagada pelo usuário no módulo Notificações — some da lista,
+  // mas o registro fica (outras rotinas usam as notificações como "já avisei").
+  return (notifs || []).filter((n) => n.userId === currentUser.id && !n.apagadaEm).sort((a, b) => String(b.at).localeCompare(String(a.at)));
 }
 export function myUnreadCount(notifs, currentUser) {
   return myNotifs(notifs, currentUser).filter((n) => !n.read).length;

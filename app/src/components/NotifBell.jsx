@@ -95,7 +95,9 @@ function fmtTratada(iso) {
 // Lista de notificações (cards) — a mesma no painel do sino e no módulo
 // Notificações (pages/Notificacoes.jsx). `onAbrir` roda depois de abrir um
 // item (o sino usa pra se fechar).
-export function NotifLista({ list, onAbrir }) {
+// `selecao` (Set de ids) + `onAlternarSelecao` ligam a caixa de seleção de
+// cada card — só o módulo Notificações usa; o sino não passa.
+export function NotifLista({ list, onAbrir, selecao, onAlternarSelecao }) {
   const { records } = useData();
   const { currentUser } = useAuth();
   const { navigate } = useHashRoute();
@@ -140,10 +142,15 @@ export function NotifLista({ list, onAbrir }) {
     return (
       <div
         key={n.id}
-        className={"notif-item " + (n.read ? "read" : "unread") + (isAgenda ? " agenda" : "") + (n.acompanhamento ? " acompanhamento" : "") + (n.tipo === "escalonamento_ci" ? " escalonamento" : "") + (isDesempenho ? " desempenho" : "") + (n.tratadaEm ? " tratada" : "") + (n.emergencia ? " neon-alert" : "")}
+        className={"notif-item " + (n.read ? "read" : "unread") + (isAgenda ? " agenda" : "") + (n.acompanhamento ? " acompanhamento" : "") + (n.tipo === "escalonamento_ci" ? " escalonamento" : "") + (isDesempenho ? " desempenho" : "") + (n.tratadaEm ? " tratada" : "") + (selecao && selecao.has(n.id) ? " selecionada" : "") + (n.emergencia ? " neon-alert" : "")}
         style={n.emergencia ? { "--neon-rgb": "var(--danger-rgb)" } : undefined}
         onClick={() => openItem(n)}
       >
+        {onAlternarSelecao && (
+          <input type="checkbox" className="nt-sel" checked={!!(selecao && selecao.has(n.id))}
+            title="Marcar esta notificação"
+            onClick={(e) => e.stopPropagation()} onChange={() => onAlternarSelecao(n.id)} />
+        )}
         <span className="nt-dot" />
         <div className="nt-body">
           <div className="nt-title">
