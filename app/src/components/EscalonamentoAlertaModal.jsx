@@ -99,8 +99,9 @@ function DetalheTarefa({ task, users, claims, actions, currentUser }) {
   );
 }
 
-function TelaEscalonamento({ task, n, users, claims, actions, currentUser, restantes, onIntervir, onConsiderar, onDispensar, onSoneca }) {
-  const [modo, setModo] = useState(null); // intervir | considerar | dispensar
+function TelaEscalonamento({ task, n, users, claims, actions, currentUser, restantes, onIntervir, onConsiderar, onDispensar, onSoneca, onComentar }) {
+  const [modo, setModo] = useState(null); // intervir | considerar | dispensar | comentar | soneca
+  const [comentados, setComentados] = useState(0);
   const [verTarefa, setVerTarefa] = useState(false);
   const [texto, setTexto] = useState("");
   const [qtd, setQtd] = useState("1");
@@ -140,8 +141,12 @@ function TelaEscalonamento({ task, n, users, claims, actions, currentUser, resta
         </div>
         {verTarefa && <DetalheTarefa task={task} users={users} claims={claims} actions={actions} currentUser={currentUser} />}
 
+        {!modo && comentados > 0 && (
+          <p className="muted" style={{ fontSize: 12.5, marginTop: 12, marginBottom: 0 }}>✓ Comentário enviado para a CI. Agora decida o pedido de intervenção.</p>
+        )}
         {!modo && (
           <div className="escalonamento-acoes">
+            <button type="button" className="btn sec" title="Deixar uma orientação no chat da CI antes de decidir" onClick={() => { setTexto(""); setModo("comentar"); }}>💬 Comentar</button>
             <button type="button" className="btn danger" onClick={() => setModo("intervir")}>🚨 Intervir</button>
             <button type="button" className="btn ok" onClick={() => setModo("considerar")}>✓ Considerar</button>
             <button type="button" className="btn sec" onClick={() => setModo("dispensar")}>Não é preciso intervir</button>
@@ -159,6 +164,18 @@ function TelaEscalonamento({ task, n, users, claims, actions, currentUser, resta
               <button type="button" className="btn sec" onClick={() => setModo(null)}>Voltar</button>
             </div>
             <p className="muted" style={{ fontSize: 12 }}>Nada é decidido: depois do tempo escolhido, os pedidos que continuarem em aberto voltam a aparecer aqui.</p>
+          </div>
+        )}
+
+        {modo === "comentar" && (
+          <div style={{ textAlign: "left", marginTop: 16 }}>
+            <label style={{ fontSize: 13 }}>Comentário comum (vai para o chat da CI, sem resposta obrigatória — use @ para marcar alguém)</label>
+            <textarea autoFocus rows={3} value={texto} onChange={(e) => setTexto(e.target.value)} placeholder="Ex.: Maria, responda o Evanio no WhatsApp e registre aqui." />
+            <p className="muted" style={{ fontSize: 12 }}>Depois de comentar, este pedido continua aberto até você decidir (Intervir, Considerar, Não é preciso intervir ou Soneca).</p>
+            <div className="escalonamento-acoes">
+              <button type="button" className="btn" disabled={!texto.trim()} onClick={() => { onComentar(texto.trim()); setTexto(""); setComentados((c) => c + 1); setModo(null); }}>Enviar comentário</button>
+              <button type="button" className="btn sec" onClick={() => { setModo(null); setTexto(""); }}>Voltar</button>
+            </div>
           </div>
         )}
 
@@ -239,6 +256,7 @@ export function EscalonamentoAlertaModal({ currentUser }) {
       onConsiderar={(min) => { actions.considerarInteracao(task, min, currentUser); actions.avaliarEscalonamento(task, currentUser, "considerada"); }}
       onDispensar={(texto, min) => { actions.considerarInteracao(task, min, currentUser); actions.avaliarEscalonamento(task, currentUser, "dispensada", texto); }}
       onSoneca={(min) => setSonecaAte(gravarSoneca(userId, min))}
+      onComentar={(texto) => actions.comentarCI(task, texto, currentUser)}
     />,
     document.body,
   );

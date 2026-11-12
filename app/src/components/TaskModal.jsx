@@ -348,11 +348,16 @@ function IntervencoesStatus({ task, users }) {
         return (
           <div key={iv.id} style={{ fontSize: 12 }}>
             <span className="badge red">🚨 Intervenção {fmtDataHoraCurta(iv.at)} — {nome(iv.autorId)}</span>{" "}
-            {(iv.alvos || []).map((id) => (
-              <span key={id} className={"badge " + (iv.respostas && iv.respostas[id] ? "green" : "orange")} style={{ marginLeft: 4 }}>
-                {iv.respostas && iv.respostas[id] ? "✓" : "⏳"} {nome(id)}
-              </span>
-            ))}
+            {(iv.alvos || []).map((id) => {
+              const respondeu = iv.respostas && iv.respostas[id];
+              const saiu = !respondeu && iv.dispensas && iv.dispensas[id];
+              return (
+                <span key={id} className={"badge " + (respondeu ? "green" : saiu ? "gray" : "orange")} style={{ marginLeft: 4 }}
+                  title={saiu ? "Saiu sem responder" : undefined}>
+                  {respondeu ? "✓" : saiu ? "↷" : "⏳"} {nome(id)}{saiu ? " (sem resposta)" : ""}
+                </span>
+              );
+            })}
             <span className="muted" style={{ marginLeft: 6 }}>{resp.length}/{(iv.alvos || []).length} responderam</span>
           </div>
         );

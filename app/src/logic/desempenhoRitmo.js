@@ -33,6 +33,7 @@ import { calcularMetricasTodosUsuarios, calcularMetricasUsuario } from "./desemp
 import { todasCIsNormalizadas, metricasCIUsuario } from "./desempenhoCI";
 import { metricasConduta } from "./conduta";
 import { metricasExtras, assiduidade, calcularIndice, pesosDesempenho, nivelDoScore, PILARES } from "./desempenhoPainel";
+import { intervencaoPendenteDe } from "./tasks";
 import { semInteracaoCfg, minutosUteisEntre, limiteSemInteracaoMin } from "./ciAutomacao";
 import { indiceProcessos, entregaNoPeriodo, desempenhoCfg } from "./desempenhoEntrega";
 
@@ -101,7 +102,7 @@ export function impactoPendencias({ claims, overrides, tasks, blocos, feedbacks,
     if (!t || t.arquivadoManualmente) return;
     // Intervenções sem resposta (independe do status da CI).
     (t.intervencoes || []).forEach((iv) => {
-      if ((iv.alvos || []).includes(userId) && !(iv.respostas && iv.respostas[userId])) {
+      if (intervencaoPendenteDe(iv, userId)) {
         itens.push({ key: "iv:" + iv.id, tipo: "intervencao", icone: "🚨", status: "atrasada", dias: 0, pontos: PONTOS_INTERVENCAO, titulo: `Intervenção sem resposta — ${t.titulo || t.ci || "CI"}`, sub: t.ci || "CI", rota: ["tarefas", "open-" + t.id] });
       }
     });

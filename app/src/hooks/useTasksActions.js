@@ -4,6 +4,7 @@ import { isAdmin } from "../data/auth";
 import { resumoHistoricoCI } from "../logic/desempenhoCI";
 import { semInteracaoCfg, usuarioEscalonamentoId, AUTOR_SISTEMA, preservarAutomacaoCI, semUsuariosIA } from "../logic/ciAutomacao";
 import { aplicarAlertaCI, resolverAlertasCI } from "../logic/notificacoes";
+import { mencoesNoTexto } from "../logic/mencoes";
 import { taskParticipants, acompanhantesSemParticipacao, acompanhaTarefa, proximoCI, recorrenciaVencida, recorrenciaEncerrada, gerarOcorrenciaRecorrente } from "../logic/tasks";
 
 export function rotuloDuracao(minutos) {
@@ -405,9 +406,38 @@ export function useTasksActions() {
     notificarAcompanhantes({ ...task, destinatarios: avisar }, `${usuario.nome} respondeu à intervenção na ${task.ci || "CI"}: ${texto.slice(0, 60)}`, usuario.id);
   }
 
+  // Admin/VIP/IA saem da tela de intervenção sem responder (a pedido do
+  // usuário) — fica em iv.dispensas[userId] e na auditoria; a intervenção
+  // deixa de ser pendente pra essa pessoa (ver intervencoesPendentes).
+  function dispensarIntervencao(task, iv, usuario) {
+    if (!usuario || !(isAdmin(usuario) || usuario.ia)) return;
+    const at = new Date().toISOString();
+    saveRecord("corp_tasks", (current) => (current || []).map((t) => {
+      if (t.id !== task.id) return t;
+      return {
+        ...t,
+        intervencoes: (t.intervencoes || []).map((x) => (x.id !== iv.id ? x : { ...x, dispensas: { ...(x.dispensas || {}), [usuario.id]: at } })),
+        log: [...(t.log || []), { at, who: usuario.id, acao: `${usuario.nome} saiu da intervenção sem responder` }],
+      };
+    }));
+  }
+
+  // Comentário comum na CI fora do modal da tarefa (ex.: na tela de pedido
+  // de intervenção) — mesmo efeito do chat da CI, inclusive marcações "@".
+  function comentarCI(task, texto, autor) {
+    const t = String(texto || "").trim();
+    if (!t || !autor) return;
+    const atual = (records.corp_tasks || []).find((x) => x.id === task.id) || task;
+    const mencoes = mencoesNoTexto(t, records.corp_users || []).filter((id) => id !== autor.id);
+    const next = { ...atual, comments: [...(atual.comments || []), { id: "cmt_" + Math.random().toString(36).slice(2, 9), userId: autor.id, text: t, at: new Date().toISOString(), ...(mencoes.length ? { mencoes } : {}) }] };
+    saveTask(next);
+    taskInteract(next, `${autor.nome} comentou: ${t.slice(0, 40)}`, autor.id, false, undefined, mencoes);
+    if (mencoes.length) notificarMencoes(next, mencoes, autor, t);
+  }
+
   return {
     pushNotif, saveTask, createTask, taskInteract, alternarAcompanhamento, considerarInteracao, excluirComentariosAutomaticos, pushAlertaCI, resolverAlertasDaCI, podeConsiderarInteracao, avaliarEscalonamento, cienteRedirecionamento, arquivarManualmente, excluirTarefa, definirOrdemManual,
-    markTaskCiente, markNotifRead, marcarNotifTratada, dismissAlarmeMesa, markAllNotifsRead, notificarMencoes, marcarNotifsLidas, apagarNotifs, purgeOldTasks, gerarOcorrenciasRecorrentes,
+    markTaskCiente, markNotifRead, marcarNotifTratada, dismissAlarmeMesa, markAllNotifsRead, notificarMencoes, dispensarIntervencao, comentarCI, marcarNotifsLidas, apagarNotifs, purgeOldTasks, gerarOcorrenciasRecorrentes,
     intervir, responderIntervencao,
   };
 }

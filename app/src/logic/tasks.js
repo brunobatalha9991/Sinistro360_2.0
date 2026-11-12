@@ -284,6 +284,12 @@ export function demandaUnreadCount(demandas) {
 // Fica em t.intervencoes = [{ id, autorId, texto, at, alvos, respostas }],
 // com respostas[userId] = { texto, at }. Pendentes = intervenções em que o
 // usuário é alvo e ainda não respondeu (mais antigas primeiro).
+// Alvo que não respondeu nem saiu sem responder (iv.dispensas[userId] —
+// Admin/VIP/IA podem sair da tela sem responder, ver dispensarIntervencao).
+export function intervencaoPendenteDe(iv, userId) {
+  return !!iv && (iv.alvos || []).includes(userId) && !(iv.respostas && iv.respostas[userId]) && !(iv.dispensas && iv.dispensas[userId]);
+}
+
 // `opts.ia` = o usuário tem o botão "IA" (ver ehUsuarioIA em
 // logic/ciAutomacao.js): nunca tem intervenção pendente pra responder.
 export function intervencoesPendentes(tasks, userId, opts) {
@@ -292,7 +298,7 @@ export function intervencoesPendentes(tasks, userId, opts) {
   (tasks || []).forEach((t) => {
     if (!t || t.arquivadoManualmente) return;
     (t.intervencoes || []).forEach((iv) => {
-      if ((iv.alvos || []).includes(userId) && !(iv.respostas && iv.respostas[userId])) out.push({ task: t, iv });
+      if (intervencaoPendenteDe(iv, userId)) out.push({ task: t, iv });
     });
   });
   return out.sort((a, b) => String(a.iv.at).localeCompare(String(b.iv.at)));

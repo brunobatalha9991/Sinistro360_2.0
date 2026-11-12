@@ -17,6 +17,7 @@ import {
 import { responsavelVigenteEm } from "./responsabilidade";
 import { dataLocalISO, addDias, hhmmToMin } from "./agenda";
 import { feitoPor, CANAL_IMPORTADO } from "./autoria";
+import { intervencaoPendenteDe } from "./tasks";
 
 // ---------- pesos e níveis ----------
 // v4 (2026-10-29, estudo a pedido do usuário): a v3 não media produção nem
@@ -274,7 +275,7 @@ export function filaDoDia({ claims, overrides, tasks, userId, atendTemplateCfg, 
   (tasks || []).forEach((t) => {
     if (!t || t.arquivadoManualmente) return;
     (t.intervencoes || []).forEach((iv) => {
-      if ((iv.alvos || []).includes(userId) && !(iv.respostas && iv.respostas[userId])) {
+      if (intervencaoPendenteDe(iv, userId)) {
         itens.push({ key: "iv" + iv.id, prioridade: 0, tipo: "intervencao", icone: "🚨", titulo: `Intervenção: ${t.titulo}`, sub: `${t.ci || "CI"} • responder agora`, rota: ["tarefas", "open-" + t.id] });
       }
     });

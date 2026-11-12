@@ -4,11 +4,13 @@ import { useData } from "../data/DataProvider.jsx";
 import { useTasksActions } from "../hooks/useTasksActions";
 import { notificacaoSuportada } from "../hooks/useAgendaAlarme";
 import { intervencoesPendentes } from "../logic/tasks";
+import { isAdmin } from "../data/auth";
 
 // Intervenção de Admin/VIP numa CI (ver intervencoesPendentes em
 // logic/tasks.js) — a pedido do usuário, cada destinatário é obrigado a
-// responder com um comentário: a tela fica travada até a resposta, sem
-// outra saída. A resposta entra no chat da CI.
+// responder com um comentário: a tela fica travada até a resposta. A
+// resposta entra no chat da CI. Exceção: Admin/VIP/IA podem sair sem
+// responder (dispensarIntervencao).
 const MIN_CHARS = 5;
 
 function fmtDataHora(iso) {
@@ -16,8 +18,9 @@ function fmtDataHora(iso) {
   return `${String(d.getDate()).padStart(2, "0")}/${String(d.getMonth() + 1).padStart(2, "0")} ${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
 }
 
-function TelaIntervencao({ task, iv, autor, restantes, onResponder }) {
+function TelaIntervencao({ task, iv, autor, restantes, onResponder, onSair }) {
   const [texto, setTexto] = useState("");
+  const [saindo, setSaindo] = useState(false);
   const ok = texto.trim().length >= MIN_CHARS;
   return (
     <div className="alarme-geral-overlay intervencao-alerta" style={{ "--alarm-rgb": "var(--danger-rgb)" }} role="alertdialog" aria-modal="true">
@@ -37,9 +40,21 @@ function TelaIntervencao({ task, iv, autor, restantes, onResponder }) {
           <label style={{ fontSize: 13 }}>Sua resposta (vai para o chat da CI)</label>
           <textarea autoFocus rows={3} value={texto} onChange={(e) => setTexto(e.target.value)} placeholder={`Escreva pelo menos ${MIN_CHARS} caracteres...`} />
         </div>
-        <div style={{ marginTop: 14 }}>
+        <div style={{ marginTop: 14, display: "flex", gap: 8, justifyContent: "center", flexWrap: "wrap" }}>
           <button type="button" className="btn" disabled={!ok} onClick={() => onResponder(texto.trim())}>Responder</button>
+          {onSair && !saindo && (
+            <button type="button" className="btn sec" title="Administrador, VIP e IA podem sair sem responder" onClick={() => setSaindo(true)}>Sair sem responder</button>
+          )}
         </div>
+        {onSair && saindo && (
+          <div style={{ marginTop: 12 }}>
+            <p className="muted" style={{ fontSize: 12.5, margin: "0 0 8px" }}>A intervenção deixa de ficar pendente para você. Fica registrado na auditoria da CI que você saiu sem responder.</p>
+            <div style={{ display: "flex", gap: 8, justifyContent: "center" }}>
+              <button type="button" className="btn sec" onClick={onSair}>Confirmar saída</button>
+              <button type="button" className="btn sec" onClick={() => setSaindo(false)}>Voltar</button>
+            </div>
+          </div>
+        )}
         {restantes > 0 && <p className="muted" style={{ fontSize: 12, marginTop: 14, marginBottom: 0 }}>+ {restantes} intervenção(ões) na fila depois desta.</p>}
       </div>
     </div>
@@ -73,6 +88,7 @@ export function IntervencaoAlertaModal({ currentUser }) {
     <TelaIntervencao
       key={iv.id} task={task} iv={iv} autor={autor} restantes={pendentes.length - 1}
       onResponder={(texto) => actions.responderIntervencao(task, iv, texto, currentUser)}
+      onSair={isAdmin(currentUser) || currentUser.ia ? () => actions.dispensarIntervencao(task, iv, currentUser) : null}
     />,
     document.body,
   );

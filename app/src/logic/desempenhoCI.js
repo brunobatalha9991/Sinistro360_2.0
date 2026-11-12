@@ -51,7 +51,8 @@ export function normalizarCI(t) {
     createdAt: t.createdAt, concludedAt: t.status === "Concluído" ? (t.concludedAt || null) : null,
     arquivadaManual: !!t.arquivadoManualmente, concluidoPor, por,
     intervencoes: (t.intervencoes || []).map((iv) => ({
-      at: iv.at, alvos: iv.alvos || [],
+      // Quem saiu sem responder (Admin/VIP/IA) não conta como intervenção recebida.
+      at: iv.at, alvos: (iv.alvos || []).filter((id) => !(iv.dispensas && iv.dispensas[id])),
       respostas: Object.fromEntries(Object.entries(iv.respostas || {}).map(([k, v]) => [k, v && v.at])),
     })),
     generalizadaAusencia: Object.keys(t.generalizadaAusencia || {}),
