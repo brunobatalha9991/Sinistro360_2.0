@@ -65,6 +65,45 @@ describe("relatorioSinistros", () => {
     expect(out.map((x) => x.id)).toEqual(["a9", "a1", "h", "p2", "p", "s"]);
   });
 
+  it("filtra por operador (individual), seguradora e tipo", () => {
+    const claims = [claim("a", { partyType: "Terceiro" }), claim("b", { cia: "AZUL" }), claim("c")];
+    const overrides = { a: ov("Maria", "2026-10-01", "Grave"), b: ov("Maria", "2026-11-20", ""), c: ov("George", "2026-11-12", "") };
+    const tasks = [
+      { id: "t1", ci: "CI-1", destinatarios: ["m"], status: "Pendente", createdAt: "2026-11-12T10:00:00.000Z" },
+      { id: "t2", ci: "CI-2", destinatarios: ["g"], status: "Pendente", createdAt: "2026-11-12T10:00:00.000Z" },
+    ];
+    const users = [{ id: "m", nome: "Maria" }, { id: "g", nome: "George" }];
+    const ind = montarRelatorioSinistros({ claims, overrides, tasks, users, agora, filtros: { responsavel: "Maria" } });
+    expect(ind.total.processos).toBe(2);
+    expect(ind.filtrado).toBe(true);
+    expect(ind.cis.map((c) => c.ci)).toEqual(["CI-1"]);
+    expect(ind.opcoes.responsaveis).toEqual(["George", "Maria"]);
+    expect(montarRelatorioSinistros({ claims, overrides, tasks, users, agora, filtros: { seguradora: "PORTO" } }).total.processos).toBe(1);
+    expect(montarRelatorioSinistros({ claims, overrides, tasks, users, agora, filtros: { tipo: "terceiro" } }).linhas.map((l) => l.id)).toEqual(["a"]);
+    expect(montarRelatorioSinistros({ claims, overrides, tasks, users, agora, filtros: { responsavel: "todos" } }).filtrado).toBe(false);
+  });
+
+  it("resume o dia do agente de IA (usuário com u.ia)", () => {
+    const hoje = (h) => new Date(2026, 10, 12, h, 0).toISOString();
+    const tasks = [
+      { id: "t1", ci: "CI-1", titulo: "A", origem: "ia", destinatarios: ["m"], status: "Pendente", createdAt: hoje(9),
+        comments: [{ id: "c1", userId: "ia", text: "orientação", at: hoje(10) }],
+        intervencoes: [{ id: "iv1", autorId: "ia", at: hoje(11), alvos: ["m"], respostas: {} }] },
+      { id: "t2", ci: "CI-2", titulo: "B", origem: "ia", destinatarios: ["m"], status: "Concluído", createdAt: hoje(8), concludedAt: hoje(12) },
+      { id: "t3", ci: "CI-3", titulo: "C", origem: "m", destinatarios: ["ia"], status: "Pendente", createdAt: "2026-11-01T10:00:00.000Z" },
+    ];
+    const users = [{ id: "ia", nome: "Agente IA", ia: true }, { id: "m", nome: "Maria" }];
+    const rel = montarRelatorioSinistros({ claims: [], tasks, users, agora });
+    expect(rel.agentesIA).toHaveLength(1);
+    const a = rel.agentesIA[0];
+    expect(a.cisAbertasHoje).toBe(2);
+    expect(a.cisConcluidasHoje).toBe(1);
+    expect(a.cisEmAberto).toBe(1);
+    expect(a.intervencoesHoje).toBe(1);
+    expect(a.comentariosHoje).toBe(1);
+    expect(montarRelatorioSinistros({ claims: [], tasks, users: [{ id: "m", nome: "Maria" }], agora }).agentesIA).toEqual([]);
+  });
+
   it("grava a leitura do dia e compara com a anterior", () => {
     const claims = [claim("a")];
     const overrides = { a: ov("Maria", "2026-10-01", "Grave") };

@@ -4,7 +4,7 @@ import { useAuth } from "../../hooks/useAuth";
 import { visibleClaims } from "../../logic/claims";
 import { fmtDateBR, fmtDateHoraBR } from "../../logic/format";
 import {
-  montarRelatorioSinistros, gravarLeitura, CHAVE_LEITURAS, NOTA_SEGURADORAS, SEM_RESPONSAVEL, rotuloTermometro,
+  montarRelatorioSinistros, gravarLeitura, CHAVE_LEITURAS, NOTA_SEGURADORAS, SEM_RESPONSAVEL, rotuloTermometro, TIPOS_FILTRO,
 } from "../../logic/relatorioSinistros";
 import { RelatorioHeader } from "./RelatorioBase.jsx";
 import { useImpressaoRelatorio } from "../../hooks/useImpressaoRelatorio";
@@ -86,6 +86,9 @@ export function RelatorioSinistros({ onVoltar }) {
   const { currentUser } = useAuth();
   const [agora, setAgora] = useState(() => new Date());
   const [gravado, setGravado] = useState("");
+  // Filtros (global ou individual): operador, seguradora e tipo.
+  const [filtros, setFiltros] = useState({ responsavel: "todos", seguradora: "todos", tipo: "todos" });
+  const setFiltro = (k) => (e) => setFiltros((f) => ({ ...f, [k]: e.target.value }));
   const { printing, imprimir } = useImpressaoRelatorio();
   const overrides = records.corp_overrides || {};
   const leituras = config[CHAVE_LEITURAS];
@@ -94,8 +97,15 @@ export function RelatorioSinistros({ onVoltar }) {
     claims: visibleClaims(records.corp_claims, overrides, currentUser),
     overrides, tasks: records.corp_tasks, users: records.corp_users,
     atendTemplate: config.corp_atendimento_template, templates: config.corp_journey_templates || {},
-    agora, leituras,
-  }), [records.corp_claims, records.corp_tasks, records.corp_users, overrides, currentUser, config.corp_atendimento_template, config.corp_journey_templates, agora, leituras]);
+    agora, leituras, filtros,
+    feedbacksAgenda: records.corp_agenda_feedback, claimsTodos: records.corp_claims,
+  }), [records.corp_claims, records.corp_tasks, records.corp_users, records.corp_agenda_feedback, overrides, currentUser, config.corp_atendimento_template, config.corp_journey_templates, agora, leituras, filtros]);
+
+  const recorte = [
+    filtros.responsavel !== "todos" ? filtros.responsavel : null,
+    filtros.seguradora !== "todos" ? `Seguradora ${filtros.seguradora}` : null,
+    filtros.tipo !== "todos" ? (TIPOS_FILTRO.find((x) => x[0] === filtros.tipo) || [])[1] : null,
+  ].filter(Boolean);
 
   const t = rel.total;
   const ind = rel.indicadores;
@@ -129,16 +139,47 @@ export function RelatorioSinistros({ onVoltar }) {
         titulo={TITULO} descricao="Fotografia dos processos em aberto, demanda por operador, alertas, CIs e previsto para o próximo dia útil — gerado com os dados atuais do sistema."
         onVoltar={onVoltar} onPdf={imprimir} desabilitado={!t.processos}
       />
+      <div className="card rs-filtros">
+        <div className="field">
+          <label>Operador</label>
+          <select value={filtros.responsavel} onChange={setFiltro("responsavel")}>
+            <option value="todos">Todos (global)</option>
+            {rel.opcoes.responsaveis.map((r) => <option key={r} value={r}>{r}</option>)}
+          </select>
+        </div>
+        <div className="field">
+          <label>Seguradora</label>
+          <select value={filtros.seguradora} onChange={setFiltro("seguradora")}>
+            <option value="todos">Todas</option>
+            {rel.opcoes.seguradoras.map((s) => <option key={s} value={s}>{s}</option>)}
+          </select>
+        </div>
+        <div className="field">
+          <label>Tipo</label>
+          <select value={filtros.tipo} onChange={setFiltro("tipo")}>
+            <option value="todos">Todos</option>
+            {TIPOS_FILTRO.map(([k, l]) => <option key={k} value={k}>{l}</option>)}
+          </select>
+        </div>
+        {rel.filtrado && (
+          <button type="button" className="btn ghost sm" onClick={() => setFiltros({ responsavel: "todos", seguradora: "todos", tipo: "todos" })}>Limpar filtros</button>
+        )}
+      </div>
       <div className="rs-acoes">
         <button type="button" className="btn sec sm" onClick={atualizar}>🔄 Atualizar leitura</button>
-        <button type="button" className="btn sec sm" onClick={gravar} title="Guarda os números de hoje para a comparação da próxima emissão">💾 Gravar leitura de hoje</button>
+        <button type="button" className="btn sec sm" onClick={gravar} disabled={rel.filtrado}
+          title={rel.filtrado ? "A leitura gravada é sempre a global — limpe os filtros para gravar" : "Guarda os números de hoje para a comparação da próxima emissão"}
+        >💾 Gravar leitura de hoje</button>
         {gravado && <span className="muted" style={{ fontSize: 12.5 }}>✓ {gravado}</span>}
       </div>
 
       <div className="rs-relatorio">
         <header className="rs-cabecalho">
-          <h2>Relatório de Sinistros – {hojeBR}</h2>
-          <div className="rs-sub">Leitura do Sinistro360 às {hora}{currentUser && currentUser.nome ? ` por ${currentUser.nome}` : ""} ({t.processos} processos em aberto). Prazos contados até {hojeBR}.</div>
+          <h2>Relatório de Sinistros{recorte.length ? ` – ${recorte.join(" • ")}` : ""} – {hojeBR}</h2>
+          <div className="rs-sub">
+            Leitura do Sinistro360 às {hora}{currentUser && currentUser.nome ? ` por ${currentUser.nome}` : ""} ({t.processos} processos em aberto). Prazos contados até {hojeBR}.
+            {" "}{recorte.length ? <b>Recorte: {recorte.join(" • ")}.</b> : "Relatório global (sem filtros)."}
+          </div>
         </header>
 
         <div className="rs-cards">
@@ -232,7 +273,11 @@ export function RelatorioSinistros({ onVoltar }) {
               </tbody>
             </table>
           ) : (
-            <div className="muted rs-vazio">Ainda não há leitura gravada de um dia anterior. Use "💾 Gravar leitura de hoje" ao fim do dia — a próxima emissão compara com ela.</div>
+            <div className="muted rs-vazio">
+              {rel.filtrado && (filtros.seguradora !== "todos" || filtros.tipo !== "todos")
+                ? "A comparação existe no relatório global e no individual por operador (sem filtro de seguradora ou tipo) — a leitura gravada é a global."
+                : "Ainda não há leitura gravada de um dia anterior. Use \"💾 Gravar leitura de hoje\" (no relatório global) ao fim do dia — a próxima emissão compara com ela."}
+            </div>
           )}
         </Secao>
 
@@ -257,6 +302,39 @@ export function RelatorioSinistros({ onVoltar }) {
               </tbody>
             </table>
           ) : <div className="muted rs-vazio">Nenhum processo com próxima ação nesse dia.</div>}
+        </Secao>
+
+        <Secao titulo={`Desempenho do agente de IA — ${hojeBR}`}>
+          {!rel.agentesIA.length ? (
+            <div className="muted rs-vazio">Nenhum usuário marcado como IA. Marque o agente em Configurações → Usuários → "Conceder IA" para ele aparecer aqui.</div>
+          ) : rel.agentesIA.map((a) => (
+            <div key={a.id} className="rs-operador">
+              <h4 className="rs-subtitulo">🤖 {a.nome}: {a.totalAcoes} ação(ões) hoje em {a.processosTocados} processo(s)</h4>
+              <div className="rs-cards">
+                {[[a.cisAbertasHoje, "CIs abertas hoje"], [a.cisConcluidasHoje, "CIs dele concluídas hoje"], [a.cisEmAberto, "CIs dele em aberto"],
+                  [a.intervencoesHoje, "Intervenções solicitadas"], [a.comentariosHoje, "Comentários em CIs"]]
+                  .map(([v, l]) => <div key={l} className="rs-card"><b>{v}</b><span>{l}</span></div>)}
+              </div>
+              <Contagens itens={a.porGrupo.map((g) => [`${g.icone} ${g.label}`, g.qtd])} />
+              <h4 className="rs-subtitulo">Últimas ações ({Math.min(a.ultimas.length, a.totalAcoes)} de {a.totalAcoes})</h4>
+              {a.ultimas.length ? (
+                <table className="rs-tab">
+                  <thead><tr><th>Hora</th><th>Ação</th><th>Onde</th><th>Detalhe</th></tr></thead>
+                  <tbody>
+                    {a.ultimas.map((x, i) => (
+                      <tr key={i}>
+                        <td className="nowrap mono">{fmtDateHoraBR(x.at)}</td>
+                        <td>{x.icone} {x.titulo}</td>
+                        <td>{x.alvo || "—"}</td>
+                        <td className="rs-hist">{x.detalhe || "—"}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              ) : <div className="muted rs-vazio">Nenhuma ação registrada hoje.</div>}
+            </div>
+          ))}
+          <p className="rs-nota">Esta seção é sempre global (não segue os filtros acima). Mesma fonte do módulo Desempenho: históricos, jornada, próxima ação e demais atualizações nos processos, e abertura, comentários e mudanças nas CIs.</p>
         </Secao>
 
         <footer className="rs-rodape">Sinistro360 • Relatório de Sinistros • gerado em {fmtDateHoraBR(rel.geradoEm)}</footer>

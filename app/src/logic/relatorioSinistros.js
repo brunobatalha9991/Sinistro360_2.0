@@ -3,6 +3,7 @@ import {
   situacaoEfetiva, currentStage, diasEmAberto, tempoNaEtapaAtual,
 } from "./claims";
 import { ultimoHistorico } from "./relatorioAcompanhamento";
+import { atividadesDoUsuario, GRUPOS_ATIVIDADE } from "./desempenhoAtividades";
 
 // Relatório de Sinistros (a pedido do usuário, modelo do PDF "edição da
 // noite" de 12/11/2026): fotografia dos processos em aberto com prazos,
@@ -160,9 +161,11 @@ export function cisEmAberto(tasks, users) {
     .map((t) => {
       let ultima = t.updatedAt || t.createdAt || "";
       (t.comments || []).forEach((cm) => { if (cm.at && String(cm.at) > ultima) ultima = String(cm.at); });
+      const destinatarioNomes = (t.destinatarios || []).map(nome);
       return {
         id: t.id, ci: t.ci || "—", assunto: t.titulo || "", tipo: t.tipo || "",
-        responsavel: (t.destinatarios || []).map(nome).join(", ") || "—",
+        destinatarioNomes,
+        responsavel: destinatarioNomes.join(", ") || "—",
         abertaEm: t.createdAt || "", ultima,
       };
     })
@@ -211,10 +214,58 @@ export function comparativo(rel, anterior) {
   return { data: anterior.data, at: anterior.at, linhas: out };
 }
 
-export function montarRelatorioSinistros({ claims, overrides = {}, tasks, users, atendTemplate, templates = {}, agora = new Date(), leituras }) {
+// Desempenho do agente de IA no dia (a pedido do usuário, fim do
+// relatório): para cada usuário com o botão "IA" (Configurações →
+// Usuários, u.ia), o que ele fez hoje — CIs abertas/concluídas/em aberto,
+// intervenções solicitadas, atividades por tipo e as últimas ações. Usa a
+// mesma linha do tempo do módulo Desempenho (atividadesDoUsuario). Não
+// depende dos filtros do relatório.
+const MAX_ACOES_IA = 30;
+export function desempenhoAgentesIA({ claims, overrides, tasks, users, feedbacksAgenda, hojeISO }) {
+  return (users || []).filter((u) => u && u.ia).map((u) => {
+    const atividades = atividadesDoUsuario({ claims, overrides, tasks, feedbacksAgenda, usuario: { id: u.id, nome: u.nome }, deISO: hojeISO, ateISO: hojeISO });
+    const doDia = (iso) => !!iso && dataLocalISO(new Date(iso)) === hojeISO;
+    const criadas = (tasks || []).filter((t) => t && t.origem === u.id);
+    const porGrupo = GRUPOS_ATIVIDADE.map((g) => ({ ...g, qtd: atividades.filter((a) => a.grupo === g.key).length }));
+    const processos = new Set(atividades.filter((a) => a.rota && a.rota[0] === "sinistro").map((a) => a.rota[1])).size;
+    return {
+      id: u.id, nome: u.nome,
+      cisAbertasHoje: criadas.filter((t) => doDia(t.createdAt)).length,
+      cisConcluidasHoje: criadas.filter((t) => t.status === "Concluído" && doDia(t.concludedAt)).length,
+      cisEmAberto: criadas.filter((t) => t.status !== "Concluído" && !t.arquivadoManualmente).length,
+      intervencoesHoje: (tasks || []).reduce((s, t) => s + ((t && t.intervencoes) || []).filter((iv) => iv.autorId === u.id && doDia(iv.at)).length, 0),
+      comentariosHoje: atividades.filter((a) => a.grupo === "ci" && a.titulo === "Comentou na CI").length,
+      totalAcoes: atividades.length,
+      processosTocados: processos,
+      porGrupo,
+      ultimas: atividades.slice(0, MAX_ACOES_IA),
+    };
+  });
+}
+
+// Filtros (a pedido do usuário — relatório global ou individual):
+// { responsavel, seguradora, tipo }; vazio/"todos" = sem filtro.
+export const TIPOS_FILTRO = [["segurado", "Segurado"], ["terceiro", "Terceiro"], ["atendimento", "Atendimento"]];
+const ativo = (v) => !!v && v !== "todos";
+export function filtrosAtivos(f) {
+  return !!f && (ativo(f.responsavel) || ativo(f.seguradora) || ativo(f.tipo));
+}
+
+export function montarRelatorioSinistros({ claims, overrides = {}, tasks, users, atendTemplate, templates = {}, agora = new Date(), leituras, filtros, feedbacksAgenda, claimsTodos }) {
   const hojeISO = dataLocalISO(agora);
   const abertos = (claims || []).filter((c) => processoEmAberto(overrides, c, atendTemplate, templates));
-  const linhas = abertos.map((c) => linhaProcesso({ overrides, c, atendTemplate, templates, hojeISO, agora }));
+  const todasLinhas = abertos.map((c) => linhaProcesso({ overrides, c, atendTemplate, templates, hojeISO, agora }));
+  const f = filtros || {};
+  // Opções dos filtros saem do conjunto completo (não somem ao filtrar).
+  const opcoes = {
+    responsaveis: [...new Set(todasLinhas.map((l) => l.responsavel))]
+      .sort((a, b) => (a === SEM_RESPONSAVEL) - (b === SEM_RESPONSAVEL) || a.localeCompare(b, "pt-BR")),
+    seguradoras: [...new Set(todasLinhas.map((l) => l.seguradora))].sort((a, b) => a.localeCompare(b, "pt-BR")),
+  };
+  const linhas = todasLinhas.filter((l) =>
+    (!ativo(f.responsavel) || l.responsavel === f.responsavel)
+    && (!ativo(f.seguradora) || l.seguradora === f.seguradora)
+    && (!ativo(f.tipo) || l.tipoKey === f.tipo));
   const total = resumoGrupo(linhas);
 
   // Operadores: mais processos primeiro; "Sem responsável" por último.
@@ -246,7 +297,8 @@ export function montarRelatorioSinistros({ claims, overrides = {}, tasks, users,
   const emAtencao = ordenarDemanda(linhas.filter((l) => l.termometro === "atencao"));
   const atrasados30 = linhas.filter((l) => l.prazo === "atrasado" && l.diasAtraso > 30).sort((a, b) => b.diasAtraso - a.diasAtraso);
 
-  const cis = cisEmAberto(tasks, users);
+  // Individual: só as CIs em que o operador é destinatário.
+  const cis = cisEmAberto(tasks, users).filter((c) => !ativo(f.responsavel) || c.destinatarioNomes.includes(f.responsavel));
   const cisPorResponsavel = contagemOrdenada(cis, (c) => c.responsavel);
 
   const amanha = proximoDiaUtil(hojeISO);
@@ -258,13 +310,24 @@ export function montarRelatorioSinistros({ claims, overrides = {}, tasks, users,
   }));
 
   const rel = {
-    hojeISO, geradoEm: agora.toISOString(), linhas, total, indicadores, operadores,
+    hojeISO, geradoEm: agora.toISOString(), linhas, total, indicadores, operadores, filtros: f, opcoes, filtrado: filtrosAtivos(f),
     porSeguradora: contagemOrdenada(linhas, (l) => l.seguradora),
     porEtapa: contagemOrdenada(linhas, (l) => l.etapa),
     alertas: { graves, emAtencao, atrasados30 },
     cis, cisPorResponsavel,
     previsto: { data: amanha, linhas: previstos, porOperador: previstoPorOperador },
+    agentesIA: desempenhoAgentesIA({ claims: claimsTodos || claims, overrides, tasks, users, feedbacksAgenda, hojeISO }),
   };
-  rel.comparativo = comparativo(rel, leituraAnterior(leituras, hojeISO));
+  // A leitura gravada é sempre a global. Global: compara tudo. Só operador
+  // escolhido: compara os atrasados dele. Outros recortes não têm base.
+  const anterior = leituraAnterior(leituras, hojeISO);
+  if (!rel.filtrado) rel.comparativo = comparativo(rel, anterior);
+  else if (ativo(f.responsavel) && !ativo(f.seguradora) && !ativo(f.tipo) && anterior) {
+    const antes = ((anterior.ind || {}).porOperador || {})[f.responsavel];
+    rel.comparativo = {
+      data: anterior.data, at: anterior.at,
+      linhas: [{ label: `Atrasados de ${f.responsavel}`, antes: antes == null ? null : antes, agora: total.atrasados, variacao: antes == null ? null : total.atrasados - antes }],
+    };
+  } else rel.comparativo = null;
   return rel;
 }

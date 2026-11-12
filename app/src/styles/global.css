@@ -906,6 +906,8 @@ tr:hover td{background:var(--surface-2)}
    modelo "edição da noite" — faixas pretas de seção, tabelas com borda e
    selos de termômetro/prazo. A mesma página vai pro PDF. */
 .rs-acoes{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin:-4px 0 12px}
+.rs-filtros{display:flex;gap:12px;flex-wrap:wrap;align-items:flex-end;padding:12px 14px}
+.rs-filtros .field{min-width:180px;margin:0}
 .rs-relatorio{background:var(--card-solid);border:1px solid var(--border);border-radius:14px;padding:18px;color:var(--ink)}
 .rs-cabecalho h2{margin:0;font-size:22px;font-family:var(--font-display)}
 .rs-sub{font-size:11.5px;color:var(--muted)}
@@ -936,7 +938,7 @@ tr:hover td{background:var(--surface-2)}
 .rs-melhor{color:#15803d;font-weight:700}
 .rs-rodape{margin-top:16px;font-size:10.5px;color:var(--muted);text-align:center}
 @media print{
-  .rs-acoes,.rs-imprimindo .page-head{display:none!important}
+  .rs-acoes,.rs-filtros,.rs-imprimindo .page-head{display:none!important}
   .rs-relatorio{border:0;padding:0;border-radius:0}
   .rs-sec-titulo{background:#111!important;color:#fff!important;break-after:avoid;page-break-after:avoid}
   .rs-subtitulo{break-after:avoid;page-break-after:avoid}
