@@ -34,7 +34,7 @@ function PageLoading() {
 
 function App() {
   const { mode } = useData();
-  const { currentUser, currentRole, login, logout } = useAuth();
+  const { currentUser, currentRole, login, logout, usuariosProntos } = useAuth();
   const { theme, toggleTheme } = useTheme();
   const { route, param, navigate } = useHashRoute();
   useAutoSyncDemandas(currentUser);
@@ -46,7 +46,7 @@ function App() {
   }, [currentUser, allowedRoute, route, navigate]);
 
   if (!currentUser) {
-    return <LoginScreen onLogin={login} />;
+    return <LoginScreen onLogin={login} conectando={!usuariosProntos} />;
   }
 
   const menuItem = MENU.find((m) => m[0] === allowedRoute);

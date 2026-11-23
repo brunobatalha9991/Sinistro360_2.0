@@ -1,7 +1,10 @@
 import { useRef, useState } from "react";
 import { Icon } from "./icons.jsx";
 
-export function LoginScreen({ onLogin }) {
+// `conectando`: a lista de usuários ainda não chegou do servidor. Dá pra
+// digitar e clicar em Entrar normalmente — o login espera a lista chegar
+// (ver aguardarUsuario em hooks/useAuth.js) em vez de acusar senha errada.
+export function LoginScreen({ onLogin, conectando }) {
   const [email, setEmail] = useState("");
   const [senha, setSenha] = useState("");
   const [error, setError] = useState("");
@@ -57,8 +60,13 @@ export function LoginScreen({ onLogin }) {
         </div>
         {error && <div className="status err">{error}</div>}
         <button className="btn" style={{ width: "100%", marginTop: 8, padding: 11 }} onClick={tentar} disabled={loading}>
-          {loading ? "Entrando..." : "Entrar"}
+          {loading ? (conectando ? "Conectando ao servidor..." : "Entrando...") : "Entrar"}
         </button>
+        {conectando && (
+          <p className="muted" style={{ textAlign: "center", fontSize: 12, margin: "10px 0 0" }}>
+            ⏳ Conectando ao servidor… você já pode entrar; o acesso conclui assim que a conexão terminar.
+          </p>
+        )}
       </div>
     </div>
   );
